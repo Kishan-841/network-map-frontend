@@ -127,26 +127,38 @@ function UserFormModal({ open, onClose, onSaved, initial, isSelf }) {
   )
 }
 
+// Matched-height row buttons (kept out of the tall <Button> so Edit and
+// Deactivate/Activate line up).
+const ACTION_BTN =
+  'inline-flex h-9 items-center justify-center gap-1.5 rounded-btn border px-3.5 text-sm font-medium transition-colors duration-200 active:scale-[0.98] disabled:opacity-50'
+
 function RowActions({ user, currentUserId, busyId, onEdit, onToggle }) {
+  const busy = busyId === user.id
+  const isSelf = user.id === currentUserId
   return (
     <div className="flex justify-end gap-2">
       <button
         type="button"
         onClick={() => onEdit(user)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-btn border border-line px-3 text-sm font-medium text-muted transition-colors hover:border-faint hover:text-ink"
+        className={`${ACTION_BTN} border-line text-muted hover:border-faint hover:text-ink`}
       >
         <IconEdit className="h-4 w-4" strokeWidth={1.8} />
         Edit
       </button>
-      {user.id !== currentUserId && (
-        <Button
-          variant={user.isActive ? 'dangerGhost' : 'secondary'}
-          className="!h-9 !px-3 text-sm"
-          loading={busyId === user.id}
+      {!isSelf && (
+        <button
+          type="button"
           onClick={() => onToggle(user)}
+          disabled={busy}
+          className={`${ACTION_BTN} ${
+            user.isActive
+              ? 'border-bad/30 text-bad hover:bg-bad-tint'
+              : 'border-ok/40 text-ok hover:bg-ok-tint'
+          }`}
         >
+          {busy && <span className="loading loading-spinner loading-xs" />}
           {user.isActive ? 'Deactivate' : 'Activate'}
-        </Button>
+        </button>
       )}
     </div>
   )
