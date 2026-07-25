@@ -1,78 +1,154 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
+import { DataTable } from '@/components/ui/DataTable'
 import { useAuthStore } from '@/stores/auth-store'
+import { IconPlus, IconEdit } from '@/components/ui/icons'
 
 const ROLES = ['SURVEYOR', 'MANAGER', 'ADMIN']
+const roleLabel = (role) => role.charAt(0) + role.slice(1).toLowerCase()
 
-const ROLE_CHIPS = {
+const ROLE_CHIP = {
   ADMIN: 'bg-doc-tint text-doc',
   MANAGER: 'bg-fiber-tint text-fiber',
   SURVEYOR: 'bg-scan-tint text-scan',
 }
 
-function AddUserForm({ onCreated }) {
-  const [serverError, setServerError] = useState(null)
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { isSubmitting },
-  } = useForm({ defaultValues: { role: 'SURVEYOR' } })
+function RoleBadge({ role }) {
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_CHIP[role]}`}>
+      {roleLabel(role)}
+    </span>
+  )
+}
 
-  async function onSubmit(values) {
-    setServerError(null)
+function StatusBadge({ active }) {
+  return active ? (
+    <span className="inline-flex rounded-full bg-ok-tint px-2.5 py-0.5 text-xs font-medium text-ok">
+      Active
+    </span>
+  ) : (
+    <span className="inline-flex rounded-full bg-line/60 px-2.5 py-0.5 text-xs font-medium text-muted">
+      Inactive
+    </span>
+  )
+}
+
+/** Shared create/edit dialog. `initial` set ⇒ edit mode (password optional). */
+function UserFormModal({ open, onClose, onSaved, initial, isSelf }) {
+  const isEdit = Boolean(initial)
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'SURVEYOR' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!open) return
+    setError(null)
+    setForm(
+      initial
+        ? { name: initial.name, email: initial.email, password: '', role: initial.role }
+        : { name: '', email: '', password: '', role: 'SURVEYOR' },
+    )
+  }, [open, initial])
+
+  const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
+
+  async function submit(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
     try {
-      await apiClient.post('/users', values)
-      reset()
-      onCreated()
+      if (isEdit) {
+        const patch = { name: form.name, email: form.email }
+        if (!isSelf) patch.role = form.role // never let an admin change their own role
+        if (form.password.trim()) patch.password = form.password
+        await apiClient.patch(`/users/${initial.id}`, patch)
+      } else {
+        await apiClient.post('/users', form)
+      }
+      onSaved()
+      onClose()
     } catch (err) {
-      setServerError(getApiErrorMessage(err, 'Could not create the user'))
+      setError(getApiErrorMessage(err, 'Could not save the user'))
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
-    <form
-      onSubmit={handleSubmit(onSubmit)}
-      className="mb-6 flex flex-col gap-3 rounded-card bg-card p-5 shadow-soft"
-    >
-      <p className="text-sm font-bold">Add team member</p>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Input id="new-name" placeholder="Full name" {...register('name', { required: true })} />
+    <Modal open={open} onClose={onClose} title={isEdit ? 'Edit user' : 'Add team member'}>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <Input id="u-name" label="Full name" value={form.name} onChange={set('name')} required />
         <Input
-          id="new-email"
+          id="u-email"
+          label="Email"
           type="email"
-          placeholder="Email"
-          {...register('email', { required: true })}
+          value={form.email}
+          onChange={set('email')}
+          required
         />
         <Input
-          id="new-password"
+          id="u-pass"
+          label={isEdit ? 'New password' : 'Password'}
           type="password"
-          placeholder="Password (8+, letter & number)"
-          {...register('password', { required: true })}
+          placeholder={isEdit ? 'Leave blank to keep current' : '8+, with a letter & number'}
+          value={form.password}
+          onChange={set('password')}
+          required={!isEdit}
         />
-        <Select id="new-role" {...register('role')}>
+        <Select
+          id="u-role"
+          label={isSelf ? 'Role (you can’t change your own)' : 'Role'}
+          value={form.role}
+          onChange={set('role')}
+          disabled={isSelf}
+        >
           {ROLES.map((role) => (
             <option key={role} value={role}>
-              {role.charAt(0) + role.slice(1).toLowerCase()}
+              {roleLabel(role)}
             </option>
           ))}
         </Select>
-      </div>
-      {serverError && (
-        <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
-          {serverError}
-        </p>
+
+        {error && (
+          <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
+        )}
+
+        <Button type="submit" fullWidth loading={busy}>
+          {isEdit ? 'Save changes' : 'Create user'}
+        </Button>
+      </form>
+    </Modal>
+  )
+}
+
+function RowActions({ user, currentUserId, busyId, onEdit, onToggle }) {
+  return (
+    <div className="flex justify-end gap-2">
+      <button
+        type="button"
+        onClick={() => onEdit(user)}
+        className="inline-flex h-9 items-center gap-1.5 rounded-btn border border-line px-3 text-sm font-medium text-muted transition-colors hover:border-faint hover:text-ink"
+      >
+        <IconEdit className="h-4 w-4" strokeWidth={1.8} />
+        Edit
+      </button>
+      {user.id !== currentUserId && (
+        <Button
+          variant={user.isActive ? 'dangerGhost' : 'secondary'}
+          className="!h-9 !px-3 text-sm"
+          loading={busyId === user.id}
+          onClick={() => onToggle(user)}
+        >
+          {user.isActive ? 'Deactivate' : 'Activate'}
+        </Button>
       )}
-      <Button type="submit" loading={isSubmitting}>
-        Create user
-      </Button>
-    </form>
+    </div>
   )
 }
 
@@ -82,6 +158,8 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState(null)
   const [error, setError] = useState(null)
   const [busyId, setBusyId] = useState(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editUser, setEditUser] = useState(null)
 
   const fetchUsers = useCallback(
     () => apiClient.get('/users').then((res) => setUsers(res.data.data)),
@@ -92,11 +170,11 @@ export default function AdminUsersPage() {
     fetchUsers()
   }, [fetchUsers])
 
-  async function patchUser(id, data) {
-    setBusyId(id)
+  async function toggleActive(user) {
+    setBusyId(user.id)
     setError(null)
     try {
-      await apiClient.patch(`/users/${id}`, data)
+      await apiClient.patch(`/users/${user.id}`, { isActive: !user.isActive })
       await fetchUsers()
     } catch (err) {
       setError(getApiErrorMessage(err, 'Update failed'))
@@ -105,76 +183,114 @@ export default function AdminUsersPage() {
     }
   }
 
+  const youTag = (u) =>
+    u.id === currentUser?.id && <span className="ml-1.5 text-xs font-normal text-faint">(you)</span>
+
+  const columns = [
+    {
+      key: 'user',
+      header: 'User',
+      render: (u) => (
+        <div className="min-w-0">
+          <p className="truncate font-bold">
+            {u.name}
+            {youTag(u)}
+          </p>
+          <p className="truncate text-xs font-normal text-muted">{u.email}</p>
+        </div>
+      ),
+    },
+    { key: 'role', header: 'Role', render: (u) => <RoleBadge role={u.role} /> },
+    { key: 'status', header: 'Status', render: (u) => <StatusBadge active={u.isActive} /> },
+    ...(isAdmin
+      ? [
+          {
+            key: 'actions',
+            header: '',
+            headerClassName: 'text-right',
+            className: 'text-right',
+            render: (u) => (
+              <RowActions
+                user={u}
+                currentUserId={currentUser?.id}
+                busyId={busyId}
+                onEdit={setEditUser}
+                onToggle={toggleActive}
+              />
+            ),
+          },
+        ]
+      : []),
+  ]
+
+  const renderCard = (u) => (
+    <div className={`rounded-card bg-card p-4 shadow-soft ${u.isActive ? '' : 'opacity-70'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-bold">
+            {u.name}
+            {youTag(u)}
+          </p>
+          <p className="truncate text-sm font-normal text-muted">{u.email}</p>
+        </div>
+        <RoleBadge role={u.role} />
+      </div>
+      <div className="mt-2">
+        <StatusBadge active={u.isActive} />
+      </div>
+      {isAdmin && (
+        <div className="mt-3 border-t border-line/60 pt-3">
+          <RowActions
+            user={u}
+            currentUserId={currentUser?.id}
+            busyId={busyId}
+            onEdit={setEditUser}
+            onToggle={toggleActive}
+          />
+        </div>
+      )}
+    </div>
+  )
+
   return (
-    <main className="mx-auto max-w-2xl">
+    <main className="mx-auto max-w-3xl">
       <PageHeader
         eyebrow="Administration"
         title="Users"
         sub="Survey team accounts and roles"
-        backHref="/admin"
+        backHref="/dashboard"
         backLabel="Dashboard"
+        action={
+          isAdmin && (
+            <Button onClick={() => setCreateOpen(true)}>
+              <IconPlus className="h-4.5 w-4.5" />
+              Add user
+            </Button>
+          )
+        }
       />
 
-      {isAdmin && <AddUserForm onCreated={fetchUsers} />}
-
       {error && (
-        <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
-          {error}
-        </p>
+        <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
       )}
 
-      <div className="flex flex-col gap-3">
-        {users === null && <p className="text-sm font-normal text-muted">Loading…</p>}
-        {users?.map((user) => {
-          const isSelf = user.id === currentUser?.id
-          return (
-            <div
-              key={user.id}
-              className={`rounded-card bg-card p-4 shadow-soft ${user.isActive ? '' : 'opacity-60'}`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-bold">
-                    {user.name}
-                    {isSelf && <span className="ml-2 text-xs font-normal text-faint">(you)</span>}
-                  </p>
-                  <p className="truncate text-sm font-normal text-muted">{user.email}</p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium capitalize ${ROLE_CHIPS[user.role]}`}
-                >
-                  {user.role.toLowerCase()}
-                </span>
-              </div>
+      <DataTable
+        columns={columns}
+        rows={users}
+        loading={users === null}
+        keyField="id"
+        renderCard={renderCard}
+        emptyState={<p className="text-sm font-normal text-muted">No users yet.</p>}
+      />
 
-              {isAdmin && !isSelf && (
-                <div className="mt-3 flex items-center gap-2 border-t border-line/60 pt-3">
-                  <select
-                    value={user.role}
-                    disabled={busyId === user.id}
-                    onChange={(e) => patchUser(user.id, { role: e.target.value })}
-                    className="h-10 rounded-btn border border-line bg-card px-3 text-sm outline-none focus:border-fiber"
-                  >
-                    {ROLES.map((role) => (
-                      <option key={role} value={role}>
-                        {role.charAt(0) + role.slice(1).toLowerCase()}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    variant={user.isActive ? 'dangerGhost' : 'secondary'}
-                    loading={busyId === user.id}
-                    className="!h-10 !px-4 text-sm"
-                    onClick={() => patchUser(user.id, { isActive: !user.isActive })}
-                  >
-                    {user.isActive ? 'Deactivate' : 'Reactivate'}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      <UserFormModal open={createOpen} onClose={() => setCreateOpen(false)} onSaved={fetchUsers} />
+      <UserFormModal
+        open={Boolean(editUser)}
+        initial={editUser}
+        isSelf={editUser?.id === currentUser?.id}
+        onClose={() => setEditUser(null)}
+        onSaved={fetchUsers}
+      />
     </main>
   )
 }
