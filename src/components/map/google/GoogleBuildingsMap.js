@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
-import { STATUS_COLORS, zoneColor } from '@/lib/constants'
+import { buildingColor, zoneColor } from '@/lib/constants'
 import { buildingPin, pinDataUri, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 
 const polygonCentroid = (points) => ({
@@ -12,7 +12,6 @@ const polygonCentroid = (points) => ({
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 } // country-level fallback
 const DEFAULT_ZOOM = 5
-const UNKNOWN_COLOR = '#8a9aa0' // gray per migration guide
 // Below this zoom, small zone polygons are near-invisible — show a colored
 // dot notation at the centroid instead.
 const ZONE_DETAIL_ZOOM = 13
@@ -143,7 +142,7 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
     buildings.forEach((building) => {
       const isSelected = building.id === selectedId
       const pin = buildingPin({
-        color: STATUS_COLORS[building.feasibleStatus] ?? UNKNOWN_COLOR,
+        color: buildingColor(building),
         selected: isSelected,
       })
       const marker = new google.maps.Marker({

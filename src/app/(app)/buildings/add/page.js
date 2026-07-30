@@ -156,7 +156,7 @@ export default function AddBuildingPage() {
         photos.push({ type: 'ADDITIONAL', url: await uploadFile(file) })
       }
 
-      const { zoneId, amountPaid, ...details } = values
+      const { zoneId, amountPaid, isLive, ...details } = values
       const payload = {
         placeId: draft.placeId,
         buildingName: draft.buildingName,
@@ -164,6 +164,7 @@ export default function AddBuildingPage() {
         latitude: draft.latitude,
         longitude: draft.longitude,
         zoneId,
+        isLive,
         details: Object.values(details).some((v) => v !== undefined && v !== '')
           ? details
           : undefined,

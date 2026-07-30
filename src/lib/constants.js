@@ -13,11 +13,8 @@ export const ZONE_COLORS = [
 
 export const zoneColor = (index) => ZONE_COLORS[index % ZONE_COLORS.length]
 
-// PRD marker colors (🟢 feasible, 🟡 permission pending, 🔴 rejected, 🔵 survey
-// pending) mapped to the design system's signal palette in globals.css.
-export const STATUS_COLORS = {
-  FEASIBLE: '#22c55e', // bright, high-visibility green for map pins
-  PERMISSION_PENDING: '#96610d', // --color-warn
-  REJECTED: '#b3261e', // --color-bad
-  SURVEY_PENDING: '#1d6fa5', // --color-scan
-}
+// Live-connection marker colors: green when the fiber connection is live,
+// red when it isn't yet.
+export const LIVE_COLOR = '#22c55e' // green
+export const NOT_LIVE_COLOR = '#dc2626' // red
+export const buildingColor = (building) => (building?.isLive ? LIVE_COLOR : NOT_LIVE_COLOR)

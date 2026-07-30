@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { STATUS_COLORS, zoneColor } from '@/lib/constants'
+import { buildingColor, zoneColor } from '@/lib/constants'
 import { buildingPin } from '@/lib/map-markers'
 
 // Zone names are user-entered and land in divIcon HTML — escape them.
@@ -106,7 +106,7 @@ export default function BuildingsMap({ buildings, zones = [], selectedId, onSele
     buildings.forEach((building) => {
       const isSelected = building.id === selectedId
       const pin = buildingPin({
-        color: STATUS_COLORS[building.feasibleStatus] ?? '#8a9aa0',
+        color: buildingColor(building),
         selected: isSelected,
       })
       const marker = L.marker([building.latitude, building.longitude], {

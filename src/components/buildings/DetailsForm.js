@@ -93,6 +93,8 @@ function ToggleRow({ label, value, onChange }) {
 export function DetailsForm({ onSubmit, submitting, serverError }) {
   const { zones, loading: zonesLoading } = useZones()
   const { types: buildingTypes } = useBuildingTypes()
+  // Is the fiber connection live here? Drives the green/red map marker.
+  const [isLive, setIsLive] = useState(false)
   // Permission details stay hidden until the surveyor says money changed hands.
   const [permissionPaid, setPermissionPaid] = useState(false)
   const [files, setFiles] = useState({
@@ -109,13 +111,17 @@ export function DetailsForm({ onSubmit, submitting, serverError }) {
   function submit(values) {
     // Toggled-off permission details never leave the form.
     onSubmit(
-      { ...values, amountPaid: permissionPaid ? values.amountPaid : undefined },
+      { ...values, isLive, amountPaid: permissionPaid ? values.amountPaid : undefined },
       { ...files, permissionLetter: permissionPaid ? files.permissionLetter : null },
     )
   }
 
   return (
     <form onSubmit={handleSubmit(submit)} className="flex flex-col gap-4">
+      <SectionLabel>Connection</SectionLabel>
+      <ToggleRow label="Is the fiber connection live?" value={isLive} onChange={setIsLive} />
+
+      <div className="mt-2" />
       <SectionLabel>Structure</SectionLabel>
 
       <Select

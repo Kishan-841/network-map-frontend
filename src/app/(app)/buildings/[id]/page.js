@@ -5,6 +5,7 @@ import { apiClient } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { IconPin } from '@/components/ui/icons'
 import { PhotoManager } from '@/components/buildings/PhotoManager'
+import { LiveToggle } from '@/components/buildings/LiveToggle'
 
 /** Card section of label/value rows. Hides rows without values, and itself when empty. */
 function Section({ title, rows }) {
@@ -84,6 +85,8 @@ export default function BuildingDetailPage({ params }) {
           </p>
         </div>
       )}
+
+      <LiveToggle building={building} onChanged={fetchBuilding} />
 
       <Section
         title="Structure"

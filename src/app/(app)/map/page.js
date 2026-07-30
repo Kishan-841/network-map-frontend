@@ -71,6 +71,8 @@ export default function MapPage() {
 
       <MapLegend
         buildingCount={buildings.length}
+        liveCount={buildings.filter((b) => b.isLive).length}
+        notLiveCount={buildings.filter((b) => !b.isLive).length}
         buildingsShown={buildingsShown}
         onToggleBuildings={() => setBuildingsShown((v) => !v)}
         zonesShown={zonesShown}

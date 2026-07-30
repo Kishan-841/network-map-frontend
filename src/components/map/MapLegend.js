@@ -1,16 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { STATUS_COLORS } from '@/lib/constants'
+import { LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
 import { IconLayers, IconClose } from '@/components/ui/icons'
 
 /**
- * Map key + declutter control. Every surveyed building is feasible, so the
- * legend is a single Buildings row plus a Zones row — each explains a symbol
- * and toggles it on/off. Floating card on desktop, sheet on mobile.
+ * Map key + declutter control. The Buildings row toggles all pins on/off; a
+ * colour key underneath explains green = live connection, red = not live.
+ * Floating card on desktop, sheet on mobile.
  */
 export function MapLegend({
   buildingCount,
+  liveCount,
+  notLiveCount,
   buildingsShown,
   onToggleBuildings,
   zonesShown,
@@ -18,6 +20,13 @@ export function MapLegend({
   onToggleZones,
 }) {
   const [open, setOpen] = useState(false)
+
+  const keyDot = (color) => (
+    <span
+      className="h-3 w-3 shrink-0 rounded-full border-2 border-white shadow-sm"
+      style={{ backgroundColor: color }}
+    />
+  )
 
   const rows = (
     <div className="flex flex-col gap-0.5">
@@ -28,15 +37,24 @@ export function MapLegend({
           buildingsShown ? '' : 'opacity-40'
         }`}
       >
-        <span
-          className="h-3 w-3 shrink-0 rounded-full border-2 border-white shadow-sm"
-          style={{ backgroundColor: STATUS_COLORS.FEASIBLE }}
-        />
+        <IconLayers className="h-4 w-4 shrink-0 text-muted" strokeWidth={1.8} />
         <span className="flex-1 truncate text-sm font-medium">Buildings</span>
         <span className="shrink-0 text-xs font-normal tabular-nums text-faint">
           {buildingCount}
         </span>
       </button>
+
+      {/* Colour key */}
+      <div className="ml-2 mb-1 flex flex-col gap-1 border-l border-line/60 pl-3">
+        <span className="flex items-center gap-2 text-xs font-normal text-muted">
+          {keyDot(LIVE_COLOR)} Live
+          <span className="ml-auto tabular-nums text-faint">{liveCount}</span>
+        </span>
+        <span className="flex items-center gap-2 text-xs font-normal text-muted">
+          {keyDot(NOT_LIVE_COLOR)} Not live
+          <span className="ml-auto tabular-nums text-faint">{notLiveCount}</span>
+        </span>
+      </div>
 
       {zoneCount > 0 && (
         <button
