@@ -14,8 +14,11 @@ async function parseFile(file) {
   const ext = file.name.toLowerCase().split('.').pop()
   let rows
   if (ext === 'xlsx') {
-    const readXlsxFile = (await import('read-excel-file')).default
-    rows = await readXlsxFile(file)
+    // v9 exposes only subpath exports — 'read-excel-file' alone doesn't resolve.
+    const readXlsxFile = (await import('read-excel-file/browser')).default
+    const parsed = await readXlsxFile(file)
+    // v9 returns [{ sheet, data }]; older versions return the rows directly.
+    rows = Array.isArray(parsed?.[0]?.data) ? parsed[0].data : parsed
   } else if (ext === 'csv') {
     const Papa = (await import('papaparse')).default
     const result = await new Promise((resolve, reject) =>
@@ -167,11 +170,11 @@ export function ImportZonesModal({ open, onClose, onImported }) {
             ))}
           </div>
           <div className="flex gap-3">
-            <Button variant="secondary" fullWidth onClick={reset}>
+            <Button variant="secondary" className="flex-1" onClick={reset}>
               Back
             </Button>
             <Button
-              fullWidth
+              className="flex-1"
               disabled={validRows.length === 0}
               loading={busy}
               onClick={handleImport}
