@@ -27,6 +27,7 @@ export const SYSTEM_LOG_ACTIONS = [
   'FailedLogin',
   'Logout',
   'Create',
+  'BulkCreate',
   'Update',
   'Delete',
   'StatusChange',
