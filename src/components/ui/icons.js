@@ -29,6 +29,7 @@ export {
   Layers as IconLayers,
   X as IconClose,
   Palette as IconPalette,
+  ScrollText as IconLogs,
 } from 'lucide-react'
 
 /** Brand glyph: three network nodes joined by fiber links. */

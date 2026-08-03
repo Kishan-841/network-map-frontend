@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { useUiStore } from '@/stores/ui-store'
+import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
 import {
   NodeMark,
@@ -57,6 +58,7 @@ export function Sidebar() {
   }, [collapsed])
 
   function handleLogout() {
+    apiClient.post('/auth/logout').catch(() => {}) // audit only — never block logout
     clearAuth()
     router.replace('/login')
   }

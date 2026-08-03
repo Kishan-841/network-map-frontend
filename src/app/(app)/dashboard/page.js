@@ -13,6 +13,7 @@ import {
   IconPin,
   IconUser,
   IconDoc,
+  IconLogs,
   NodeMark,
 } from '@/components/ui/icons'
 
@@ -45,6 +46,7 @@ const MANAGE_LINKS = [
   { href: '/admin/zones', label: 'Zones', sub: 'Coverage areas', icon: IconPin },
   { href: '/admin/building-types', label: 'Building types', sub: 'Form options', icon: IconBuildings },
   { href: '/admin/users', label: 'Users', sub: 'Team & roles', icon: IconUser, adminOnly: true },
+  { href: '/admin/system-logs', label: 'System logs', sub: 'Audit trail', icon: IconLogs, adminOnly: true },
 ]
 
 export default function DashboardPage() {

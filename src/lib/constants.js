@@ -18,3 +18,19 @@ export const zoneColor = (index) => ZONE_COLORS[index % ZONE_COLORS.length]
 export const LIVE_COLOR = '#22c55e' // green
 export const NOT_LIVE_COLOR = '#dc2626' // red
 export const buildingColor = (building) => (building?.isLive ? LIVE_COLOR : NOT_LIVE_COLOR)
+
+// System log filter options — must match backend module/action names
+// (see backend src/modules/system-logs + route annotations).
+export const SYSTEM_LOG_MODULES = ['Auth', 'User', 'Zone', 'Building', 'BuildingType', 'Upload']
+export const SYSTEM_LOG_ACTIONS = [
+  'Login',
+  'FailedLogin',
+  'Logout',
+  'Create',
+  'Update',
+  'Delete',
+  'StatusChange',
+  'PhotoAdd',
+  'PhotoDelete',
+  'FileUpload',
+]

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
+import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ThemePicker } from '@/components/ui/ThemePicker'
@@ -22,6 +23,7 @@ export default function ProfilePage() {
   const { user, clearAuth } = useAuthStore()
 
   function handleLogout() {
+    apiClient.post('/auth/logout').catch(() => {}) // audit only — never block logout
     clearAuth()
     router.replace('/login')
   }
