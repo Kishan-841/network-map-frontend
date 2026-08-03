@@ -6,7 +6,8 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { BoundaryEditor, parseBoundaryPoints } from '@/components/admin/BoundaryEditor'
-import { IconEdit, IconTrash, IconPin } from '@/components/ui/icons'
+import { ImportZonesModal } from '@/components/admin/ImportZonesModal'
+import { IconEdit, IconTrash, IconPin, IconUpload } from '@/components/ui/icons'
 
 const emptyForm = { name: '', city: '', points: [] }
 
@@ -89,6 +90,7 @@ export default function AdminZonesPage() {
   const [zones, setZones] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [listError, setListError] = useState(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   const fetchZones = useCallback(
     () => apiClient.get('/zones').then((res) => setZones(res.data.data)),
@@ -119,6 +121,15 @@ export default function AdminZonesPage() {
         backHref="/admin"
         backLabel="Dashboard"
       />
+
+      <div className="mb-3 flex justify-end">
+        <button
+          onClick={() => setImportOpen(true)}
+          className="inline-flex items-center gap-2 rounded-btn border border-line bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-fiber/50"
+        >
+          <IconUpload className="h-4 w-4" /> Import from Excel
+        </button>
+      </div>
 
       <ZoneForm
         initial={emptyForm}
@@ -182,6 +193,12 @@ export default function AdminZonesPage() {
           ),
         )}
       </div>
+
+      <ImportZonesModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={fetchZones}
+      />
     </main>
   )
 }
