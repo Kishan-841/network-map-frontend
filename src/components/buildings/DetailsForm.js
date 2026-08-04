@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { IconDoc, IconCamera } from '@/components/ui/icons'
 import { useZones } from '@/hooks/useZones'
+import { ZoneSearchSelect } from '@/components/buildings/ZoneSearchSelect'
 import { useBuildingTypes } from '@/hooks/useBuildingTypes'
 import { buildingDetailsSchema } from '@/schemas/building'
 
@@ -105,8 +106,11 @@ export function DetailsForm({ onSubmit, submitting, serverError }) {
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm({ resolver: zodResolver(buildingDetailsSchema) })
+  const zoneId = watch('zoneId')
 
   function submit(values) {
     // Toggled-off permission details never leave the form.
@@ -119,7 +123,7 @@ export function DetailsForm({ onSubmit, submitting, serverError }) {
   return (
     <form onSubmit={handleSubmit(submit)} className="flex flex-col gap-4">
       <SectionLabel>Connection</SectionLabel>
-      <ToggleRow label="Is the fiber connection live?" value={isLive} onChange={setIsLive} />
+      <ToggleRow label="Building RFS" value={isLive} onChange={setIsLive} />
 
       <div className="mt-2" />
       <SectionLabel>Structure</SectionLabel>
@@ -129,20 +133,15 @@ export function DetailsForm({ onSubmit, submitting, serverError }) {
           No zones assigned to you yet — contact your admin.
         </p>
       )}
-      <Select
-        id="zoneId"
-        label="Zone"
-        error={errors.zoneId?.message}
+      {/* zoneId lives in RHF via this hidden field; the search select drives it. */}
+      <input type="hidden" {...register('zoneId')} />
+      <ZoneSearchSelect
+        zones={zones}
+        value={zoneId}
         disabled={zonesLoading}
-        {...register('zoneId')}
-      >
-        <option value="">{zonesLoading ? 'Loading zones…' : 'Select zone'}</option>
-        {zones.map((zone) => (
-          <option key={zone.id} value={zone.id}>
-            {zone.name} — {zone.city}
-          </option>
-        ))}
-      </Select>
+        error={errors.zoneId?.message}
+        onChange={(id) => setValue('zoneId', id, { shouldValidate: true })}
+      />
 
       <div className="grid grid-cols-2 gap-4">
         <Input id="wings" label="Wings" type="number" inputMode="numeric" placeholder="e.g. 2" error={errors.wings?.message} {...register('wings')} />
