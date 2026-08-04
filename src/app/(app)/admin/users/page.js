@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { DataTable } from '@/components/ui/DataTable'
+import { ZoneMultiSelect } from '@/components/admin/ZoneMultiSelect'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconPlus, IconEdit } from '@/components/ui/icons'
 
@@ -40,21 +41,23 @@ function StatusBadge({ active }) {
 }
 
 /** Shared create/edit dialog. `initial` set ⇒ edit mode (password optional). */
-function UserFormModal({ open, onClose, onSaved, initial, isSelf }) {
+function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
   const isEdit = Boolean(initial)
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'SURVEYOR' })
+  // Mounted fresh per open (parent renders conditionally with a key), so state
+  // initializes directly from props — no sync-setState-in-effect needed.
+  const [form, setForm] = useState(() =>
+    initial
+      ? {
+          name: initial.name,
+          email: initial.email,
+          password: '',
+          role: initial.role,
+          zoneIds: initial.assignedZones?.map((zone) => zone.id) ?? [],
+        }
+      : { name: '', email: '', password: '', role: 'SURVEYOR', zoneIds: [] },
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-
-  useEffect(() => {
-    if (!open) return
-    setError(null)
-    setForm(
-      initial
-        ? { name: initial.name, email: initial.email, password: '', role: initial.role }
-        : { name: '', email: '', password: '', role: 'SURVEYOR' },
-    )
-  }, [open, initial])
 
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
 
@@ -67,9 +70,12 @@ function UserFormModal({ open, onClose, onSaved, initial, isSelf }) {
         const patch = { name: form.name, email: form.email }
         if (!isSelf) patch.role = form.role // never let an admin change their own role
         if (form.password.trim()) patch.password = form.password
+        if (form.role === 'SURVEYOR') patch.zoneIds = form.zoneIds
         await apiClient.patch(`/users/${initial.id}`, patch)
       } else {
-        await apiClient.post('/users', form)
+        const body = { ...form }
+        if (body.role !== 'SURVEYOR') delete body.zoneIds
+        await apiClient.post('/users', body)
       }
       onSaved()
       onClose()
@@ -81,7 +87,7 @@ function UserFormModal({ open, onClose, onSaved, initial, isSelf }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={isEdit ? 'Edit user' : 'Add team member'}>
+    <Modal open onClose={onClose} title={isEdit ? 'Edit user' : 'Add team member'}>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <Input id="u-name" label="Full name" value={form.name} onChange={set('name')} required />
         <Input
@@ -114,6 +120,14 @@ function UserFormModal({ open, onClose, onSaved, initial, isSelf }) {
             </option>
           ))}
         </Select>
+
+        {form.role === 'SURVEYOR' && (
+          <ZoneMultiSelect
+            zones={zones}
+            selectedIds={form.zoneIds}
+            onChange={(zoneIds) => setForm((prev) => ({ ...prev, zoneIds }))}
+          />
+        )}
 
         {error && (
           <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
@@ -167,27 +181,70 @@ function RowActions({ user, currentUserId, busyId, onEdit, onToggle }) {
 export default function AdminUsersPage() {
   const currentUser = useAuthStore((s) => s.user)
   const isAdmin = currentUser?.role === 'ADMIN'
-  const [users, setUsers] = useState(null)
   const [error, setError] = useState(null)
   const [busyId, setBusyId] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editUser, setEditUser] = useState(null)
 
-  const fetchUsers = useCallback(
-    () => apiClient.get('/users').then((res) => setUsers(res.data.data)),
-    [],
-  )
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [refreshTick, setRefreshTick] = useState(0)
+  // { key, data } — loading derived from key mismatch, so effects never
+  // call setState synchronously (react-hooks/set-state-in-effect).
+  const [result, setResult] = useState(null)
+  const [zones, setZones] = useState([])
 
   useEffect(() => {
-    fetchUsers()
-  }, [fetchUsers])
+    const t = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(t)
+  }, [search])
+
+  useEffect(() => {
+    apiClient
+      .get('/zones')
+      .then((res) => setZones(res.data.data))
+      .catch(() => setZones([]))
+  }, [])
+
+  const paramsKey = useMemo(() => {
+    const p = { page, pageSize: 50, tick: refreshTick }
+    if (debouncedSearch.trim()) p.search = debouncedSearch.trim()
+    if (roleFilter) p.role = roleFilter
+    return JSON.stringify(p)
+  }, [page, debouncedSearch, roleFilter, refreshTick])
+
+  useEffect(() => {
+    let cancelled = false
+    const { tick, ...params } = JSON.parse(paramsKey)
+    apiClient
+      .get('/users', { params })
+      .then((res) => !cancelled && setResult({ key: paramsKey, data: res.data.data }))
+      .catch(
+        (err) =>
+          !cancelled &&
+          setResult({ key: paramsKey, error: getApiErrorMessage(err, 'Could not load users') }),
+      )
+    return () => {
+      cancelled = true
+    }
+  }, [paramsKey])
+
+  const loading = result?.key !== paramsKey
+  const users = result?.data?.items ?? null
+  const pagination = result?.data
+    ? { page: result.data.page, totalPages: result.data.totalPages, total: result.data.total }
+    : null
+  const listError = !loading && result?.error ? result.error : null
+  const refresh = () => setRefreshTick((tick) => tick + 1)
 
   async function toggleActive(user) {
     setBusyId(user.id)
     setError(null)
     try {
       await apiClient.patch(`/users/${user.id}`, { isActive: !user.isActive })
-      await fetchUsers()
+      refresh()
     } catch (err) {
       setError(getApiErrorMessage(err, 'Update failed'))
     } finally {
@@ -209,6 +266,11 @@ export default function AdminUsersPage() {
             {youTag(u)}
           </p>
           <p className="truncate text-xs font-normal text-muted">{u.email}</p>
+          {u.role === 'SURVEYOR' && u.assignedZones?.length > 0 && (
+            <p className="mt-0.5 truncate text-xs font-normal text-faint">
+              Zones: {u.assignedZones.map((zone) => zone.name).join(', ')}
+            </p>
+          )}
         </div>
       ),
     },
@@ -244,6 +306,11 @@ export default function AdminUsersPage() {
             {youTag(u)}
           </p>
           <p className="truncate text-sm font-normal text-muted">{u.email}</p>
+          {u.role === 'SURVEYOR' && u.assignedZones?.length > 0 && (
+            <p className="mt-0.5 truncate text-xs font-normal text-faint">
+              Zones: {u.assignedZones.map((zone) => zone.name).join(', ')}
+            </p>
+          )}
         </div>
         <RoleBadge role={u.role} />
       </div>
@@ -282,27 +349,65 @@ export default function AdminUsersPage() {
         }
       />
 
-      {error && (
-        <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
+      {(error || listError) && (
+        <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
+          {error ?? listError}
+        </p>
       )}
+
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="sm:col-span-2">
+          <Input
+            id="u-search"
+            placeholder="Search name or email…"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
+          />
+        </div>
+        <Select
+          id="u-role-filter"
+          value={roleFilter}
+          onChange={(e) => {
+            setRoleFilter(e.target.value)
+            setPage(1)
+          }}
+        >
+          <option value="">All roles</option>
+          {ROLES.map((role) => (
+            <option key={role} value={role}>
+              {roleLabel(role)}
+            </option>
+          ))}
+        </Select>
+      </div>
 
       <DataTable
         columns={columns}
         rows={users}
-        loading={users === null}
+        loading={loading}
         keyField="id"
         renderCard={renderCard}
-        emptyState={<p className="text-sm font-normal text-muted">No users yet.</p>}
+        pagination={pagination}
+        onPageChange={setPage}
+        emptyState={<p className="text-sm font-normal text-muted">No matching users.</p>}
       />
 
-      <UserFormModal open={createOpen} onClose={() => setCreateOpen(false)} onSaved={fetchUsers} />
-      <UserFormModal
-        open={Boolean(editUser)}
-        initial={editUser}
-        isSelf={editUser?.id === currentUser?.id}
-        onClose={() => setEditUser(null)}
-        onSaved={fetchUsers}
-      />
+      {createOpen && (
+        <UserFormModal zones={zones} onClose={() => setCreateOpen(false)} onSaved={refresh} />
+      )}
+      {editUser && (
+        <UserFormModal
+          key={editUser.id}
+          initial={editUser}
+          zones={zones}
+          isSelf={editUser.id === currentUser?.id}
+          onClose={() => setEditUser(null)}
+          onSaved={refresh}
+        />
+      )}
     </main>
   )
 }
