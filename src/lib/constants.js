@@ -28,6 +28,7 @@ export const SYSTEM_LOG_ACTIONS = [
   'Logout',
   'Create',
   'BulkCreate',
+  'BulkZoneAssign',
   'Update',
   'Delete',
   'StatusChange',

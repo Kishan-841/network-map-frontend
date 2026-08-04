@@ -122,7 +122,9 @@ export default function SystemLogsPage() {
 
   const paramsKey = useMemo(() => {
     const p = { page, pageSize }
-    if (filters.dateFrom) p.dateFrom = new Date(filters.dateFrom).toISOString()
+    // Interpret both ends as the viewer's LOCAL calendar day. `new Date('YYYY-MM-DD')`
+    // parses as UTC midnight, so build both boundaries with an explicit local time.
+    if (filters.dateFrom) p.dateFrom = new Date(`${filters.dateFrom}T00:00:00`).toISOString()
     if (filters.dateTo) p.dateTo = new Date(`${filters.dateTo}T23:59:59.999`).toISOString()
     for (const key of ['userId', 'module', 'action', 'status']) {
       if (filters[key]) p[key] = filters[key]

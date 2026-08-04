@@ -14,6 +14,7 @@ export function useBuildingTypes() {
       .then((res) => {
         if (!cancelled) setTypes(res.data.data)
       })
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setLoading(false)
       })

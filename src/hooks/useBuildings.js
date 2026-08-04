@@ -20,6 +20,11 @@ export function useBuildings(filters = {}) {
         setBuildings(res.data.data.items)
         setPagination(res.data.data.pagination)
       })
+      .catch(() => {
+        // Keep the last-known list rather than throwing an unhandled rejection
+        // that would mis-render an empty registry.
+        setPagination(null)
+      })
       .finally(() => setLoading(false))
   }, [filtersKey])
 

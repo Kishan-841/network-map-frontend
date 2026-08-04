@@ -14,6 +14,7 @@ export function useZones() {
       .then((res) => {
         if (!cancelled) setZones(res.data.data)
       })
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setLoading(false)
       })

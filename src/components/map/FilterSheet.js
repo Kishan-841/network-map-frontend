@@ -26,7 +26,10 @@ function FilterSheetBody({ filters, onApply, onClose }) {
 
   useEffect(() => {
     if (canFilterSurveyor) {
-      apiClient.get('/users').then((res) => setSurveyors(res.data.data))
+      apiClient
+        .get('/users')
+        .then((res) => setSurveyors(res.data.data))
+        .catch(() => setSurveyors([]))
     }
   }, [canFilterSurveyor])
 

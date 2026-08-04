@@ -31,6 +31,12 @@ export function downloadCsvTemplate(filename, content) {
   const link = document.createElement('a')
   link.href = url
   link.download = filename
+  // Firefox/Safari need the anchor in the document, and revoking synchronously
+  // can cancel the download — append, click, then clean up on the next tick.
+  document.body.appendChild(link)
   link.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => {
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, 0)
 }

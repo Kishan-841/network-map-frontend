@@ -9,7 +9,12 @@ export default function AdminBuildingTypesPage() {
   const [types, setTypes] = useState(null)
 
   const fetchTypes = useCallback(
-    () => apiClient.get('/building-types').then((res) => setTypes(res.data.data)),
+    () =>
+      apiClient
+        .get('/building-types')
+        .then((res) => setTypes(res.data.data))
+        // Empty list (not a permanent "Loading…") when the fetch fails.
+        .catch(() => setTypes([])),
     [],
   )
 
