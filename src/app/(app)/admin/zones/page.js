@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { BoundaryEditor, parseBoundaryPoints } from '@/components/admin/BoundaryEditor'
 import { ImportZonesModal } from '@/components/admin/ImportZonesModal'
 import { Pagination } from '@/components/ui/Pagination'
-import { IconEdit, IconTrash, IconPin, IconUpload } from '@/components/ui/icons'
+import { IconEdit, IconTrash, IconPin, IconUpload, IconDownload } from '@/components/ui/icons'
 
 const emptyForm = { name: '', city: '', points: [] }
 
@@ -96,6 +96,7 @@ export default function AdminZonesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [refreshTick, setRefreshTick] = useState(0)
+  const [exporting, setExporting] = useState(false)
   // { key, data } — loading derived from key mismatch (no sync setState in effects).
   const [result, setResult] = useState(null)
 
@@ -133,6 +134,31 @@ export default function AdminZonesPage() {
     : null
   const fetchZones = () => setRefreshTick((tick) => tick + 1)
 
+  async function handleExport() {
+    setExporting(true)
+    setListError(null)
+    try {
+      // Full role-scoped list (legacy array shape), independent of the search.
+      const all = (await apiClient.get('/zones')).data.data
+      // v4 exposes only subpath exports — bare 'write-excel-file' doesn't resolve.
+      const writeXlsxFile = (await import('write-excel-file/browser')).default
+      await writeXlsxFile(
+        [
+          [
+            { value: 'Name', fontWeight: 'bold' },
+            { value: 'City', fontWeight: 'bold' },
+          ],
+          ...all.map((zone) => [{ value: zone.name }, { value: zone.city }]),
+        ],
+        { fileName: `zones-${new Date().toISOString().slice(0, 10)}.xlsx` },
+      )
+    } catch (err) {
+      setListError(getApiErrorMessage(err, 'Could not export zones'))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   async function handleDelete(zone) {
     if (!window.confirm(`Delete "${zone.name}"?`)) return
     setListError(null)
@@ -154,7 +180,14 @@ export default function AdminZonesPage() {
         backLabel="Dashboard"
       />
 
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex justify-end gap-2">
+        <button
+          onClick={handleExport}
+          disabled={exporting || !zones?.length}
+          className="inline-flex items-center gap-2 rounded-btn border border-line bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-fiber/50 disabled:opacity-50"
+        >
+          <IconDownload className="h-4 w-4" /> {exporting ? 'Exporting…' : 'Export to Excel'}
+        </button>
         <button
           onClick={() => setImportOpen(true)}
           className="inline-flex items-center gap-2 rounded-btn border border-line bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-fiber/50"

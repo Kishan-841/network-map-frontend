@@ -31,6 +31,7 @@ export {
   Palette as IconPalette,
   ScrollText as IconLogs,
   Upload as IconUpload,
+  Download as IconDownload,
 } from 'lucide-react'
 
 /** Brand glyph: three network nodes joined by fiber links. */
