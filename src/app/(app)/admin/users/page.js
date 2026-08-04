@@ -8,8 +8,9 @@ import { Input, Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { DataTable } from '@/components/ui/DataTable'
 import { ZoneMultiSelect } from '@/components/admin/ZoneMultiSelect'
+import { BulkAssignZonesModal } from '@/components/admin/BulkAssignZonesModal'
 import { useAuthStore } from '@/stores/auth-store'
-import { IconPlus, IconEdit } from '@/components/ui/icons'
+import { IconPlus, IconEdit, IconUpload } from '@/components/ui/icons'
 
 const ROLES = ['SURVEYOR', 'MANAGER', 'ADMIN']
 const roleLabel = (role) => role.charAt(0) + role.slice(1).toLowerCase()
@@ -190,6 +191,7 @@ export default function AdminUsersPage() {
   const [busyId, setBusyId] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editUser, setEditUser] = useState(null)
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -360,6 +362,17 @@ export default function AdminUsersPage() {
         </p>
       )}
 
+      {isAdmin && (
+        <div className="mb-3 flex justify-end">
+          <button
+            onClick={() => setBulkAssignOpen(true)}
+            className="inline-flex items-center gap-2 rounded-btn border border-line bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-fiber/50"
+          >
+            <IconUpload className="h-4 w-4" /> Bulk assign zones
+          </button>
+        </div>
+      )}
+
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="sm:col-span-2">
           <Input
@@ -412,6 +425,9 @@ export default function AdminUsersPage() {
           onClose={() => setEditUser(null)}
           onSaved={refresh}
         />
+      )}
+      {bulkAssignOpen && (
+        <BulkAssignZonesModal onClose={() => setBulkAssignOpen(false)} onAssigned={refresh} />
       )}
     </main>
   )

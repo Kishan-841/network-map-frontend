@@ -8,29 +8,33 @@ import { Button } from '@/components/ui/Button'
 import { IconUpload, IconOkCircle, IconWarn } from '@/components/ui/icons'
 
 const MAX_ROWS = 500
-const MAX_LEN = 100
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-/** Rows -> {name, city, row, error?}; drops an auto-detected header row. */
+/** Rows -> {email, zoneNames, row, error?}; drops an auto-detected header row. */
 function validateRows(rawRows) {
   let rows = rawRows.map((cells, index) => ({ cells, row: index + 1 }))
   const first = rows[0]?.cells
-  if (first && /^name$/i.test(first[0]) && /^city$/i.test(first[1])) rows = rows.slice(1)
+  if (first && /^e-?mail$/i.test(first[0]) && /^zones?$/i.test(first[1])) rows = rows.slice(1)
   return rows
-    .filter(({ cells }) => cells[0] || cells[1]) // ignore fully blank lines
-    .map(({ cells: [name, city], row }) => {
+    .filter(({ cells }) => cells[0] || cells[1])
+    .map(({ cells: [email, zonesCell], row }) => {
+      const zoneNames = (zonesCell ?? '')
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean)
       let error = null
-      if (!name) error = 'Name is missing'
-      else if (name.length > MAX_LEN) error = `Name is over ${MAX_LEN} characters`
-      else if (!city) error = 'City is missing'
-      else if (city.length > MAX_LEN) error = `City is over ${MAX_LEN} characters`
-      return { name, city, row, error }
+      if (!email) error = 'Email is missing'
+      else if (!EMAIL_RE.test(email)) error = 'Not a valid email'
+      else if (zoneNames.length === 0) error = 'No zones listed'
+      return { email, zoneNames, row, error }
     })
 }
 
-export function ImportZonesModal({ open, onClose, onImported }) {
+/** Sheet-driven zone assignment: each row REPLACES that surveyor's zones. */
+export function BulkAssignZonesModal({ onClose, onAssigned }) {
   const fileInputRef = useRef(null)
-  const [rows, setRows] = useState(null) // null = pick state
-  const [result, setResult] = useState(null) // set = result state
+  const [rows, setRows] = useState(null)
+  const [result, setResult] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -50,61 +54,60 @@ export function ImportZonesModal({ open, onClose, onImported }) {
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
-    e.target.value = '' // allow re-picking the same file
+    e.target.value = ''
     if (!file) return
     setError(null)
     try {
       const parsed = validateRows(await parseSpreadsheet(file))
       if (parsed.length === 0) throw new Error('No rows found in the file')
       if (parsed.filter((r) => !r.error).length > MAX_ROWS)
-        throw new Error(`Too many rows — up to ${MAX_ROWS} zones per file. Please split the file.`)
+        throw new Error(`Too many rows — up to ${MAX_ROWS} per file. Please split the file.`)
       setRows(parsed)
     } catch (err) {
       setError(err.message || 'Could not read the file')
     }
   }
 
-  async function handleImport() {
+  async function handleAssign() {
     setBusy(true)
     setError(null)
     try {
-      const res = await apiClient.post('/zones/bulk', {
-        zones: validRows.map(({ name, city }) => ({ name, city })),
+      const res = await apiClient.post('/users/bulk-zones', {
+        assignments: validRows.map(({ email, zoneNames }) => ({ email, zoneNames })),
       })
       setResult(res.data.data)
-      onImported()
+      onAssigned()
     } catch (err) {
-      setError(
-        getApiErrorMessage(err, 'Import failed — please re-upload (existing zones are skipped)'),
-      )
+      setError(getApiErrorMessage(err, 'Assignment failed — please re-upload'))
     } finally {
       setBusy(false)
     }
   }
 
-  const footer = rows && !result ? (
-    <div className="flex gap-3">
-      <Button variant="secondary" className="flex-1" onClick={reset}>
-        Back
+  const footer =
+    rows && !result ? (
+      <div className="flex gap-3">
+        <Button variant="secondary" className="flex-1" onClick={reset}>
+          Back
+        </Button>
+        <Button className="flex-1" disabled={validRows.length === 0} loading={busy} onClick={handleAssign}>
+          Assign {validRows.length} user{validRows.length === 1 ? '' : 's'}
+        </Button>
+      </div>
+    ) : result ? (
+      <Button fullWidth onClick={close}>
+        Done
       </Button>
-      <Button className="flex-1" disabled={validRows.length === 0} loading={busy} onClick={handleImport}>
-        Import {validRows.length} zone{validRows.length === 1 ? '' : 's'}
-      </Button>
-    </div>
-  ) : result ? (
-    <Button fullWidth onClick={close}>
-      Done
-    </Button>
-  ) : null
+    ) : null
 
   return (
-    <Modal open={open} onClose={close} title="Import zones from Excel" footer={footer}>
+    <Modal open onClose={close} title="Bulk assign zones" footer={footer}>
       {/* Pick state */}
       {!rows && !result && (
         <div className="flex flex-col gap-4">
           <p className="text-sm font-normal text-muted">
-            Upload a .xlsx or .csv file with two columns: <b>Name</b> and <b>City</b>. A header row
-            is optional. Existing zone names are skipped, so re-uploading is safe.
+            Upload a .xlsx or .csv with two columns: <b>Email</b> and <b>Zones</b> (zone names
+            separated by commas). Each row <b>replaces</b> that surveyor&apos;s assigned zones.
           </p>
           <input
             ref={fileInputRef}
@@ -119,7 +122,10 @@ export function ImportZonesModal({ open, onClose, onImported }) {
           <button
             type="button"
             onClick={() =>
-              downloadCsvTemplate('zones-template.csv', 'Name,City\nWakad West,Pune\nBaner,Pune\n')
+              downloadCsvTemplate(
+                'zone-assignments-template.csv',
+                'Email,Zones\nsurveyor@isp.local,"Baner, Wakad West"\n',
+              )
             }
             className="text-sm font-medium text-fiber underline-offset-2 hover:underline"
           >
@@ -132,21 +138,24 @@ export function ImportZonesModal({ open, onClose, onImported }) {
       {rows && !result && (
         <div className="flex flex-col gap-4">
           <p className="text-sm font-normal text-muted">
-            {validRows.length} of {rows.length} rows are valid.
+            {validRows.length} of {rows.length} rows are valid. Users and zone names are matched
+            when you assign.
           </p>
           <div className="max-h-72 overflow-y-auto rounded-btn border border-line">
             {rows.map((r) => (
               <div
                 key={r.row}
-                className="flex items-center gap-2 border-b border-line/60 px-3 py-2 text-sm last:border-b-0"
+                className="flex items-start gap-2 border-b border-line/60 px-3 py-2 text-sm last:border-b-0"
               >
                 {r.error ? (
-                  <IconWarn className="h-4 w-4 shrink-0 text-bad" />
+                  <IconWarn className="mt-0.5 h-4 w-4 shrink-0 text-bad" />
                 ) : (
-                  <IconOkCircle className="h-4 w-4 shrink-0 text-ok" />
+                  <IconOkCircle className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
                 )}
-                <span className="min-w-0 flex-1 truncate font-medium">{r.name || '—'}</span>
-                <span className="min-w-0 flex-1 truncate text-muted">{r.city || '—'}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{r.email || '—'}</p>
+                  <p className="truncate text-xs text-muted">{r.zoneNames.join(', ') || '—'}</p>
+                </div>
                 {r.error && (
                   <span className="shrink-0 text-xs text-bad">
                     row {r.row}: {r.error}
@@ -162,16 +171,16 @@ export function ImportZonesModal({ open, onClose, onImported }) {
       {result && (
         <div className="flex flex-col gap-4">
           <p className="text-sm font-medium">
-            {result.created.length} created · {result.skipped.length} skipped
+            {result.updated.length} updated · {result.skipped.length} skipped
           </p>
           {result.skipped.length > 0 && (
             <div className="max-h-56 overflow-y-auto rounded-btn border border-line">
-              {result.skipped.map((s) => (
+              {result.skipped.map((s, i) => (
                 <div
-                  key={s.name}
+                  key={`${s.email}-${i}`}
                   className="flex items-center justify-between gap-2 border-b border-line/60 px-3 py-2 text-sm last:border-b-0"
                 >
-                  <span className="truncate font-medium">{s.name}</span>
+                  <span className="truncate font-medium">{s.email}</span>
                   <span className="shrink-0 text-xs text-muted">{s.reason}</span>
                 </div>
               ))}
