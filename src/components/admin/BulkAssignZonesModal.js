@@ -10,38 +10,71 @@ import { IconUpload, IconOkCircle, IconWarn } from '@/components/ui/icons'
 const MAX_ROWS = 500
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-/** Rows -> {email, zoneNames, row, error?}; drops an auto-detected header row. */
-function validateRows(rawRows) {
+/**
+ * Flexible sheet parsing:
+ * - Email and Zones columns are auto-detected (either order works), so an
+ *   edited zones export (`Zone | Email`) imports as naturally as the template.
+ * - Multiple rows with the same email are MERGED into one combined zone set —
+ *   a one-zone-per-row sheet must not leave each user with only their last row.
+ * Returns { rows } for the preview and { assignments } grouped per user.
+ */
+function parseAssignments(rawRows) {
   let rows = rawRows.map((cells, index) => ({ cells, row: index + 1 }))
-  const first = rows[0]?.cells
-  if (first && /^e-?mail$/i.test(first[0]) && /^zones?$/i.test(first[1])) rows = rows.slice(1)
-  return rows
-    .filter(({ cells }) => cells[0] || cells[1])
-    .map(({ cells: [email, zonesCell], row }) => {
-      const zoneNames = (zonesCell ?? '')
-        .split(',')
-        .map((name) => name.trim())
-        .filter(Boolean)
-      let error = null
-      if (!email) error = 'Email is missing'
-      else if (!EMAIL_RE.test(email)) error = 'Not a valid email'
-      else if (zoneNames.length === 0) error = 'No zones listed'
-      return { email, zoneNames, row, error }
-    })
+  // Header: no real data row contains the literal word "email".
+  if (rows[0]?.cells.some((cell) => /^e-?mail$/i.test(cell))) rows = rows.slice(1)
+  rows = rows.filter(({ cells }) => cells.some(Boolean))
+
+  // Majority vote decides which column holds emails; ties fall back to col A.
+  const votes = [0, 1].map(
+    (col) => rows.filter(({ cells }) => EMAIL_RE.test(cells[col] ?? '')).length,
+  )
+  const emailCol = votes[1] > votes[0] ? 1 : 0
+  const zonesCol = emailCol === 0 ? 1 : 0
+
+  const parsed = rows.map(({ cells, row }) => {
+    const email = cells[emailCol] ?? ''
+    const zoneNames = (cells[zonesCol] ?? '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean)
+    let error = null
+    if (!email) error = 'Email is missing'
+    else if (!EMAIL_RE.test(email)) error = 'Not a valid email'
+    else if (zoneNames.length === 0) error = 'No zones listed'
+    return { email, zoneNames, row, error }
+  })
+
+  const byEmail = new Map()
+  for (const entry of parsed.filter((r) => !r.error)) {
+    const key = entry.email.toLowerCase()
+    const existing = byEmail.get(key)
+    if (existing) {
+      for (const name of entry.zoneNames) {
+        if (!existing.zoneNames.some((z) => z.toLowerCase() === name.toLowerCase())) {
+          existing.zoneNames.push(name)
+        }
+      }
+    } else {
+      byEmail.set(key, { email: entry.email, zoneNames: [...entry.zoneNames] })
+    }
+  }
+  return { rows: parsed, assignments: [...byEmail.values()] }
 }
 
 /** Sheet-driven zone assignment: each row REPLACES that surveyor's zones. */
 export function BulkAssignZonesModal({ onClose, onAssigned }) {
   const fileInputRef = useRef(null)
-  const [rows, setRows] = useState(null)
+  const [parsed, setParsed] = useState(null) // { rows, assignments }
   const [result, setResult] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
+  const rows = parsed?.rows ?? null
   const validRows = rows?.filter((r) => !r.error) ?? []
+  const assignments = parsed?.assignments ?? []
 
   function reset() {
-    setRows(null)
+    setParsed(null)
     setResult(null)
     setError(null)
     setBusy(false)
@@ -58,11 +91,11 @@ export function BulkAssignZonesModal({ onClose, onAssigned }) {
     if (!file) return
     setError(null)
     try {
-      const parsed = validateRows(await parseSpreadsheet(file))
-      if (parsed.length === 0) throw new Error('No rows found in the file')
-      if (parsed.filter((r) => !r.error).length > MAX_ROWS)
-        throw new Error(`Too many rows — up to ${MAX_ROWS} per file. Please split the file.`)
-      setRows(parsed)
+      const next = parseAssignments(await parseSpreadsheet(file))
+      if (next.rows.length === 0) throw new Error('No rows found in the file')
+      if (next.assignments.length > MAX_ROWS)
+        throw new Error(`Too many users — up to ${MAX_ROWS} per file. Please split the file.`)
+      setParsed(next)
     } catch (err) {
       setError(err.message || 'Could not read the file')
     }
@@ -72,9 +105,7 @@ export function BulkAssignZonesModal({ onClose, onAssigned }) {
     setBusy(true)
     setError(null)
     try {
-      const res = await apiClient.post('/users/bulk-zones', {
-        assignments: validRows.map(({ email, zoneNames }) => ({ email, zoneNames })),
-      })
+      const res = await apiClient.post('/users/bulk-zones', { assignments })
       setResult(res.data.data)
       onAssigned()
     } catch (err) {
@@ -90,8 +121,8 @@ export function BulkAssignZonesModal({ onClose, onAssigned }) {
         <Button variant="secondary" className="flex-1" onClick={reset}>
           Back
         </Button>
-        <Button className="flex-1" disabled={validRows.length === 0} loading={busy} onClick={handleAssign}>
-          Assign {validRows.length} user{validRows.length === 1 ? '' : 's'}
+        <Button className="flex-1" disabled={assignments.length === 0} loading={busy} onClick={handleAssign}>
+          Assign {assignments.length} user{assignments.length === 1 ? '' : 's'}
         </Button>
       </div>
     ) : result ? (
@@ -106,8 +137,10 @@ export function BulkAssignZonesModal({ onClose, onAssigned }) {
       {!rows && !result && (
         <div className="flex flex-col gap-4">
           <p className="text-sm font-normal text-muted">
-            Upload a .xlsx or .csv with two columns: <b>Email</b> and <b>Zones</b> (zone names
-            separated by commas). Each row <b>replaces</b> that surveyor&apos;s assigned zones.
+            Upload a .xlsx or .csv with an <b>Email</b> column and a <b>Zones</b> column (either
+            order; comma-separate multiple zones, or use one zone per row — rows with the same
+            email are combined). The sheet <b>replaces</b> each listed surveyor&apos;s assigned
+            zones.
           </p>
           <input
             ref={fileInputRef}
@@ -138,8 +171,9 @@ export function BulkAssignZonesModal({ onClose, onAssigned }) {
       {rows && !result && (
         <div className="flex flex-col gap-4">
           <p className="text-sm font-normal text-muted">
-            {validRows.length} of {rows.length} rows are valid. Users and zone names are matched
-            when you assign.
+            {validRows.length} of {rows.length} rows are valid → {assignments.length} user
+            {assignments.length === 1 ? '' : 's'} (same-email rows combined). Users and zone
+            names are matched when you assign.
           </p>
           <div className="max-h-72 overflow-y-auto rounded-btn border border-line">
             {rows.map((r) => (
