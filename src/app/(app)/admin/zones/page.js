@@ -75,11 +75,11 @@ function ZoneForm({ initial, onSave, onCancel, saveLabel }) {
 
       <div className="flex gap-3">
         {onCancel && (
-          <Button variant="secondary" fullWidth onClick={onCancel}>
+          <Button variant="secondary" className="flex-1" onClick={onCancel}>
             Cancel
           </Button>
         )}
-        <Button fullWidth disabled={!canSave} loading={busy} onClick={handleSave}>
+        <Button className="flex-1" disabled={!canSave} loading={busy} onClick={handleSave}>
           {saveLabel}
         </Button>
       </div>

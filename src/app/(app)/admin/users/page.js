@@ -87,8 +87,17 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
   }
 
   return (
-    <Modal open onClose={onClose} title={isEdit ? 'Edit user' : 'Add team member'}>
-      <form onSubmit={submit} className="flex flex-col gap-3">
+    <Modal
+      open
+      onClose={onClose}
+      title={isEdit ? 'Edit user' : 'Add team member'}
+      footer={
+        <Button type="submit" form="user-form" fullWidth loading={busy}>
+          {isEdit ? 'Save changes' : 'Create user'}
+        </Button>
+      }
+    >
+      <form id="user-form" onSubmit={submit} className="flex flex-col gap-3">
         <Input id="u-name" label="Full name" value={form.name} onChange={set('name')} required />
         <Input
           id="u-email"
@@ -132,10 +141,6 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
         {error && (
           <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
         )}
-
-        <Button type="submit" fullWidth loading={busy}>
-          {isEdit ? 'Save changes' : 'Create user'}
-        </Button>
       </form>
     </Modal>
   )

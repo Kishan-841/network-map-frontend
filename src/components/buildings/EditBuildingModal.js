@@ -108,7 +108,16 @@ export function EditBuildingModal({ building, onClose, onSaved }) {
   }
 
   return (
-    <Modal open onClose={onClose} title="Edit building">
+    <Modal
+      open
+      onClose={onClose}
+      title="Edit building"
+      footer={
+        <Button fullWidth disabled={!canSave} loading={busy} onClick={save}>
+          Save changes
+        </Button>
+      }
+    >
       <div className="flex flex-col gap-3">
         <Input id="eb-name" label="Building name" value={form.buildingName} onChange={set('buildingName')} />
         <Input id="eb-address" label="Address" value={form.formattedAddress} onChange={set('formattedAddress')} />
@@ -157,10 +166,6 @@ export function EditBuildingModal({ building, onClose, onSaved }) {
         {error && (
           <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
         )}
-
-        <Button fullWidth disabled={!canSave} loading={busy} onClick={save}>
-          Save changes
-        </Button>
       </div>
     </Modal>
   )

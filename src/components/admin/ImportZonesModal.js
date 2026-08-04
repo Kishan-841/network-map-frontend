@@ -113,8 +113,23 @@ export function ImportZonesModal({ open, onClose, onImported }) {
     }
   }
 
+  const footer = rows && !result ? (
+    <div className="flex gap-3">
+      <Button variant="secondary" className="flex-1" onClick={reset}>
+        Back
+      </Button>
+      <Button className="flex-1" disabled={validRows.length === 0} loading={busy} onClick={handleImport}>
+        Import {validRows.length} zone{validRows.length === 1 ? '' : 's'}
+      </Button>
+    </div>
+  ) : result ? (
+    <Button fullWidth onClick={close}>
+      Done
+    </Button>
+  ) : null
+
   return (
-    <Modal open={open} onClose={close} title="Import zones from Excel">
+    <Modal open={open} onClose={close} title="Import zones from Excel" footer={footer}>
       {/* Pick state */}
       {!rows && !result && (
         <div className="flex flex-col gap-4">
@@ -169,19 +184,6 @@ export function ImportZonesModal({ open, onClose, onImported }) {
               </div>
             ))}
           </div>
-          <div className="flex gap-3">
-            <Button variant="secondary" className="flex-1" onClick={reset}>
-              Back
-            </Button>
-            <Button
-              className="flex-1"
-              disabled={validRows.length === 0}
-              loading={busy}
-              onClick={handleImport}
-            >
-              Import {validRows.length} zone{validRows.length === 1 ? '' : 's'}
-            </Button>
-          </div>
         </div>
       )}
 
@@ -204,9 +206,6 @@ export function ImportZonesModal({ open, onClose, onImported }) {
               ))}
             </div>
           )}
-          <Button fullWidth onClick={close}>
-            Done
-          </Button>
         </div>
       )}
 
