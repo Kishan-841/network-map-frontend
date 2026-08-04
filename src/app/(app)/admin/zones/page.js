@@ -141,17 +141,16 @@ export default function AdminZonesPage() {
       // Full role-scoped list (legacy array shape), independent of the search.
       const all = (await apiClient.get('/zones')).data.data
       // v4 exposes only subpath exports — bare 'write-excel-file' doesn't resolve.
+      // v4 API: writeXlsxFile(data) returns { toFile, toBlob } — the old
+      // `{ fileName }` option no longer triggers a download.
       const writeXlsxFile = (await import('write-excel-file/browser')).default
-      await writeXlsxFile(
+      await writeXlsxFile([
         [
-          [
-            { value: 'Name', fontWeight: 'bold' },
-            { value: 'City', fontWeight: 'bold' },
-          ],
-          ...all.map((zone) => [{ value: zone.name }, { value: zone.city }]),
+          { value: 'Name', fontWeight: 'bold' },
+          { value: 'City', fontWeight: 'bold' },
         ],
-        { fileName: `zones-${new Date().toISOString().slice(0, 10)}.xlsx` },
-      )
+        ...all.map((zone) => [{ value: zone.name }, { value: zone.city }]),
+      ]).toFile(`zones-${new Date().toISOString().slice(0, 10)}.xlsx`)
     } catch (err) {
       setListError(getApiErrorMessage(err, 'Could not export zones'))
     } finally {
