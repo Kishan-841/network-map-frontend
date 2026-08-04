@@ -117,17 +117,28 @@ export function PhotoManager({ building, onChanged }) {
       )}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {addOptions.map((option) => (
-          <button
-            key={option.type}
-            onClick={() => startAdd(option)}
-            disabled={busy}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-card px-4 text-sm font-medium text-muted shadow-soft transition-colors hover:border-doc/40 hover:text-doc disabled:opacity-50"
-          >
-            <IconCamera className="h-4 w-4" strokeWidth={1.8} />
-            {busy && pendingType?.type === option.type ? 'Uploading…' : `Add ${option.label.toLowerCase()}`}
-          </button>
-        ))}
+        {addOptions.map((option) => {
+          // One entrance photo / permission letter per building; deleting the
+          // existing one re-enables its button. ADDITIONAL stays unlimited.
+          const alreadyUploaded =
+            option.type !== 'ADDITIONAL' &&
+            building.photos?.some((photo) => photo.type === option.type)
+          return (
+            <button
+              key={option.type}
+              onClick={() => startAdd(option)}
+              disabled={busy || alreadyUploaded}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-card px-4 text-sm font-medium text-muted shadow-soft transition-colors hover:border-doc/40 hover:text-doc disabled:opacity-50"
+            >
+              <IconCamera className="h-4 w-4" strokeWidth={1.8} />
+              {alreadyUploaded
+                ? `${option.label} uploaded ✓`
+                : busy && pendingType?.type === option.type
+                  ? 'Uploading…'
+                  : `Add ${option.label.toLowerCase()}`}
+            </button>
+          )
+        })}
       </div>
 
       {error && (
