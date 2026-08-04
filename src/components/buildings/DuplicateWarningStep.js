@@ -25,11 +25,21 @@ export function DuplicateWarningStep({ candidates, onContinue, onBack }) {
       {candidates.map((candidate) => (
         <button
           key={candidate.id}
-          onClick={() => router.push(`/buildings/${candidate.id}`)}
-          className="rounded-card bg-card p-4 text-left shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift active:scale-[0.99]"
+          // Masked candidates (name null) belong to another surveyor — their
+          // detail page would 404, so don't navigate.
+          onClick={
+            candidate.buildingName ? () => router.push(`/buildings/${candidate.id}`) : undefined
+          }
+          className={`rounded-card bg-card p-4 text-left shadow-soft transition-all duration-200 ${
+            candidate.buildingName
+              ? 'hover:-translate-y-0.5 hover:shadow-lift active:scale-[0.99]'
+              : 'cursor-default'
+          }`}
         >
           <div className="flex items-start justify-between gap-3">
-            <p className="min-w-0 truncate font-bold">{candidate.buildingName}</p>
+            <p className="min-w-0 truncate font-bold">
+              {candidate.buildingName ?? 'Existing building'}
+            </p>
             <span className="shrink-0 text-xs font-normal tabular-nums text-faint">
               {candidate.distanceMeters} m
             </span>

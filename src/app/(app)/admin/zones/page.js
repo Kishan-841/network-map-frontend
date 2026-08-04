@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { BoundaryEditor, parseBoundaryPoints } from '@/components/admin/BoundaryEditor'
 import { ImportZonesModal } from '@/components/admin/ImportZonesModal'
+import { Pagination } from '@/components/ui/Pagination'
 import { IconEdit, IconTrash, IconPin, IconUpload } from '@/components/ui/icons'
 
 const emptyForm = { name: '', city: '', points: [] }
@@ -87,26 +88,57 @@ function ZoneForm({ initial, onSave, onCancel, saveLabel }) {
 }
 
 export default function AdminZonesPage() {
-  const [zones, setZones] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [listError, setListError] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
 
-  const fetchZones = useCallback(
-    () => apiClient.get('/zones').then((res) => setZones(res.data.data)),
-    [],
-  )
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [refreshTick, setRefreshTick] = useState(0)
+  // { key, data } — loading derived from key mismatch (no sync setState in effects).
+  const [result, setResult] = useState(null)
 
   useEffect(() => {
-    fetchZones()
-  }, [fetchZones])
+    const t = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const paramsKey = useMemo(() => {
+    const p = { page, pageSize: 50, tick: refreshTick }
+    if (debouncedSearch.trim()) p.search = debouncedSearch.trim()
+    return JSON.stringify(p)
+  }, [page, debouncedSearch, refreshTick])
+
+  useEffect(() => {
+    let cancelled = false
+    const { tick, ...params } = JSON.parse(paramsKey)
+    apiClient
+      .get('/zones', { params })
+      .then((res) => !cancelled && setResult({ key: paramsKey, data: res.data.data }))
+      .catch(
+        (err) =>
+          !cancelled &&
+          setResult({ key: paramsKey, error: getApiErrorMessage(err, 'Could not load zones') }),
+      )
+    return () => {
+      cancelled = true
+    }
+  }, [paramsKey])
+
+  const loading = result?.key !== paramsKey
+  const zones = result?.data?.items ?? null
+  const pagination = result?.data
+    ? { page: result.data.page, totalPages: result.data.totalPages, total: result.data.total }
+    : null
+  const fetchZones = () => setRefreshTick((tick) => tick + 1)
 
   async function handleDelete(zone) {
     if (!window.confirm(`Delete "${zone.name}"?`)) return
     setListError(null)
     try {
       await apiClient.delete(`/zones/${zone.id}`)
-      await fetchZones()
+      fetchZones()
     } catch (err) {
       setListError(getApiErrorMessage(err))
     }
@@ -146,8 +178,25 @@ export default function AdminZonesPage() {
         </p>
       )}
 
-      <div className="mt-5 flex flex-col gap-3">
-        {zones === null && <p className="text-sm font-normal text-muted">Loading…</p>}
+      <div className="mt-5">
+        <Input
+          id="zone-search"
+          placeholder="Search zone or city…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(1)
+          }}
+        />
+      </div>
+
+      <div className="mt-4 flex flex-col gap-3">
+        {loading && zones === null && (
+          <p className="text-sm font-normal text-muted">Loading…</p>
+        )}
+        {!loading && zones?.length === 0 && (
+          <p className="text-sm font-normal text-muted">No zones match.</p>
+        )}
         {zones?.map((zone) =>
           editingId === zone.id ? (
             <ZoneForm
@@ -193,6 +242,8 @@ export default function AdminZonesPage() {
           ),
         )}
       </div>
+
+      <Pagination pagination={pagination} onChange={setPage} />
 
       <ImportZonesModal
         open={importOpen}

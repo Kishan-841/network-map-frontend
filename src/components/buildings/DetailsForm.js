@@ -124,6 +124,11 @@ export function DetailsForm({ onSubmit, submitting, serverError }) {
       <div className="mt-2" />
       <SectionLabel>Structure</SectionLabel>
 
+      {!zonesLoading && zones.length === 0 && (
+        <p className="rounded-btn bg-warn-tint px-4 py-3 text-sm font-normal text-warn">
+          No zones assigned to you yet — contact your admin.
+        </p>
+      )}
       <Select
         id="zoneId"
         label="Zone"
