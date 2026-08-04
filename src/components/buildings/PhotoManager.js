@@ -19,11 +19,13 @@ const ADD_OPTIONS = [
   { type: 'ADDITIONAL', label: 'Additional photo', accept: 'image/*' },
 ]
 
-/** Documents & photos grid with add (any role) and delete (admin/manager). */
+/** Documents & photos grid: add (any role), delete (admin/manager, or the
+ *  surveyor who created the building — so they can replace a wrong photo). */
 export function PhotoManager({ building, onChanged }) {
-  const role = useAuthStore((s) => s.user?.role)
+  const user = useAuthStore((s) => s.user)
+  const role = user?.role
   const isManager = role === 'ADMIN' || role === 'MANAGER'
-  const canDelete = isManager
+  const canDelete = isManager || building?.createdById === user?.id
   const addOptions = ADD_OPTIONS.filter((option) => !option.managerOnly || isManager)
   const fileInputRef = useRef(null)
   const [pendingType, setPendingType] = useState(null)

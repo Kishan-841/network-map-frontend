@@ -39,8 +39,11 @@ function ZoneForm({ initial, onSave, onCancel, saveLabel }) {
         city: form.city.trim(),
         boundary: form.points.length === 0 ? null : parsedBoundary,
       })
+      // Reset the create form so it's usable again; edit forms unmount on save.
+      if (!onCancel) setForm(initial)
     } catch (err) {
       setError(getApiErrorMessage(err))
+    } finally {
       setBusy(false)
     }
   }

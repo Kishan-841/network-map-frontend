@@ -33,8 +33,11 @@ export function CrudList({ items, fields, renderItem, onCreate, onUpdate, onDele
   const inputClass =
     'h-12 flex-1 rounded-btn border border-line bg-card px-4 text-[15px] outline-none transition-shadow duration-200 placeholder:text-faint focus:border-fiber focus:ring-2 focus:ring-fiber/15'
 
-  function FieldInputs({ value, onChange }) {
-    return fields.map((field) => (
+  // Plain render helper (NOT a component) — defining a component inside render
+  // remounts the inputs each keystroke and drops focus. Returning elements from
+  // a function keeps their identity stable across renders.
+  const fieldInputs = (value, onChange) =>
+    fields.map((field) => (
       <input
         key={field.name}
         value={value[field.name]}
@@ -43,7 +46,6 @@ export function CrudList({ items, fields, renderItem, onCreate, onUpdate, onDele
         className={inputClass}
       />
     ))
-  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -58,7 +60,7 @@ export function CrudList({ items, fields, renderItem, onCreate, onUpdate, onDele
           })
         }}
       >
-        <FieldInputs value={draft} onChange={setDraft} />
+        {fieldInputs(draft, setDraft)}
         <Button type="submit" loading={busy}>
           {addLabel}
         </Button>
@@ -84,7 +86,7 @@ export function CrudList({ items, fields, renderItem, onCreate, onUpdate, onDele
               })
             }}
           >
-            <FieldInputs value={editDraft} onChange={setEditDraft} />
+            {fieldInputs(editDraft, setEditDraft)}
             <Button type="submit" loading={busy}>
               Save
             </Button>

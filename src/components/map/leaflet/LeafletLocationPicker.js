@@ -15,6 +15,12 @@ export default function LocationPicker({ latitude, longitude, onChange }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
+  // The dragend handler is bound once; route the latest onChange through a ref
+  // so a drag never fires a stale closure (which reverted edited form fields).
+  const onChangeRef = useRef(onChange)
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   useEffect(() => {
     if (mapRef.current) return
@@ -28,7 +34,7 @@ export default function LocationPicker({ latitude, longitude, onChange }) {
     const marker = L.marker([latitude, longitude], { draggable: true, icon: markerIcon }).addTo(map)
     marker.on('dragend', () => {
       const point = marker.getLatLng()
-      onChange({ latitude: point.lat, longitude: point.lng })
+      onChangeRef.current({ latitude: point.lat, longitude: point.lng })
     })
 
     mapRef.current = map

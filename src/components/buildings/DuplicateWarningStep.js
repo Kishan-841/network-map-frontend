@@ -44,7 +44,9 @@ export function DuplicateWarningStep({ candidates, onContinue, onBack }) {
               {candidate.distanceMeters} m
             </span>
           </div>
-          <p className="mt-0.5 text-sm font-normal text-muted">{candidate.formattedAddress}</p>
+          {candidate.formattedAddress && (
+            <p className="mt-0.5 text-sm font-normal text-muted">{candidate.formattedAddress}</p>
+          )}
           <div className="mt-2.5 flex flex-wrap gap-2">
             {candidate.samePlaceId && (
               <span className="rounded-full bg-bad-tint px-2.5 py-0.5 text-xs font-medium text-bad">

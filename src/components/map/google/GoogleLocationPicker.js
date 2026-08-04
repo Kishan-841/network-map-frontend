@@ -9,6 +9,12 @@ export default function GoogleLocationPicker({ latitude, longitude, onChange }) 
   const mapRef = useRef(null)
   const markerRef = useRef(null)
   const [ready, setReady] = useState(false)
+  // dragend binds once — route the latest onChange through a ref to avoid a
+  // stale closure reverting edited form fields.
+  const onChangeRef = useRef(onChange)
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   useEffect(() => {
     let cancelled = false
@@ -38,7 +44,7 @@ export default function GoogleLocationPicker({ latitude, longitude, onChange }) 
       })
       marker.addListener('dragend', () => {
         const point = marker.getPosition()
-        onChange({ latitude: point.lat(), longitude: point.lng() })
+        onChangeRef.current({ latitude: point.lat(), longitude: point.lng() })
       })
 
       mapRef.current = map
