@@ -15,6 +15,15 @@ import { IconPlus, IconEdit, IconUpload } from '@/components/ui/icons'
 const ROLES = ['SURVEYOR', 'MANAGER', 'ADMIN']
 const roleLabel = (role) => role.charAt(0) + role.slice(1).toLowerCase()
 
+// Keep the assigned-zones line short so it never widens the row (which would
+// push the action buttons into a horizontal scroll). Show a couple of names,
+// then "+N more".
+function zoneSummary(zones, max = 2) {
+  const names = zones.map((zone) => zone.name)
+  if (names.length <= max) return names.join(', ')
+  return `${names.slice(0, max).join(', ')} +${names.length - max} more`
+}
+
 const ROLE_CHIP = {
   ADMIN: 'bg-doc-tint text-doc',
   MANAGER: 'bg-fiber-tint text-fiber',
@@ -267,15 +276,18 @@ export default function AdminUsersPage() {
       key: 'user',
       header: 'User',
       render: (u) => (
-        <div className="min-w-0">
+        <div className="min-w-0 max-w-[280px]">
           <p className="truncate font-bold">
             {u.name}
             {youTag(u)}
           </p>
           <p className="truncate text-xs font-normal text-muted">{u.email}</p>
           {u.role === 'SURVEYOR' && u.assignedZones?.length > 0 && (
-            <p className="mt-0.5 truncate text-xs font-normal text-faint">
-              Zones: {u.assignedZones.map((zone) => zone.name).join(', ')}
+            <p
+              className="mt-0.5 truncate text-xs font-normal text-faint"
+              title={u.assignedZones.map((zone) => zone.name).join(', ')}
+            >
+              Zones: {zoneSummary(u.assignedZones)}
             </p>
           )}
         </div>
@@ -314,8 +326,11 @@ export default function AdminUsersPage() {
           </p>
           <p className="truncate text-sm font-normal text-muted">{u.email}</p>
           {u.role === 'SURVEYOR' && u.assignedZones?.length > 0 && (
-            <p className="mt-0.5 truncate text-xs font-normal text-faint">
-              Zones: {u.assignedZones.map((zone) => zone.name).join(', ')}
+            <p
+              className="mt-0.5 truncate text-xs font-normal text-faint"
+              title={u.assignedZones.map((zone) => zone.name).join(', ')}
+            >
+              Zones: {zoneSummary(u.assignedZones)}
             </p>
           )}
         </div>
