@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useZones } from '@/hooks/useZones'
+import { useOperators } from '@/hooks/useOperators'
 import { useAuthStore } from '@/stores/auth-store'
 import { apiClient } from '@/lib/api-client'
 
@@ -19,10 +20,27 @@ export function FilterSheet({ open, filters, onApply, onClose }) {
 
 function FilterSheetBody({ filters, onApply, onClose }) {
   const { zones } = useZones()
+  const { operators } = useOperators()
   const role = useAuthStore((s) => s.user?.role)
   const [surveyors, setSurveyors] = useState([])
   const [local, setLocal] = useState(filters)
   const canFilterSurveyor = role === 'ADMIN' || role === 'MANAGER'
+
+  // Picking an operator narrows the zone list to that operator's zones and
+  // clears a now-mismatched zone selection.
+  const shownZones = local.operatorId
+    ? zones.filter((zone) => zone.operator?.id === local.operatorId)
+    : zones
+  const setOperator = (e) => {
+    const operatorId = e.target.value
+    setLocal((prev) => {
+      const next = { ...prev, operatorId }
+      if (operatorId && !zones.some((z) => z.id === prev.zoneId && z.operator?.id === operatorId)) {
+        next.zoneId = ''
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     if (canFilterSurveyor) {
@@ -52,11 +70,25 @@ function FilterSheetBody({ filters, onApply, onClose }) {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pb-4">
+          {operators.length > 0 && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-muted">Operator</label>
+              <select className={selectClass} value={local.operatorId ?? ''} onChange={setOperator}>
+                <option value="">All operators</option>
+                {operators.map((operator) => (
+                  <option key={operator.id} value={operator.id}>
+                    {operator.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="mb-1.5 block text-sm font-medium text-muted">Zone</label>
             <select className={selectClass} value={local.zoneId ?? ''} onChange={set('zoneId')}>
               <option value="">All zones</option>
-              {zones.map((zone) => (
+              {shownZones.map((zone) => (
                 <option key={zone.id} value={zone.id}>{zone.name}</option>
               ))}
             </select>

@@ -14,6 +14,7 @@ import {
   IconUser,
   IconDoc,
   IconLogs,
+  IconLayers,
   NodeMark,
 } from '@/components/ui/icons'
 
@@ -43,6 +44,7 @@ function StatCard({ icon: StatIcon, tone, label, value, sub }) {
 }
 
 const MANAGE_LINKS = [
+  { href: '/admin/operators', label: 'Operators', sub: 'Zone groups', icon: IconLayers },
   { href: '/admin/zones', label: 'Zones', sub: 'Coverage areas', icon: IconPin },
   { href: '/admin/building-types', label: 'Building types', sub: 'Form options', icon: IconBuildings },
   { href: '/admin/users', label: 'Users', sub: 'Team & roles', icon: IconUser, adminOnly: true },

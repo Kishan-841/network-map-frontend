@@ -252,7 +252,10 @@ export default function AdminZonesPage() {
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate font-bold">{zone.name}</p>
-                <p className="truncate text-sm font-normal text-muted">{zone.city}</p>
+                <p className="truncate text-sm font-normal text-muted">
+                  {zone.city}
+                  {zone.operator?.name ? ` · ${zone.operator.name}` : ''}
+                </p>
                 {zone.boundary?.length >= 3 && (
                   <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-fiber-tint px-2.5 py-0.5 text-xs font-medium text-fiber">
                     <IconPin className="h-3 w-3" /> {zone.boundary.length}-point boundary
