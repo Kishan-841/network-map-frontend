@@ -3,16 +3,22 @@
 import { useEffect, useState } from 'react'
 import { apiClient } from '@/lib/api-client'
 
-export function useDashboardStats() {
+/** Dashboard stats, refetched when the operator filter changes. */
+export function useDashboardStats(operatorId = '') {
   const [stats, setStats] = useState(null)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    let cancelled = false
+    const params = operatorId ? { operatorId } : {}
     apiClient
-      .get('/stats/dashboard')
-      .then((res) => setStats(res.data.data))
-      .catch(() => setError('Could not load dashboard stats'))
-  }, [])
+      .get('/stats/dashboard', { params })
+      .then((res) => !cancelled && setStats(res.data.data))
+      .catch(() => !cancelled && setError('Could not load dashboard stats'))
+    return () => {
+      cancelled = true
+    }
+  }, [operatorId])
 
   return { stats, error }
 }

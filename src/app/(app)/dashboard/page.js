@@ -1,11 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { useBuildings } from '@/hooks/useBuildings'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
+import { useOperators } from '@/hooks/useOperators'
 import { useCountUp } from '@/hooks/useCountUp'
+import { Select } from '@/components/ui/Input'
+import { StatusDonut, OperatorBar, SurveysLine } from '@/components/dashboard/DashboardCharts'
 import {
   IconBuildings,
   IconHome,
@@ -43,6 +46,27 @@ function StatCard({ icon: StatIcon, tone, label, value, sub }) {
   )
 }
 
+/** Clickable count tile (Operators / Zones) that redirects. */
+function CountTile({ href, icon: TileIcon, label, value }) {
+  const shown = useCountUp(value ?? 0)
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3.5 rounded-card bg-card p-5 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fiber-tint text-fiber">
+        <TileIcon className="h-5 w-5" strokeWidth={1.8} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-2xl font-bold tabular-nums tracking-tight">
+          {value == null ? '—' : shown}
+        </span>
+        <span className="block truncate text-sm font-normal text-muted">{label}</span>
+      </span>
+    </Link>
+  )
+}
+
 const MANAGE_LINKS = [
   { href: '/admin/operators', label: 'Operators', sub: 'Zone groups', icon: IconLayers },
   { href: '/admin/zones', label: 'Zones', sub: 'Coverage areas', icon: IconPin },
@@ -53,7 +77,10 @@ const MANAGE_LINKS = [
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)
-  const { stats: serverStats } = useDashboardStats()
+  const canManage = ['ADMIN', 'MANAGER'].includes(user?.role)
+  const [operatorId, setOperatorId] = useState('')
+  const { operators } = useOperators()
+  const { stats: serverStats } = useDashboardStats(operatorId)
   // One page of everything — feeds the recent list and the stats fallback.
   const { buildings, loading } = useBuildings({ pageSize: 500 })
 
@@ -82,16 +109,36 @@ export default function DashboardPage() {
       .slice(0, 5)
   }, [buildings, loading])
 
-  const canManage = ['ADMIN', 'MANAGER'].includes(user?.role)
+  const selectedOperatorName = operators.find((o) => o.id === operatorId)?.name
 
   return (
     <main className="stagger">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight lg:text-[28px]">
-          {greeting()}
-          {user?.name ? `, ${user.name.split(' ')[0]}` : ''}
-        </h1>
-        <p className="mt-1 text-sm font-normal text-muted">Coverage at a glance</p>
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight lg:text-[28px]">
+            {greeting()}
+            {user?.name ? `, ${user.name.split(' ')[0]}` : ''}
+          </h1>
+          <p className="mt-1 text-sm font-normal text-muted">
+            {selectedOperatorName ? `Showing ${selectedOperatorName}` : 'Coverage at a glance'}
+          </p>
+        </div>
+        {canManage && operators.length > 0 && (
+          <div className="w-full sm:w-64">
+            <Select
+              id="dash-operator"
+              value={operatorId}
+              onChange={(e) => setOperatorId(e.target.value)}
+            >
+              <option value="">All operators</option>
+              {operators.map((operator) => (
+                <option key={operator.id} value={operator.id}>
+                  {operator.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
       </header>
 
       {/* Stats */}
@@ -121,6 +168,48 @@ export default function DashboardPage() {
             sub="flats passed"
           />
         </div>
+      )}
+
+      {/* Count tiles + operator-filtered charts (admin / manager) */}
+      {canManage && (
+        <>
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <CountTile
+              href="/admin/operators"
+              icon={IconLayers}
+              label="Operators"
+              value={serverStats?.operatorCount}
+            />
+            <CountTile
+              href="/admin/zones"
+              icon={IconPin}
+              label={selectedOperatorName ? `Zones in ${selectedOperatorName}` : 'Zones'}
+              value={serverStats?.zoneCount}
+            />
+          </div>
+
+          {serverStats && (
+            <section className="mt-5">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-faint">
+                Insights{selectedOperatorName ? ` · ${selectedOperatorName}` : ''}
+              </p>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <StatusDonut byStatus={serverStats.byStatus} />
+                <SurveysLine overTime={serverStats.overTime} />
+                <OperatorBar
+                  title="Buildings by operator"
+                  byOperator={serverStats.byOperator}
+                  dataKey="buildings"
+                />
+                <OperatorBar
+                  title="Home pass by operator"
+                  byOperator={serverStats.byOperator}
+                  dataKey="homePass"
+                />
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_320px]">
