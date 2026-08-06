@@ -5,11 +5,13 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useBuildings } from '@/hooks/useBuildings'
 import { useOperators } from '@/hooks/useOperators'
+import { useAuthStore } from '@/stores/auth-store'
 import { BuildingCard, BuildingCardSkeleton } from '@/components/buildings/BuildingCard'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
 import { Fab } from '@/components/ui/Fab'
-import { IconPlus, IconSearch, IconBuildings, IconClose, IconLayers } from '@/components/ui/icons'
+import { IconPlus, IconSearch, IconBuildings } from '@/components/ui/icons'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -53,8 +55,10 @@ function BuildingsList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const operatorId = searchParams.get('operatorId') ?? ''
+  const role = useAuthStore((s) => s.user?.role)
+  // Only admins/managers can list operators (the /operators API is role-gated).
+  const canFilterOperator = role === 'ADMIN' || role === 'MANAGER'
   const { operators } = useOperators()
-  const operatorName = operators.find((o) => o.id === operatorId)?.name
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -76,9 +80,9 @@ function BuildingsList() {
     pageSize,
   })
 
-  const clearOperator = () => {
+  const setOperator = (id) => {
     setPage(1)
-    router.replace('/buildings')
+    router.replace(id ? `/buildings?operatorId=${id}` : '/buildings')
   }
 
   const emptyState = (
@@ -122,9 +126,9 @@ function BuildingsList() {
         }
       />
 
-      {/* Sticky pill search */}
-      <div className="sticky top-0 z-30 -mx-4 mb-5 bg-paper/80 px-4 py-2 backdrop-blur-md lg:static lg:mx-0 lg:mb-5 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-        <div className="relative lg:max-w-md">
+      {/* Sticky search + operator filter */}
+      <div className="sticky top-0 z-30 -mx-4 mb-5 flex items-center gap-3 bg-paper/80 px-4 py-2 backdrop-blur-md lg:static lg:mx-0 lg:mb-5 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+        <div className="relative flex-1 lg:max-w-md">
           <IconSearch className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-faint" />
           <input
             value={search}
@@ -133,20 +137,23 @@ function BuildingsList() {
             className="h-12 w-full rounded-full border border-line bg-card pl-11 pr-4 text-[15px] shadow-soft outline-none transition-shadow duration-200 placeholder:text-faint focus:border-fiber focus:ring-2 focus:ring-fiber/15"
           />
         </div>
+        {canFilterOperator && operators.length > 0 && (
+          <div className="w-44 shrink-0 sm:w-56 lg:ml-auto">
+            <Select
+              id="buildings-operator"
+              value={operatorId}
+              onChange={(e) => setOperator(e.target.value)}
+            >
+              <option value="">All operators</option>
+              {operators.map((operator) => (
+                <option key={operator.id} value={operator.id}>
+                  {operator.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
       </div>
-
-      {/* Active operator filter (from a dashboard drill-down) */}
-      {operatorId && (
-        <div className="mb-4">
-          <span className="inline-flex items-center gap-2 rounded-full bg-fiber-tint px-3 py-1.5 text-sm font-medium text-fiber">
-            <IconLayers className="h-3.5 w-3.5" />
-            {operatorName ?? 'Operator'}
-            <button type="button" aria-label="Clear operator filter" onClick={clearOperator} className="hover:opacity-70">
-              <IconClose className="h-3.5 w-3.5" />
-            </button>
-          </span>
-        </div>
-      )}
 
       <DataTable
         columns={COLUMNS}
