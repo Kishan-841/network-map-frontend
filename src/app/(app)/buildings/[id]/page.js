@@ -2,7 +2,8 @@
 
 import { use, useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { apiClient } from '@/lib/api-client'
+import { apiClient, getApiErrorMessage } from '@/lib/api-client'
+import { Modal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { IconPin } from '@/components/ui/icons'
 import { PhotoManager } from '@/components/buildings/PhotoManager'
@@ -45,22 +46,19 @@ export default function BuildingDetailPage({ params }) {
   const [building, setBuilding] = useState(null)
   const [error, setError] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
 
   async function handleDelete() {
-    if (
-      !window.confirm(
-        `Delete "${building.buildingName}"? This permanently removes the building and all its photos.`,
-      )
-    )
-      return
     setDeleting(true)
+    setDeleteError(null)
     try {
       await apiClient.delete(`/buildings/${id}`)
       router.push('/buildings')
-    } catch {
+    } catch (err) {
       setDeleting(false)
-      window.alert('Failed to delete the building. Please try again.')
+      setDeleteError(getApiErrorMessage(err, 'Failed to delete the building. Please try again.'))
     }
   }
 
@@ -111,7 +109,7 @@ export default function BuildingDetailPage({ params }) {
                 Edit
               </Button>
               {isAdmin && (
-                <Button variant="dangerGhost" loading={deleting} onClick={handleDelete}>
+                <Button variant="dangerGhost" onClick={() => setDeleteOpen(true)}>
                   <IconTrash className="h-4 w-4" strokeWidth={1.8} />
                   Delete
                 </Button>
@@ -162,6 +160,30 @@ export default function BuildingDetailPage({ params }) {
           onSaved={fetchBuilding}
         />
       )}
+
+      <Modal
+        open={deleteOpen}
+        onClose={() => !deleting && setDeleteOpen(false)}
+        title="Delete building"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" disabled={deleting} onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" loading={deleting} onClick={handleDelete}>
+              <IconTrash className="h-4 w-4" strokeWidth={1.8} />
+              Delete
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted">
+          Delete <span className="font-semibold text-ink">“{building.buildingName}”</span>? This
+          permanently removes the building, its details, and all uploaded photos. This cannot be
+          undone.
+        </p>
+        {deleteError && <p className="mt-3 text-sm text-error">{deleteError}</p>}
+      </Modal>
     </main>
   )
 }
