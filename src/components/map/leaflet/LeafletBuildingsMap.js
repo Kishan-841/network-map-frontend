@@ -5,6 +5,9 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { buildingColor, zoneColor } from '@/lib/constants'
 import { buildingPin } from '@/lib/map-markers'
+import { createBaseLayer } from '@/lib/leaflet-layers'
+import { useMapLayer } from '@/lib/useMapLayer'
+import { MapLayerControl } from '@/components/map/MapLayerControl'
 
 // Zone names are user-entered and land in divIcon HTML — escape them.
 const escapeHtml = (value) =>
@@ -27,6 +30,8 @@ export default function BuildingsMap({ buildings, zones = [], selectedId, onSele
   const markersRef = useRef(new Map())
   const zoneLayersRef = useRef([])
   const fittedRef = useRef(false)
+  const baseLayerRef = useRef(null)
+  const [layer, setLayer] = useMapLayer('tab', 'roadmap')
 
   useEffect(() => {
     if (mapRef.current) return
@@ -34,10 +39,6 @@ export default function BuildingsMap({ buildings, zones = [], selectedId, onSele
       DEFAULT_CENTER,
       DEFAULT_ZOOM,
     )
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map)
     mapRef.current = map
 
     // Re-tile when the container resizes (e.g. the sidebar collapses) —
@@ -49,8 +50,19 @@ export default function BuildingsMap({ buildings, zones = [], selectedId, onSele
       observer.disconnect()
       map.remove()
       mapRef.current = null
+      baseLayerRef.current = null
     }
   }, [])
+
+  // Swap the base tile layer when the layer choice changes (also adds it on
+  // first mount). Base layers live in tilePane, below the marker/zone panes.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (baseLayerRef.current) baseLayerRef.current.remove()
+    baseLayerRef.current = createBaseLayer(layer)
+    baseLayerRef.current.addTo(map)
+  }, [layer])
 
   // Zone boundaries: dashed outline + faint fill, drawn under the markers.
   useEffect(() => {
@@ -138,5 +150,10 @@ export default function BuildingsMap({ buildings, zones = [], selectedId, onSele
 
   // isolate: trap Leaflet's internal z-indexes (panes go up to 700) in their own
   // stacking context so page overlays like the search bar can sit above at z-40.
-  return <div ref={containerRef} className="relative isolate z-0 h-full w-full" />
+  return (
+    <div className="relative isolate z-0 h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      <MapLayerControl value={layer} onChange={setLayer} position="right-3 top-[4.75rem] lg:top-24" />
+    </div>
+  )
 }

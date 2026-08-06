@@ -3,6 +3,9 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { createBaseLayer } from '@/lib/leaflet-layers'
+import { useMapLayer } from '@/lib/useMapLayer'
+import { MapLayerControl } from '@/components/map/MapLayerControl'
 
 const markerIcon = L.divIcon({
   className: '',
@@ -15,6 +18,9 @@ export default function LocationPicker({ latitude, longitude, onChange }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
+  const baseLayerRef = useRef(null)
+  // Placing a pin on the building is easier over imagery, so default satellite.
+  const [layer, setLayer] = useMapLayer('picker', 'satellite')
   // The dragend handler is bound once; route the latest onChange through a ref
   // so a drag never fires a stale closure (which reverted edited form fields).
   const onChangeRef = useRef(onChange)
@@ -26,10 +32,6 @@ export default function LocationPicker({ latitude, longitude, onChange }) {
     if (mapRef.current) return
 
     const map = L.map(containerRef.current).setView([latitude, longitude], 18)
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map)
 
     const marker = L.marker([latitude, longitude], { draggable: true, icon: markerIcon }).addTo(map)
     marker.on('dragend', () => {
@@ -43,13 +45,27 @@ export default function LocationPicker({ latitude, longitude, onChange }) {
     return () => {
       map.remove()
       mapRef.current = null
+      baseLayerRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (baseLayerRef.current) baseLayerRef.current.remove()
+    baseLayerRef.current = createBaseLayer(layer)
+    baseLayerRef.current.addTo(map)
+  }, [layer])
+
+  useEffect(() => {
     if (markerRef.current) markerRef.current.setLatLng([latitude, longitude])
   }, [latitude, longitude])
 
-  return <div ref={containerRef} className="h-64 w-full rounded-xl" />
+  return (
+    <div className="relative h-64 w-full overflow-hidden rounded-xl">
+      <div ref={containerRef} className="h-full w-full" />
+      <MapLayerControl value={layer} onChange={setLayer} />
+    </div>
+  )
 }

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { buildingColor, zoneColor } from '@/lib/constants'
 import { buildingPin, pinDataUri, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
+import { useMapLayer } from '@/lib/useMapLayer'
+import { MapLayerControl } from '@/components/map/MapLayerControl'
 
 const polygonCentroid = (points) => ({
   lat: points.reduce((sum, p) => sum + p.latitude, 0) / points.length,
@@ -24,6 +26,7 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
   const zoneOverlaysRef = useRef([])
   const fittedRef = useRef(false)
   const [ready, setReady] = useState(false)
+  const [layer, setLayer] = useMapLayer('tab', 'roadmap')
 
   useEffect(() => {
     let cancelled = false
@@ -32,6 +35,7 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
       mapRef.current = new Map(containerRef.current, {
         center: DEFAULT_CENTER,
         zoom: DEFAULT_ZOOM,
+        mapTypeId: layer, // 'roadmap' | 'satellite' | 'hybrid'
         disableDefaultUI: true,
         zoomControl: true,
         gestureHandling: 'greedy',
@@ -46,7 +50,13 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
       markersRef.current.clear()
       mapRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Apply layer changes to the live map (initial value is set at creation).
+  useEffect(() => {
+    if (mapRef.current && ready) mapRef.current.setMapTypeId(layer)
+  }, [layer, ready])
 
   // Zone boundaries: faint fill + dashed outline (Google polygons have no
   // native dash — the outline is a polyline of repeated dash symbols).
@@ -172,5 +182,10 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
     }
   }, [buildings, selectedId, onSelect, ready])
 
-  return <div ref={containerRef} className="relative isolate z-0 h-full w-full" />
+  return (
+    <div className="relative isolate z-0 h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      <MapLayerControl value={layer} onChange={setLayer} position="right-3 top-[4.75rem] lg:top-24" />
+    </div>
+  )
 }
