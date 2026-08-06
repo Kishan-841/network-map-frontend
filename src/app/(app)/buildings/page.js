@@ -19,14 +19,22 @@ const COLUMNS = [
   {
     key: 'buildingName',
     header: 'Building',
+    // Cap the width so long addresses truncate instead of widening the table
+    // (which pushed the Added column into a horizontal scroll).
+    className: 'max-w-[460px]',
     render: (b) => (
-      <div className="min-w-0">
+      <div className="min-w-0 max-w-[460px]">
         <p className="truncate font-bold">{b.buildingName}</p>
         <p className="truncate text-xs font-normal text-muted">{b.formattedAddress}</p>
       </div>
     ),
   },
-  { key: 'zone', header: 'Zone', render: (b) => b.zone?.name ?? '—', className: 'text-muted' },
+  {
+    key: 'zone',
+    header: 'Zone',
+    render: (b) => <span className="line-clamp-2">{b.zone?.name ?? '—'}</span>,
+    className: 'max-w-[160px] text-muted',
+  },
   {
     key: 'homePass',
     header: 'Home pass',
