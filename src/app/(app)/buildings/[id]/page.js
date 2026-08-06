@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { IconPin } from '@/components/ui/icons'
@@ -8,7 +9,7 @@ import { PhotoManager } from '@/components/buildings/PhotoManager'
 import { LiveToggle } from '@/components/buildings/LiveToggle'
 import { EditBuildingModal } from '@/components/buildings/EditBuildingModal'
 import { Button } from '@/components/ui/Button'
-import { IconEdit } from '@/components/ui/icons'
+import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
 
 /** Card section of label/value rows. Hides rows without values, and itself when empty. */
@@ -39,9 +40,29 @@ export default function BuildingDetailPage({ params }) {
   const { id } = use(params)
   const role = useAuthStore((s) => s.user?.role)
   const canEdit = role === 'ADMIN' || role === 'MANAGER'
+  const isAdmin = role === 'ADMIN'
+  const router = useRouter()
   const [building, setBuilding] = useState(null)
   const [error, setError] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    if (
+      !window.confirm(
+        `Delete "${building.buildingName}"? This permanently removes the building and all its photos.`,
+      )
+    )
+      return
+    setDeleting(true)
+    try {
+      await apiClient.delete(`/buildings/${id}`)
+      router.push('/buildings')
+    } catch {
+      setDeleting(false)
+      window.alert('Failed to delete the building. Please try again.')
+    }
+  }
 
   const fetchBuilding = useCallback(() => {
     return apiClient
@@ -84,10 +105,18 @@ export default function BuildingDetailPage({ params }) {
         sub={building.formattedAddress}
         action={
           canEdit && (
-            <Button variant="secondary" onClick={() => setEditOpen(true)}>
-              <IconEdit className="h-4 w-4" strokeWidth={1.8} />
-              Edit
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setEditOpen(true)}>
+                <IconEdit className="h-4 w-4" strokeWidth={1.8} />
+                Edit
+              </Button>
+              {isAdmin && (
+                <Button variant="dangerGhost" loading={deleting} onClick={handleDelete}>
+                  <IconTrash className="h-4 w-4" strokeWidth={1.8} />
+                  Delete
+                </Button>
+              )}
+            </div>
           )
         }
       />
