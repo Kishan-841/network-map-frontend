@@ -1,14 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useBuildings } from '@/hooks/useBuildings'
+import { useOperators } from '@/hooks/useOperators'
 import { BuildingCard, BuildingCardSkeleton } from '@/components/buildings/BuildingCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { DataTable } from '@/components/ui/DataTable'
 import { Fab } from '@/components/ui/Fab'
-import { IconPlus, IconSearch, IconBuildings } from '@/components/ui/icons'
+import { IconPlus, IconSearch, IconBuildings, IconClose, IconLayers } from '@/components/ui/icons'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -40,8 +41,12 @@ const COLUMNS = [
   },
 ]
 
-export default function BuildingsPage() {
+function BuildingsList() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const operatorId = searchParams.get('operatorId') ?? ''
+  const { operators } = useOperators()
+  const operatorName = operators.find((o) => o.id === operatorId)?.name
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -58,9 +63,15 @@ export default function BuildingsPage() {
 
   const { buildings, pagination, loading } = useBuildings({
     search: debouncedSearch || undefined,
+    operatorId: operatorId || undefined,
     page,
     pageSize,
   })
+
+  const clearOperator = () => {
+    setPage(1)
+    router.replace('/buildings')
+  }
 
   const emptyState = (
     <div className="flex flex-col items-center rounded-card bg-card px-6 py-16 text-center shadow-soft">
@@ -116,6 +127,19 @@ export default function BuildingsPage() {
         </div>
       </div>
 
+      {/* Active operator filter (from a dashboard drill-down) */}
+      {operatorId && (
+        <div className="mb-4">
+          <span className="inline-flex items-center gap-2 rounded-full bg-fiber-tint px-3 py-1.5 text-sm font-medium text-fiber">
+            <IconLayers className="h-3.5 w-3.5" />
+            {operatorName ?? 'Operator'}
+            <button type="button" aria-label="Clear operator filter" onClick={clearOperator} className="hover:opacity-70">
+              <IconClose className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        </div>
+      )}
+
       <DataTable
         columns={COLUMNS}
         rows={loading ? null : buildings}
@@ -135,5 +159,14 @@ export default function BuildingsPage() {
 
       <Fab href="/buildings/add" label="Add building" />
     </main>
+  )
+}
+
+// useSearchParams must sit inside a Suspense boundary in the App Router.
+export default function BuildingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <BuildingsList />
+    </Suspense>
   )
 }

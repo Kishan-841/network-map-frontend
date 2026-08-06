@@ -30,10 +30,10 @@ function greeting() {
   return 'Good evening'
 }
 
-function StatCard({ icon: StatIcon, tone, label, value, sub }) {
+function StatCard({ icon: StatIcon, tone, label, value, sub, href }) {
   const shown = useCountUp(value ?? 0)
-  return (
-    <div className="rounded-card bg-card p-5 shadow-soft">
+  const body = (
+    <>
       <span className={`flex h-10 w-10 items-center justify-center rounded-full ${tone}`}>
         <StatIcon className="h-5 w-5" strokeWidth={1.8} />
       </span>
@@ -42,8 +42,19 @@ function StatCard({ icon: StatIcon, tone, label, value, sub }) {
       </p>
       <p className="mt-0.5 text-sm font-normal text-muted">{label}</p>
       {sub && <p className="mt-1 text-xs font-normal text-faint">{sub}</p>}
-    </div>
+    </>
   )
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="block rounded-card bg-card p-5 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift"
+      >
+        {body}
+      </Link>
+    )
+  }
+  return <div className="rounded-card bg-card p-5 shadow-soft">{body}</div>
 }
 
 /** Clickable count tile (Operators / Zones) that redirects. */
@@ -159,6 +170,7 @@ export default function DashboardPage() {
             tone="bg-fiber-tint text-fiber"
             label="Buildings surveyed"
             value={stats.total}
+            href={`/buildings${operatorId ? `?operatorId=${operatorId}` : ''}`}
           />
           <StatCard
             icon={IconHome}
@@ -166,6 +178,7 @@ export default function DashboardPage() {
             label="Home pass"
             value={stats.homePass}
             sub="flats passed"
+            href={`/buildings${operatorId ? `?operatorId=${operatorId}` : ''}`}
           />
         </div>
       )}
