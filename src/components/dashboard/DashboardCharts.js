@@ -16,11 +16,10 @@ import {
 } from 'recharts'
 
 // Recharts accepts CSS custom properties, so charts follow the active theme.
-const STATUS_META = [
-  { key: 'FEASIBLE', label: 'Feasible', color: 'var(--ok)' },
-  { key: 'PERMISSION_PENDING', label: 'Permission pending', color: 'var(--warn)' },
-  { key: 'REJECTED', label: 'Rejected', color: 'var(--bad)' },
-  { key: 'SURVEY_PENDING', label: 'Survey pending', color: 'var(--scan)' },
+// Live = fiber connection is live (green/red, same as the map markers).
+const LIVE_META = [
+  { key: 'live', label: 'Live', color: 'var(--ok)' },
+  { key: 'notLive', label: 'Not live', color: 'var(--bad)' },
 ]
 
 const axisProps = {
@@ -57,12 +56,12 @@ function ChartCard({ title, hasData, children, height = 220 }) {
   )
 }
 
-export function StatusDonut({ byStatus }) {
-  const data = STATUS_META.map((s) => ({ ...s, value: byStatus?.[s.key] ?? 0 })).filter(
+export function LiveDonut({ byLive }) {
+  const data = LIVE_META.map((s) => ({ ...s, value: byLive?.[s.key] ?? 0 })).filter(
     (d) => d.value > 0,
   )
   return (
-    <ChartCard title="Survey status" hasData={data.length > 0}>
+    <ChartCard title="Connection status" hasData={data.length > 0}>
       <PieChart>
         <Pie data={data} dataKey="value" nameKey="label" innerRadius={45} outerRadius={75} paddingAngle={2}>
           {data.map((d) => (

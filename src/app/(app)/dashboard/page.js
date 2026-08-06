@@ -8,7 +8,7 @@ import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useOperators } from '@/hooks/useOperators'
 import { useCountUp } from '@/hooks/useCountUp'
 import { Select } from '@/components/ui/Input'
-import { StatusDonut, OperatorBar, SurveysLine } from '@/components/dashboard/DashboardCharts'
+import { LiveDonut, OperatorBar, SurveysLine } from '@/components/dashboard/DashboardCharts'
 import {
   IconBuildings,
   IconHome,
@@ -207,7 +207,7 @@ export default function DashboardPage() {
                 Insights{selectedOperatorName ? ` · ${selectedOperatorName}` : ''}
               </p>
               <div className="grid gap-4 lg:grid-cols-2">
-                <StatusDonut byStatus={serverStats.byStatus} />
+                <LiveDonut byLive={serverStats.byLive} />
                 <SurveysLine overTime={serverStats.overTime} />
                 <OperatorBar
                   title="Buildings by operator"
