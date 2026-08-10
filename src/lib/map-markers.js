@@ -39,6 +39,24 @@ export function pinDataUri(pin) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(pin.svg)}`
 }
 
+const pinCache = new Map()
+
+/**
+ * Memoized pin + data-URI per color/selected pair. Marker icons repeat across
+ * hundreds of buildings — caching lets the browser reuse one decoded image
+ * instead of re-encoding identical SVGs on every marker (re)build.
+ */
+export function buildingPinCached({ color, selected = false }) {
+  const key = `${color}|${selected}`
+  let cached = pinCache.get(key)
+  if (!cached) {
+    const pin = buildingPin({ color, selected })
+    cached = { ...pin, url: pinDataUri(pin) }
+    pinCache.set(key, cached)
+  }
+  return cached
+}
+
 /**
  * Google Maps basemap style: hide the POI/business icon clutter (keeps place
  * labels and roads for orientation) so our building pins stand out.
