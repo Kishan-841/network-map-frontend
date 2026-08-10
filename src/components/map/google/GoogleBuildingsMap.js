@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { buildingColor, zoneColor } from '@/lib/constants'
-import { buildingPin, pinDataUri, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
+import { MarkerClusterer } from '@googlemaps/markerclusterer'
+import { buildingPinCached, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 
@@ -18,6 +19,38 @@ const DEFAULT_ZOOM = 5
 // dot notation at the centroid instead.
 const ZONE_DETAIL_ZOOM = 13
 
+// Cluster bubble: fiber-emerald disc with a soft halo and white count,
+// sized up slightly for bigger counts (Design.md palette).
+const clusterRenderer = {
+  render({ count, position }) {
+    const size = count < 10 ? 44 : count < 100 ? 52 : 60
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 60 60">
+  <circle cx="30" cy="30" r="28" fill="#10b981" fill-opacity="0.25"/>
+  <circle cx="30" cy="30" r="20" fill="#10b981" stroke="#ffffff" stroke-width="3"/>
+  <text x="30" y="31" fill="#ffffff" font-family="Inter, sans-serif" font-size="16" font-weight="700" text-anchor="middle" dominant-baseline="central">${count}</text>
+</svg>`
+    return new google.maps.Marker({
+      position,
+      icon: {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new google.maps.Size(size, size),
+        anchor: new google.maps.Point(size / 2, size / 2),
+      },
+      // Clusters sit above raw pins so counts stay readable.
+      zIndex: Number(google.maps.Marker.MAX_ZINDEX) + count,
+    })
+  },
+}
+
+const pinIcon = (building, selected) => {
+  const pin = buildingPinCached({ color: buildingColor(building), selected })
+  return {
+    url: pin.url,
+    scaledSize: new google.maps.Size(pin.width, pin.height),
+    anchor: new google.maps.Point(pin.anchorX, pin.anchorY),
+  }
+}
+
 /** Same contract as LeafletBuildingsMap — Google Maps JS implementation. */
 export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, onSelect }) {
   const containerRef = useRef(null)
@@ -25,6 +58,14 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
   const markersRef = useRef(new Map())
   const zoneOverlaysRef = useRef([])
   const fittedRef = useRef(false)
+  const clustererRef = useRef(null)
+  const onSelectRef = useRef(onSelect)
+  const selectedIdRef = useRef(selectedId)
+  const prevSelectedRef = useRef(null)
+
+  useEffect(() => {
+    onSelectRef.current = onSelect
+  }, [onSelect])
   const [ready, setReady] = useState(false)
   const [layer, setLayer] = useMapLayer('tab', 'roadmap')
 
@@ -42,10 +83,17 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
         clickableIcons: false, // building taps belong to OUR markers, not Google POIs
         styles: DECLUTTER_MAP_STYLE, // hide Google's POI icon clutter
       })
+      clustererRef.current = new MarkerClusterer({
+        map: mapRef.current,
+        markers: [],
+        renderer: clusterRenderer,
+      })
       setReady(true)
     })
     return () => {
       cancelled = true
+      clustererRef.current?.clearMarkers()
+      clustererRef.current = null
       markersRef.current.forEach((marker) => marker.setMap(null))
       markersRef.current.clear()
       mapRef.current = null
@@ -142,36 +190,64 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
     return () => zoomListener.remove()
   }, [zones, ready])
 
+  // Diff markers against the buildings prop — never tear down the world.
+  // Selection is handled in its own effect so a tap only re-icons two pins.
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready) return
+    const clusterer = clustererRef.current
+    if (!map || !clusterer || !ready) return
 
-    markersRef.current.forEach((marker) => marker.setMap(null))
-    markersRef.current.clear()
+    const markers = markersRef.current
+    const seen = new Set()
+    let changed = false
 
     buildings.forEach((building) => {
-      const isSelected = building.id === selectedId
-      const pin = buildingPin({
-        color: buildingColor(building),
-        selected: isSelected,
-      })
-      const marker = new google.maps.Marker({
-        map,
-        position: { lat: building.latitude, lng: building.longitude },
-        icon: {
-          url: pinDataUri(pin),
-          scaledSize: new google.maps.Size(pin.width, pin.height),
-          anchor: new google.maps.Point(pin.anchorX, pin.anchorY),
-        },
-        zIndex: isSelected ? 1000 : 1, // selected pin sits on top
-      })
-      marker.addListener('click', () => {
-        onSelect(building)
-        map.panTo({ lat: building.latitude, lng: building.longitude })
-        if (map.getZoom() < 17) map.setZoom(17) // zoom in to the tapped building
-      })
-      markersRef.current.set(building.id, marker)
+      seen.add(building.id)
+      const selected = building.id === selectedIdRef.current
+      const key = `${buildingColor(building)}|${selected}`
+      let marker = markers.get(building.id)
+
+      if (!marker) {
+        marker = new google.maps.Marker({
+          position: { lat: building.latitude, lng: building.longitude },
+          icon: pinIcon(building, selected),
+          zIndex: selected ? 1000 : 1, // selected pin sits on top
+        })
+        marker.addListener('click', () => {
+          onSelectRef.current(marker.buildingData)
+          map.panTo(marker.getPosition())
+          if (map.getZoom() < 17) map.setZoom(17) // zoom in to the tapped building
+        })
+        marker.pinKey = key
+        marker.buildingData = building
+        markers.set(building.id, marker)
+        clusterer.addMarker(marker, true)
+        changed = true
+        return
+      }
+
+      marker.buildingData = building
+      const pos = marker.getPosition()
+      if (pos.lat() !== building.latitude || pos.lng() !== building.longitude) {
+        marker.setPosition({ lat: building.latitude, lng: building.longitude })
+        changed = true
+      }
+      if (marker.pinKey !== key) {
+        marker.setIcon(pinIcon(building, selected))
+        marker.setZIndex(selected ? 1000 : 1)
+        marker.pinKey = key
+      }
     })
+
+    markers.forEach((marker, id) => {
+      if (seen.has(id)) return
+      clusterer.removeMarker(marker, true)
+      marker.setMap(null)
+      markers.delete(id)
+      changed = true
+    })
+
+    if (changed) clusterer.render()
 
     // Fit-to-all on first load (user decision) — later refetches keep the view.
     if (!fittedRef.current && buildings.length > 0) {
@@ -180,7 +256,28 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
       map.fitBounds(bounds, 48)
       fittedRef.current = true
     }
-  }, [buildings, selectedId, onSelect, ready])
+  }, [buildings, ready])
+
+  // Selection: restyle only the previously- and newly-selected pins.
+  useEffect(() => {
+    selectedIdRef.current = selectedId
+    if (!ready) return
+    const markers = markersRef.current
+
+    const restyle = (id, selected) => {
+      const marker = markers.get(id)
+      if (!marker?.buildingData) return
+      marker.setIcon(pinIcon(marker.buildingData, selected))
+      marker.setZIndex(selected ? 1000 : 1)
+      marker.pinKey = `${buildingColor(marker.buildingData)}|${selected}`
+    }
+
+    if (prevSelectedRef.current && prevSelectedRef.current !== selectedId) {
+      restyle(prevSelectedRef.current, false)
+    }
+    if (selectedId) restyle(selectedId, true)
+    prevSelectedRef.current = selectedId
+  }, [selectedId, ready])
 
   return (
     <div className="relative isolate z-0 h-full w-full">
