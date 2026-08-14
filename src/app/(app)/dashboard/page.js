@@ -79,6 +79,7 @@ function CountTile({ href, icon: TileIcon, label, value }) {
 }
 
 const MANAGE_LINKS = [
+  { href: '/admin/cities', label: 'Cities', sub: 'Operator groups', icon: IconMap, adminOnly: true },
   { href: '/admin/operators', label: 'Operators', sub: 'Zone groups', icon: IconLayers },
   { href: '/admin/zones', label: 'Zones', sub: 'Coverage areas', icon: IconPin },
   { href: '/admin/building-types', label: 'Building types', sub: 'Form options', icon: IconBuildings },

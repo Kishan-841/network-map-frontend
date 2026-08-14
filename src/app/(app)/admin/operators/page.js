@@ -4,15 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input, Select } from '@/components/ui/Input'
 import { Pagination } from '@/components/ui/Pagination'
 import { ImportOperatorMappingModal } from '@/components/admin/ImportOperatorMappingModal'
+import { useCities } from '@/hooks/useCities'
 import { IconEdit, IconTrash, IconUpload, IconLayers } from '@/components/ui/icons'
 
-const emptyForm = { name: '', city: '' }
+const emptyForm = { name: '', cityId: '' }
 
-/** Shared create/edit form: name + optional city. */
-function OperatorForm({ initial, onSave, onCancel, saveLabel }) {
+/** Shared create/edit form: name + optional city (picked from the city list). */
+function OperatorForm({ initial, cities, onSave, onCancel, saveLabel }) {
   const [form, setForm] = useState(initial)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -21,7 +22,7 @@ function OperatorForm({ initial, onSave, onCancel, saveLabel }) {
     setBusy(true)
     setError(null)
     try {
-      await onSave({ name: form.name.trim(), city: form.city.trim() || null })
+      await onSave({ name: form.name.trim(), cityId: form.cityId || null })
       if (!onCancel) setForm(initial)
     } catch (err) {
       setError(getApiErrorMessage(err))
@@ -39,12 +40,18 @@ function OperatorForm({ initial, onSave, onCancel, saveLabel }) {
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
         />
-        <Input
+        <Select
           id="op-city"
-          placeholder="City (optional)"
-          value={form.city}
-          onChange={(e) => setForm({ ...form, city: e.target.value })}
-        />
+          value={form.cityId}
+          onChange={(e) => setForm({ ...form, cityId: e.target.value })}
+        >
+          <option value="">No city</option>
+          {cities.map((city) => (
+            <option key={city.id} value={city.id}>
+              {city.name}
+            </option>
+          ))}
+        </Select>
       </div>
       {error && (
         <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
@@ -72,6 +79,7 @@ export default function AdminOperatorsPage() {
   const [page, setPage] = useState(1)
   const [refreshTick, setRefreshTick] = useState(0)
   const [result, setResult] = useState(null)
+  const { cities } = useCities()
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -139,6 +147,7 @@ export default function AdminOperatorsPage() {
 
       <OperatorForm
         initial={emptyForm}
+        cities={cities}
         saveLabel="Add operator"
         onSave={async (payload) => {
           await apiClient.post('/operators', payload)
@@ -175,7 +184,8 @@ export default function AdminOperatorsPage() {
           editingId === operator.id ? (
             <OperatorForm
               key={operator.id}
-              initial={{ name: operator.name, city: operator.city ?? '' }}
+              initial={{ name: operator.name, cityId: operator.city?.id ?? '' }}
+              cities={cities}
               saveLabel="Save changes"
               onCancel={() => setEditingId(null)}
               onSave={async (payload) => {
@@ -192,7 +202,7 @@ export default function AdminOperatorsPage() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-bold">{operator.name}</p>
                 <p className="truncate text-sm font-normal text-muted">
-                  {operator.city || 'No city'}
+                  {operator.city?.name || 'No city'}
                 </p>
                 <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-fiber-tint px-2.5 py-0.5 text-xs font-medium text-fiber">
                   <IconLayers className="h-3 w-3" /> {operator.zoneCount} zone
