@@ -3,14 +3,17 @@
 import { useEffect, useState } from 'react'
 import { apiClient } from '@/lib/api-client'
 
-/** Dashboard stats, refetched when the operator filter changes. */
-export function useDashboardStats(operatorId = '') {
+/** Dashboard stats, refetched when the operator/city filters change. */
+export function useDashboardStats(operatorId = '', cityId = '') {
   const [stats, setStats] = useState(null)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     let cancelled = false
-    const params = operatorId ? { operatorId } : {}
+    const params = {
+      ...(operatorId && { operatorId }),
+      ...(cityId && { cityId }),
+    }
     apiClient
       .get('/stats/dashboard', { params })
       .then((res) => !cancelled && setStats(res.data.data))
@@ -18,7 +21,7 @@ export function useDashboardStats(operatorId = '') {
     return () => {
       cancelled = true
     }
-  }, [operatorId])
+  }, [operatorId, cityId])
 
   return { stats, error }
 }

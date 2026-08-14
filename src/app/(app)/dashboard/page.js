@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useBuildings } from '@/hooks/useBuildings'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useOperators } from '@/hooks/useOperators'
+import { useCities } from '@/hooks/useCities'
 import { useCountUp } from '@/hooks/useCountUp'
 import { Select } from '@/components/ui/Input'
 import { LiveDonut, OperatorBar, SurveysLine } from '@/components/dashboard/DashboardCharts'
@@ -91,8 +92,17 @@ export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const canManage = ['ADMIN', 'MANAGER'].includes(user?.role)
   const [operatorId, setOperatorId] = useState('')
+  const [cityId, setCityId] = useState('')
   const { operators } = useOperators()
-  const { stats: serverStats } = useDashboardStats(operatorId)
+  const { cities } = useCities()
+  const { stats: serverStats } = useDashboardStats(operatorId, cityId)
+
+  const visibleOperators = cityId ? operators.filter((o) => o.city?.id === cityId) : operators
+  const selectCity = (id) => {
+    setCityId(id)
+    // Keep the operator only if it belongs to the newly selected city.
+    if (id && !operators.some((o) => o.id === operatorId && o.city?.id === id)) setOperatorId('')
+  }
   // One page of everything — feeds the recent list and the stats fallback.
   const { buildings, loading } = useBuildings({ pageSize: 500 })
 
@@ -122,6 +132,8 @@ export default function DashboardPage() {
   }, [buildings, loading])
 
   const selectedOperatorName = operators.find((o) => o.id === operatorId)?.name
+  const selectedCityName = cities.find((c) => c.id === cityId)?.name
+  const scopeLabel = [selectedCityName, selectedOperatorName].filter(Boolean).join(' · ')
 
   return (
     <main className="stagger">
@@ -132,23 +144,37 @@ export default function DashboardPage() {
             {user?.name ? `, ${user.name.split(' ')[0]}` : ''}
           </h1>
           <p className="mt-1 text-sm font-normal text-muted">
-            {selectedOperatorName ? `Showing ${selectedOperatorName}` : 'Coverage at a glance'}
+            {scopeLabel ? `Showing ${scopeLabel}` : 'Coverage at a glance'}
           </p>
         </div>
         {canManage && operators.length > 0 && (
-          <div className="w-full sm:w-64">
+          <div className="flex w-full gap-2 sm:w-auto">
+            {cities.length > 0 && (
+              <div className="flex-1 sm:w-44 sm:flex-none">
+                <Select id="dash-city" value={cityId} onChange={(e) => selectCity(e.target.value)}>
+                  <option value="">All cities</option>
+                  {cities.map((city) => (
+                    <option key={city.id} value={city.id}>
+                      {city.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+            <div className="flex-1 sm:w-56 sm:flex-none">
             <Select
               id="dash-operator"
               value={operatorId}
               onChange={(e) => setOperatorId(e.target.value)}
             >
               <option value="">All operators</option>
-              {operators.map((operator) => (
+              {visibleOperators.map((operator) => (
                 <option key={operator.id} value={operator.id}>
                   {operator.name}
                 </option>
               ))}
             </Select>
+            </div>
           </div>
         )}
       </header>
