@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -8,7 +9,13 @@ import { Input } from '@/components/ui/Input'
 import { BoundaryEditor, parseBoundaryPoints } from '@/components/admin/BoundaryEditor'
 import { ImportZonesModal } from '@/components/admin/ImportZonesModal'
 import { Pagination } from '@/components/ui/Pagination'
-import { IconEdit, IconTrash, IconPin, IconUpload, IconDownload } from '@/components/ui/icons'
+import { IconEdit, IconTrash, IconPin, IconUpload, IconDownload, IconMap } from '@/components/ui/icons'
+
+// Client-only: Google Maps JS touches window.
+const GoogleBoundaryMapEditor = dynamic(
+  () => import('@/components/map/google/GoogleBoundaryMapEditor'),
+  { ssr: false },
+)
 
 const emptyForm = { name: '', city: '', points: [] }
 
@@ -20,10 +27,23 @@ function toFormPoints(boundary) {
 }
 
 /** Shared create/edit form: name, city, optional polygon boundary. */
-function ZoneForm({ initial, onSave, onCancel, saveLabel }) {
+function ZoneForm({ initial, zoneId, onSave, onCancel, saveLabel }) {
   const [form, setForm] = useState(initial)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [mapOpen, setMapOpen] = useState(false)
+
+  // Editor returns numbers; rows hold strings. 6 decimals ≈ 0.1 m precision.
+  const applyDrawnPoints = (drawn) => {
+    setForm({
+      ...form,
+      points: drawn.map((point) => ({
+        latitude: point.latitude.toFixed(6),
+        longitude: point.longitude.toFixed(6),
+      })),
+    })
+    setMapOpen(false)
+  }
 
   const parsedBoundary = parseBoundaryPoints(form.points)
   const boundaryValid =
@@ -65,7 +85,35 @@ function ZoneForm({ initial, onSave, onCancel, saveLabel }) {
         />
       </div>
 
-      <BoundaryEditor points={form.points} onChange={(points) => setForm({ ...form, points })} />
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-normal text-muted">
+          {form.points.length >= 3 ? `Boundary: ${form.points.length} points` : 'No boundary yet'}
+        </p>
+        <Button type="button" variant="secondary" onClick={() => setMapOpen(true)}>
+          <IconMap className="h-4 w-4" strokeWidth={1.8} />
+          Draw on map
+        </Button>
+      </div>
+
+      {/* Manual rows stay as a transparency/debug fallback, collapsed. */}
+      <details className="rounded-btn border border-line/60 px-3 py-2">
+        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-faint">
+          Edit coordinates manually
+        </summary>
+        <div className="pt-3">
+          <BoundaryEditor points={form.points} onChange={(points) => setForm({ ...form, points })} />
+        </div>
+      </details>
+
+      {mapOpen && (
+        <GoogleBoundaryMapEditor
+          zoneName={form.name}
+          excludeZoneId={zoneId}
+          initialPoints={parseBoundaryPoints(form.points) ?? []}
+          onDone={applyDrawnPoints}
+          onCancel={() => setMapOpen(false)}
+        />
+      )}
 
       {form.points.length > 0 && !boundaryValid && (
         <p className="text-sm font-normal text-warn">
@@ -236,6 +284,7 @@ export default function AdminZonesPage() {
           editingId === zone.id ? (
             <ZoneForm
               key={zone.id}
+              zoneId={zone.id}
               initial={{ name: zone.name, city: zone.city, points: toFormPoints(zone.boundary) }}
               saveLabel="Save changes"
               onCancel={() => setEditingId(null)}
