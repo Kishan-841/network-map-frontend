@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { getMapProvider } from '@/lib/map-providers'
 import { buildingColor, zoneColor } from '@/lib/constants'
-import { DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
+import { buildingDotIcon, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 import { Button } from '@/components/ui/Button'
@@ -60,6 +61,7 @@ export default function GoogleBoundaryMapEditor({
   const numberMarkersRef = useRef([])
   const rubberRef = useRef(null)
   const buildingMarkersRef = useRef(null) // null = never created (lazy)
+  const buildingClustererRef = useRef(null)
   const zoneOverlaysRef = useRef(null)
   const projectionRef = useRef(null) // OverlayView for pixel → LatLng
   const drawingRef = useRef(false)
@@ -75,6 +77,8 @@ export default function GoogleBoundaryMapEditor({
   )
   const [zonesShown, setZonesShown] = useState(() => readPref('boundary-zones-shown', true))
   const [zonesData, setZonesData] = useState(null)
+  // Building tapped in Pan mode — compact details card, like the main map.
+  const [selectedBuilding, setSelectedBuilding] = useState(null)
   // Pan & zoom vs Draw: Google's own map-click event proved unreliable, so
   // Draw mode captures DOM clicks on the container and projects them to
   // coordinates — and doubling as an explicit mode makes the UX clearer.
@@ -247,7 +251,8 @@ export default function GoogleBoundaryMapEditor({
       projectionRef.current?.setMap(null)
       polygonRef.current?.setMap(null)
       numberMarkersRef.current.forEach((m) => m.setMap(null))
-      buildingMarkersRef.current?.forEach((m) => m.setMap(null))
+      buildingClustererRef.current?.clearMarkers()
+      buildingClustererRef.current = null
       zoneOverlaysRef.current?.forEach((o) => o.setMap(null))
       mapRef.current = null
     }
@@ -289,16 +294,18 @@ export default function GoogleBoundaryMapEditor({
   }, [])
 
   // Building dots: fetched and created only the first time the toggle is on.
+  // Clustered (like the main map) so hundreds of markers never fight the zoom
+  // animation, with cheap cached raster icons instead of per-frame vectors.
   useEffect(() => {
     writePref('boundary-buildings-shown', buildingsShown)
     const map = mapRef.current
     if (!ready || !map) return
     if (!buildingsShown) {
-      buildingMarkersRef.current?.forEach((marker) => marker.setMap(null))
+      buildingClustererRef.current?.clearMarkers()
       return
     }
     if (buildingMarkersRef.current) {
-      buildingMarkersRef.current.forEach((marker) => marker.setMap(map))
+      buildingClustererRef.current?.addMarkers(buildingMarkersRef.current)
       return
     }
     let cancelled = false
@@ -306,23 +313,29 @@ export default function GoogleBoundaryMapEditor({
       .get('/buildings', { params: { pageSize: 500 } })
       .then((res) => {
         if (cancelled || !mapRef.current) return
-        buildingMarkersRef.current = res.data.data.items.map(
-          (building) =>
-            new google.maps.Marker({
-              map: mapRef.current,
-              position: { lat: building.latitude, lng: building.longitude },
-              clickable: false,
-              zIndex: 2,
-              icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 5,
-                fillColor: buildingColor(building),
-                fillOpacity: 0.5,
-                strokeColor: '#ffffff',
-                strokeWeight: 1,
-              },
-            }),
-        )
+        const markers = res.data.data.items.map((building) => {
+          const dot = buildingDotIcon(buildingColor(building))
+          const marker = new google.maps.Marker({
+            position: { lat: building.latitude, lng: building.longitude },
+            zIndex: 2,
+            icon: {
+              url: dot.url,
+              scaledSize: new google.maps.Size(dot.size, dot.size),
+              anchor: new google.maps.Point(dot.size / 2, dot.size / 2),
+            },
+          })
+          // In Draw mode a tap means "place a point" — details only in Pan.
+          marker.addListener('click', () => {
+            if (!drawingRef.current) setSelectedBuilding(building)
+          })
+          return marker
+        })
+        buildingMarkersRef.current = markers
+        buildingClustererRef.current = new MarkerClusterer({
+          map: mapRef.current,
+          markers,
+          renderer: clusterRenderer,
+        })
       })
       .catch(() => {})
     return () => {
@@ -554,7 +567,10 @@ export default function GoogleBoundaryMapEditor({
             Pan &amp; zoom
           </button>
           <button
-            onClick={() => setDrawing(true)}
+            onClick={() => {
+              setDrawing(true)
+              setSelectedBuilding(null) // a stale card is noise while drawing
+            }}
             aria-pressed={drawing}
             className={`px-3 py-2.5 transition-colors sm:px-4 ${
               drawing ? 'bg-fiber text-white' : 'text-muted hover:text-ink'
@@ -570,7 +586,10 @@ export default function GoogleBoundaryMapEditor({
             <input
               type="checkbox"
               checked={buildingsShown}
-              onChange={(e) => setBuildingsShown(e.target.checked)}
+              onChange={(e) => {
+                setBuildingsShown(e.target.checked)
+                if (!e.target.checked) setSelectedBuilding(null)
+              }}
               className="checkbox checkbox-xs"
             />
             Buildings
@@ -597,6 +616,54 @@ export default function GoogleBoundaryMapEditor({
             ? 'Tap the map to add points · switch to Pan & zoom to move around'
             : 'Navigate to the area, then switch to Draw points · drag handles to adjust'}
         </p>
+
+        {/* Tapped building (Pan mode): compact details, like the main map. */}
+        {selectedBuilding && (
+          <div className="absolute bottom-16 left-3 right-3 z-10 mx-auto max-w-sm rounded-card border border-line bg-card p-4 shadow-lift sm:bottom-14">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-bold">{selectedBuilding.buildingName}</p>
+                <p className="truncate text-sm font-normal text-muted">
+                  {selectedBuilding.formattedAddress}
+                </p>
+              </div>
+              <button
+                aria-label="Close"
+                onClick={() => setSelectedBuilding(null)}
+                className="shrink-0 p-1 text-faint transition-colors hover:text-ink"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium">
+              <span
+                className={`rounded-full px-2.5 py-0.5 ${
+                  selectedBuilding.isLive ? 'bg-fiber-tint text-fiber' : 'bg-bad-tint text-bad'
+                }`}
+              >
+                {selectedBuilding.isLive ? 'Live' : 'Not live'}
+              </span>
+              {selectedBuilding.zone?.name && (
+                <span className="rounded-full bg-paper px-2.5 py-0.5 text-muted">
+                  {selectedBuilding.zone.name}
+                </span>
+              )}
+              {selectedBuilding.details?.homePass != null && (
+                <span className="rounded-full bg-paper px-2.5 py-0.5 text-muted">
+                  {selectedBuilding.details.homePass} home pass
+                </span>
+              )}
+              <a
+                href={`/buildings/${selectedBuilding.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="ml-auto text-fiber hover:underline"
+              >
+                Open building ↗
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Save panel: pick a zone to update, or create a new one. */}
         {saveOpen && (

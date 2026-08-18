@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { buildingColor, zoneColor } from '@/lib/constants'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
-import { buildingPinCached, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
+import { buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 
@@ -18,29 +18,6 @@ const DEFAULT_ZOOM = 5
 // Below this zoom, small zone polygons are near-invisible — show a colored
 // dot notation at the centroid instead.
 const ZONE_DETAIL_ZOOM = 13
-
-// Cluster bubble: fiber-emerald disc with a soft halo and white count,
-// sized up slightly for bigger counts (Design.md palette).
-const clusterRenderer = {
-  render({ count, position }) {
-    const size = count < 10 ? 44 : count < 100 ? 52 : 60
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 60 60">
-  <circle cx="30" cy="30" r="28" fill="#10b981" fill-opacity="0.25"/>
-  <circle cx="30" cy="30" r="20" fill="#10b981" stroke="#ffffff" stroke-width="3"/>
-  <text x="30" y="31" fill="#ffffff" font-family="Inter, sans-serif" font-size="16" font-weight="700" text-anchor="middle" dominant-baseline="central">${count}</text>
-</svg>`
-    return new google.maps.Marker({
-      position,
-      icon: {
-        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-        scaledSize: new google.maps.Size(size, size),
-        anchor: new google.maps.Point(size / 2, size / 2),
-      },
-      // Clusters sit above raw pins so counts stay readable.
-      zIndex: Number(google.maps.Marker.MAX_ZINDEX) + count,
-    })
-  },
-}
 
 const pinIcon = (building, selected) => {
   const pin = buildingPinCached({ color: buildingColor(building), selected })

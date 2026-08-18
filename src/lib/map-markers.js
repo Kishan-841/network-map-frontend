@@ -57,6 +57,47 @@ export function buildingPinCached({ color, selected = false }) {
   return cached
 }
 
+// Cluster bubble: fiber-emerald disc with a soft halo and white count,
+// sized up slightly for bigger counts (Design.md palette). Shared by the
+// main map and the boundary editor. Only touches `google` at render time.
+export const clusterRenderer = {
+  render({ count, position }) {
+    const size = count < 10 ? 44 : count < 100 ? 52 : 60
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 60 60">
+  <circle cx="30" cy="30" r="28" fill="#10b981" fill-opacity="0.25"/>
+  <circle cx="30" cy="30" r="20" fill="#10b981" stroke="#ffffff" stroke-width="3"/>
+  <text x="30" y="31" fill="#ffffff" font-family="Inter, sans-serif" font-size="16" font-weight="700" text-anchor="middle" dominant-baseline="central">${count}</text>
+</svg>`
+    return new google.maps.Marker({
+      position,
+      icon: {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new google.maps.Size(size, size),
+        anchor: new google.maps.Point(size / 2, size / 2),
+      },
+      // Clusters sit above raw pins so counts stay readable.
+      zIndex: Number(google.maps.Marker.MAX_ZINDEX) + count,
+    })
+  },
+}
+
+const dotCache = new Map()
+
+/**
+ * Small building dot as a cached raster data-URI — image markers stay cheap
+ * during zoom animations, unlike vector SymbolPath markers which redraw
+ * every frame.
+ */
+export function buildingDotIcon(color) {
+  let cached = dotCache.get(color)
+  if (!cached) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"><circle cx="7" cy="7" r="5.5" fill="${color}" fill-opacity="0.85" stroke="#ffffff" stroke-width="1.5"/></svg>`
+    cached = { url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`, size: 14 }
+    dotCache.set(color, cached)
+  }
+  return cached
+}
+
 /**
  * Google Maps basemap style: hide the POI/business icon clutter (keeps place
  * labels and roads for orientation) so our building pins stand out.
