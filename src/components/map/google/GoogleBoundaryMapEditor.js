@@ -17,6 +17,11 @@ const DEFAULT_ZOOM = 5
 const MAX_POINTS = 100 // API cap (zone.schemas.js)
 const EDIT_COLOR = '#0e7569' // --color-fiber
 
+const polygonCentroid = (points) => ({
+  lat: points.reduce((sum, p) => sum + p.latitude, 0) / points.length,
+  lng: points.reduce((sum, p) => sum + p.longitude, 0) / points.length,
+})
+
 /**
  * Full-screen draw/edit surface for a zone boundary. One editable polygon is
  * the source of truth: in Draw mode map clicks append vertices, Google's
@@ -275,19 +280,48 @@ export default function GoogleBoundaryMapEditor({
         (zone) => zone.id !== initialZoneId && zone.boundary?.length >= 3,
       )
       zones.forEach((zone, index) => {
-        const overlay = new google.maps.Polygon({
+        const color = zoneColor(index)
+        // Bold enough to read on satellite imagery — these exist so new zones
+        // can avoid overlapping what's already drawn.
+        const outline = new google.maps.Polygon({
           map: zonesShownRef.current ? map : null,
           paths: zone.boundary.map((p) => ({ lat: p.latitude, lng: p.longitude })),
-          strokeColor: zoneColor(index),
-          strokeOpacity: 0.6,
-          strokeWeight: 1.5,
-          fillColor: zoneColor(index),
-          fillOpacity: 0.06,
+          strokeColor: color,
+          strokeOpacity: 0.95,
+          strokeWeight: 2.5,
+          fillColor: color,
+          fillOpacity: 0.15,
           clickable: false,
           zIndex: 1,
         })
-        overlay.isZoneOverlay = true
-        overlays.push(overlay)
+        outline.isZoneOverlay = true
+        overlays.push(outline)
+        // Small zones vanish at low zoom — a dot + name at the centroid keeps
+        // them findable at any zoom (same trick as the main map).
+        const label = new google.maps.Marker({
+          map: zonesShownRef.current ? map : null,
+          position: polygonCentroid(zone.boundary),
+          clickable: false,
+          zIndex: 3,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 6,
+            fillColor: color,
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+            labelOrigin: new google.maps.Point(0, -2.4),
+          },
+          label: {
+            text: zone.name.toUpperCase(),
+            color: '#ffffff',
+            fontSize: '11px',
+            fontWeight: '700',
+            className: 'boundary-zone-label',
+          },
+        })
+        label.isZoneOverlay = true
+        overlays.push(label)
       })
       overlaysRef.current = overlays
     })
@@ -392,6 +426,8 @@ export default function GoogleBoundaryMapEditor({
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-paper">
+      {/* Dark halo keeps zone-name labels readable on roadmap AND imagery. */}
+      <style>{`.boundary-zone-label { text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.75); }`}</style>
       {/* Header */}
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-line bg-card px-4 py-3">
         <div className="min-w-0 flex-1">
