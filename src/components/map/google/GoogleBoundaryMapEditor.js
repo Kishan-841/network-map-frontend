@@ -428,36 +428,42 @@ export default function GoogleBoundaryMapEditor({
     <div className="fixed inset-0 z-[60] flex flex-col bg-paper">
       {/* Dark halo keeps zone-name labels readable on roadmap AND imagery. */}
       <style>{`.boundary-zone-label { text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.75); }`}</style>
-      {/* Header */}
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-line bg-card px-4 py-3">
+      {/* Header — single row on desktop, title row + button row on mobile */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-card px-3 py-2.5 sm:px-4 sm:py-3">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-faint">Zone boundary</p>
+          <p className="truncate text-xs font-medium uppercase tracking-wide text-faint">
+            Zone boundary
+          </p>
           <p className="truncate font-bold">{defaultName?.trim() || 'New zone'}</p>
         </div>
-        <p className="text-sm tabular-nums text-muted">
+        <p className="shrink-0 text-sm tabular-nums text-muted">
           {pointCount} point{pointCount === 1 ? '' : 's'}
-          {pointCount < 3 && ' — need at least 3'}
-          {pointCount >= MAX_POINTS && ` — limit ${MAX_POINTS}`}
+          <span className="hidden sm:inline">
+            {pointCount < 3 && ' — need at least 3'}
+            {pointCount >= MAX_POINTS && ` — limit ${MAX_POINTS}`}
+          </span>
         </p>
-        <Button variant="secondary" onClick={handleUndo} disabled={pointCount === 0}>
-          Undo
-        </Button>
-        <Button variant="dangerGhost" onClick={handleClear} disabled={pointCount === 0}>
-          Clear
-        </Button>
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button onClick={handleDone} disabled={pointCount < 3}>
-          Save…
-        </Button>
+        <div className="grid w-full grid-cols-4 gap-2 sm:flex sm:w-auto">
+          <Button variant="secondary" onClick={handleUndo} disabled={pointCount === 0}>
+            Undo
+          </Button>
+          <Button variant="dangerGhost" onClick={handleClear} disabled={pointCount === 0}>
+            Clear
+          </Button>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleDone} disabled={pointCount < 3}>
+            Save…
+          </Button>
+        </div>
       </div>
 
       {/* Map + floating controls */}
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="h-full w-full" />
 
-        <div className="absolute left-3 top-3 z-10 w-72 max-w-[calc(100%-6rem)]">
+        <div className="absolute left-3 right-3 top-3 z-10 sm:right-auto sm:w-72 sm:max-w-[calc(100%-6rem)]">
           <div className="relative">
             <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
             <input
@@ -485,12 +491,13 @@ export default function GoogleBoundaryMapEditor({
           )}
         </div>
 
-        {/* Mode toggle: Pan & zoom vs Draw (segmented, MapLayerControl style) */}
-        <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 overflow-hidden rounded-btn border border-line bg-card/95 text-sm font-medium shadow-soft backdrop-blur">
+        {/* Mode toggle: Pan & zoom vs Draw (segmented, MapLayerControl style).
+            Mobile stacks it below the full-width search, next to the layer control. */}
+        <div className="absolute left-3 top-[4.25rem] z-10 flex overflow-hidden rounded-btn border border-line bg-card/95 text-xs font-medium shadow-soft backdrop-blur sm:left-1/2 sm:top-3 sm:-translate-x-1/2 sm:text-sm">
           <button
             onClick={() => setDrawing(false)}
             aria-pressed={!drawing}
-            className={`px-4 py-2.5 transition-colors ${
+            className={`px-3 py-2.5 transition-colors sm:px-4 ${
               drawing ? 'text-muted hover:text-ink' : 'bg-fiber text-white'
             }`}
           >
@@ -499,7 +506,7 @@ export default function GoogleBoundaryMapEditor({
           <button
             onClick={() => setDrawing(true)}
             aria-pressed={drawing}
-            className={`px-4 py-2.5 transition-colors ${
+            className={`px-3 py-2.5 transition-colors sm:px-4 ${
               drawing ? 'bg-fiber text-white' : 'text-muted hover:text-ink'
             }`}
           >
@@ -507,7 +514,7 @@ export default function GoogleBoundaryMapEditor({
           </button>
         </div>
 
-        <label className="absolute bottom-4 left-3 z-10 flex cursor-pointer items-center gap-2 rounded-full border border-line bg-card px-3.5 py-2 text-xs font-medium shadow-md">
+        <label className="absolute bottom-[4.5rem] left-3 z-10 flex cursor-pointer items-center gap-2 rounded-full border border-line bg-card px-3.5 py-2 text-xs font-medium shadow-md sm:bottom-4">
           <input
             type="checkbox"
             checked={zonesShown}
@@ -517,9 +524,13 @@ export default function GoogleBoundaryMapEditor({
           Other zones
         </label>
 
-        <MapLayerControl value={layer} onChange={setLayer} position="right-3 top-3" />
+        <MapLayerControl
+          value={layer}
+          onChange={setLayer}
+          position="right-3 top-[4.25rem] sm:top-3"
+        />
 
-        <p className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-line bg-card/90 px-4 py-1.5 text-xs text-muted shadow">
+        <p className="pointer-events-none absolute bottom-4 left-3 right-16 z-10 rounded-2xl border border-line bg-card/90 px-4 py-1.5 text-center text-xs text-muted shadow sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:rounded-full">
           {drawing
             ? 'Tap the map to add points · switch to Pan & zoom to move around'
             : 'Navigate to the area, then switch to Draw points · drag handles to adjust'}
