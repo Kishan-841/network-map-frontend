@@ -22,6 +22,23 @@ const polygonCentroid = (points) => ({
   lng: points.reduce((sum, p) => sum + p.longitude, 0) / points.length,
 })
 
+// Overlay preferences persist across sessions (same idea as useMapLayer).
+const readPref = (key, fallback) => {
+  try {
+    const value = localStorage.getItem(key)
+    return value === null ? fallback : value === '1'
+  } catch {
+    return fallback
+  }
+}
+const writePref = (key, value) => {
+  try {
+    localStorage.setItem(key, value ? '1' : '0')
+  } catch {
+    // Private mode — the toggle still works for this session.
+  }
+}
+
 /**
  * Full-screen draw/edit surface for a zone boundary. One editable polygon is
  * the source of truth: in Draw mode map clicks append vertices, Google's
@@ -42,14 +59,22 @@ export default function GoogleBoundaryMapEditor({
   const pathRef = useRef(null)
   const numberMarkersRef = useRef([])
   const rubberRef = useRef(null)
-  const overlaysRef = useRef([]) // building dots + other-zone outlines
-  const zonesShownRef = useRef(true)
+  const buildingMarkersRef = useRef(null) // null = never created (lazy)
+  const zoneOverlaysRef = useRef(null)
   const projectionRef = useRef(null) // OverlayView for pixel → LatLng
   const drawingRef = useRef(false)
   const cleanupDomRef = useRef(null)
   const [ready, setReady] = useState(false)
   const [pointCount, setPointCount] = useState(initialPoints.length)
-  const [zonesShown, setZonesShown] = useState(true)
+  // Overlays are lazy AND optional: prod has hundreds of buildings/zones, so
+  // nothing is fetched or rendered until its legend toggle is on. Buildings
+  // default off (rarely needed while drawing); zones default on (overlap
+  // avoidance). Both choices persist.
+  const [buildingsShown, setBuildingsShown] = useState(() =>
+    readPref('boundary-buildings-shown', false),
+  )
+  const [zonesShown, setZonesShown] = useState(() => readPref('boundary-zones-shown', true))
+  const [zonesData, setZonesData] = useState(null)
   // Pan & zoom vs Draw: Google's own map-click event proved unreliable, so
   // Draw mode captures DOM clicks on the container and projects them to
   // coordinates — and doubling as an explicit mode makes the UX clearer.
@@ -222,7 +247,8 @@ export default function GoogleBoundaryMapEditor({
       projectionRef.current?.setMap(null)
       polygonRef.current?.setMap(null)
       numberMarkersRef.current.forEach((m) => m.setMap(null))
-      overlaysRef.current.forEach((o) => o.setMap(null))
+      buildingMarkersRef.current?.forEach((m) => m.setMap(null))
+      zoneOverlaysRef.current?.forEach((o) => o.setMap(null))
       mapRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -245,46 +271,86 @@ export default function GoogleBoundaryMapEditor({
     if (!drawing) rubberRef.current?.setPath([])
   }, [drawing, ready])
 
-  // Context overlays: faded building dots + faint other-zone outlines.
+  // One light zones fetch on mount: the save panel always needs the name
+  // list; the boundary data feeds the overlay effect below when toggled on.
   useEffect(() => {
-    if (!ready) return
-    const map = mapRef.current
     let cancelled = false
-    Promise.all([
-      apiClient.get('/buildings', { params: { pageSize: 500 } }).catch(() => null),
-      apiClient.get('/zones').catch(() => null),
-    ]).then(([buildingsRes, zonesRes]) => {
-      if (cancelled || !mapRef.current) return
-      const overlays = []
-      for (const building of buildingsRes?.data.data.items ?? []) {
-        overlays.push(
-          new google.maps.Marker({
-            map,
-            position: { lat: building.latitude, lng: building.longitude },
-            clickable: false,
-            zIndex: 2,
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 5,
-              fillColor: buildingColor(building),
-              fillOpacity: 0.5,
-              strokeColor: '#ffffff',
-              strokeWeight: 1,
-            },
-          }),
+    apiClient
+      .get('/zones')
+      .then((res) => {
+        if (cancelled) return
+        setZonesData(res.data.data)
+        setZoneList(res.data.data.map((zone) => ({ id: zone.id, name: zone.name })))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Building dots: fetched and created only the first time the toggle is on.
+  useEffect(() => {
+    writePref('boundary-buildings-shown', buildingsShown)
+    const map = mapRef.current
+    if (!ready || !map) return
+    if (!buildingsShown) {
+      buildingMarkersRef.current?.forEach((marker) => marker.setMap(null))
+      return
+    }
+    if (buildingMarkersRef.current) {
+      buildingMarkersRef.current.forEach((marker) => marker.setMap(map))
+      return
+    }
+    let cancelled = false
+    apiClient
+      .get('/buildings', { params: { pageSize: 500 } })
+      .then((res) => {
+        if (cancelled || !mapRef.current) return
+        buildingMarkersRef.current = res.data.data.items.map(
+          (building) =>
+            new google.maps.Marker({
+              map: mapRef.current,
+              position: { lat: building.latitude, lng: building.longitude },
+              clickable: false,
+              zIndex: 2,
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 5,
+                fillColor: buildingColor(building),
+                fillOpacity: 0.5,
+                strokeColor: '#ffffff',
+                strokeWeight: 1,
+              },
+            }),
         )
-      }
-      const allZones = zonesRes?.data.data ?? []
-      setZoneList(allZones.map((zone) => ({ id: zone.id, name: zone.name })))
-      const zones = allZones.filter(
-        (zone) => zone.id !== initialZoneId && zone.boundary?.length >= 3,
-      )
-      zones.forEach((zone, index) => {
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [buildingsShown, ready])
+
+  // Zone outlines + labelled centroid dots: created only when toggled on.
+  useEffect(() => {
+    writePref('boundary-zones-shown', zonesShown)
+    const map = mapRef.current
+    if (!ready || !map || !zonesData) return
+    if (!zonesShown) {
+      zoneOverlaysRef.current?.forEach((overlay) => overlay.setMap(null))
+      return
+    }
+    if (zoneOverlaysRef.current) {
+      zoneOverlaysRef.current.forEach((overlay) => overlay.setMap(map))
+      return
+    }
+    zoneOverlaysRef.current = zonesData
+      .filter((zone) => zone.id !== initialZoneId && zone.boundary?.length >= 3)
+      .flatMap((zone, index) => {
         const color = zoneColor(index)
         // Bold enough to read on satellite imagery — these exist so new zones
         // can avoid overlapping what's already drawn.
         const outline = new google.maps.Polygon({
-          map: zonesShownRef.current ? map : null,
+          map,
           paths: zone.boundary.map((p) => ({ lat: p.latitude, lng: p.longitude })),
           strokeColor: color,
           strokeOpacity: 0.95,
@@ -294,12 +360,10 @@ export default function GoogleBoundaryMapEditor({
           clickable: false,
           zIndex: 1,
         })
-        outline.isZoneOverlay = true
-        overlays.push(outline)
         // Small zones vanish at low zoom — a dot + name at the centroid keeps
         // them findable at any zoom (same trick as the main map).
         const label = new google.maps.Marker({
-          map: zonesShownRef.current ? map : null,
+          map,
           position: polygonCentroid(zone.boundary),
           clickable: false,
           zIndex: 3,
@@ -320,23 +384,9 @@ export default function GoogleBoundaryMapEditor({
             className: 'boundary-zone-label',
           },
         })
-        label.isZoneOverlay = true
-        overlays.push(label)
+        return [outline, label]
       })
-      overlaysRef.current = overlays
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [ready, initialZoneId])
-
-  // Toggle only the zone outlines; building dots always show.
-  useEffect(() => {
-    zonesShownRef.current = zonesShown
-    overlaysRef.current.forEach((overlay) => {
-      if (overlay.isZoneOverlay) overlay.setMap(zonesShown ? mapRef.current : null)
-    })
-  }, [zonesShown])
+  }, [zonesShown, ready, zonesData, initialZoneId])
 
   // Debounced location search via the existing provider stack. Short inputs
   // clear the list through the same timer (no synchronous setState in effects).
@@ -514,15 +564,27 @@ export default function GoogleBoundaryMapEditor({
           </button>
         </div>
 
-        <label className="absolute bottom-[4.5rem] left-3 z-10 flex cursor-pointer items-center gap-2 rounded-full border border-line bg-card px-3.5 py-2 text-xs font-medium shadow-md sm:bottom-4">
-          <input
-            type="checkbox"
-            checked={zonesShown}
-            onChange={(e) => setZonesShown(e.target.checked)}
-            className="checkbox checkbox-xs"
-          />
-          Other zones
-        </label>
+        {/* Legend: overlays load lazily — nothing is fetched until enabled. */}
+        <div className="absolute bottom-[4.5rem] left-3 z-10 flex flex-col gap-2 sm:bottom-4 sm:flex-row">
+          <label className="flex cursor-pointer items-center gap-2 rounded-full border border-line bg-card px-3.5 py-2 text-xs font-medium shadow-md">
+            <input
+              type="checkbox"
+              checked={buildingsShown}
+              onChange={(e) => setBuildingsShown(e.target.checked)}
+              className="checkbox checkbox-xs"
+            />
+            Buildings
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-full border border-line bg-card px-3.5 py-2 text-xs font-medium shadow-md">
+            <input
+              type="checkbox"
+              checked={zonesShown}
+              onChange={(e) => setZonesShown(e.target.checked)}
+              className="checkbox checkbox-xs"
+            />
+            Other zones
+          </label>
+        </div>
 
         <MapLayerControl
           value={layer}
