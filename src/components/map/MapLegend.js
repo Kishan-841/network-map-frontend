@@ -5,9 +5,9 @@ import { LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
 import { IconLayers, IconClose } from '@/components/ui/icons'
 
 /**
- * Map key + declutter control. The Buildings row toggles all pins on/off; a
- * colour key underneath explains green = live connection, red = not live.
- * Floating card on desktop, sheet on mobile.
+ * Map key + declutter control. The Buildings row toggles all pins on/off; the
+ * Live / Not live rows underneath filter within that (green = live, red =
+ * not live). Floating card on desktop, sheet on mobile.
  */
 export function MapLegend({
   buildingCount,
@@ -18,6 +18,10 @@ export function MapLegend({
   zonesShown,
   zoneCount,
   onToggleZones,
+  liveShown,
+  onToggleLive,
+  notLiveShown,
+  onToggleNotLive,
 }) {
   const [open, setOpen] = useState(false)
 
@@ -44,16 +48,28 @@ export function MapLegend({
         </span>
       </button>
 
-      {/* Colour key */}
-      <div className="ml-2 mb-1 flex flex-col gap-1 border-l border-line/60 pl-3">
-        <span className="flex items-center gap-2 text-xs font-normal text-muted">
+      {/* Colour key — each row is also a filter within the Buildings layer */}
+      <div className="ml-2 mb-1 flex flex-col gap-0.5 border-l border-line/60 pl-2">
+        <button
+          onClick={onToggleLive}
+          aria-pressed={liveShown}
+          className={`flex w-full items-center gap-2 rounded-btn px-1.5 py-1 text-left text-xs font-normal text-muted transition-colors hover:bg-paper ${
+            liveShown ? '' : 'opacity-40'
+          }`}
+        >
           {keyDot(LIVE_COLOR)} Live
           <span className="ml-auto tabular-nums text-faint">{liveCount}</span>
-        </span>
-        <span className="flex items-center gap-2 text-xs font-normal text-muted">
+        </button>
+        <button
+          onClick={onToggleNotLive}
+          aria-pressed={notLiveShown}
+          className={`flex w-full items-center gap-2 rounded-btn px-1.5 py-1 text-left text-xs font-normal text-muted transition-colors hover:bg-paper ${
+            notLiveShown ? '' : 'opacity-40'
+          }`}
+        >
           {keyDot(NOT_LIVE_COLOR)} Not live
           <span className="ml-auto tabular-nums text-faint">{notLiveCount}</span>
-        </span>
+        </button>
       </div>
 
       {zoneCount > 0 && (

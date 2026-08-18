@@ -20,6 +20,8 @@ export default function MapPage() {
   // Legend-driven declutter toggles.
   const [buildingsShown, setBuildingsShown] = useState(true)
   const [zonesShown, setZonesShown] = useState(true)
+  const [liveShown, setLiveShown] = useState(true)
+  const [notLiveShown, setNotLiveShown] = useState(true)
 
   const query = useMemo(() => ({ ...filters, search: search || undefined }), [filters, search])
   // The map wants everything the API allows in one page (markers, not rows).
@@ -27,7 +29,10 @@ export default function MapPage() {
   const { zones } = useZones()
   const activeFilterCount = Object.values(filters).filter(Boolean).length
 
-  const visibleBuildings = buildingsShown ? buildings : []
+  // The Buildings row is the master switch; Live / Not live filter within it.
+  const visibleBuildings = buildingsShown
+    ? buildings.filter((b) => (b.isLive ? liveShown : notLiveShown))
+    : []
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] transition-[left] duration-300 lg:bottom-0 lg:left-[var(--sidebar-w)]">
@@ -78,6 +83,10 @@ export default function MapPage() {
         zonesShown={zonesShown}
         zoneCount={zones.length}
         onToggleZones={() => setZonesShown((v) => !v)}
+        liveShown={liveShown}
+        onToggleLive={() => setLiveShown((v) => !v)}
+        notLiveShown={notLiveShown}
+        onToggleNotLive={() => setNotLiveShown((v) => !v)}
       />
 
       <SelectedBuildingCard building={selected} onClose={() => setSelected(null)} />
