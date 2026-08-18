@@ -32,6 +32,7 @@ export default function GoogleBoundaryMapEditor({
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const polygonRef = useRef(null)
+  const pathRef = useRef(null)
   const numberMarkersRef = useRef([])
   const rubberRef = useRef(null)
   const overlaysRef = useRef([]) // building dots + other-zone outlines
@@ -48,7 +49,7 @@ export default function GoogleBoundaryMapEditor({
   useEffect(() => {
     let cancelled = false
     loadGoogleMaps().then(({ Map }) => {
-      if (cancelled || mapRef.current) return
+      if (cancelled || mapRef.current || !containerRef.current) return
       const map = new Map(containerRef.current, {
         center: DEFAULT_CENTER,
         zoom: DEFAULT_ZOOM,
@@ -61,9 +62,15 @@ export default function GoogleBoundaryMapEditor({
       })
       mapRef.current = map
 
+      // Own the path as an explicit MVCArray: on current Maps JS builds a
+      // polygon constructed with an EMPTY paths array returns undefined from
+      // getPath(), so we hand the polygon our array and never ask for it back.
+      const path = new google.maps.MVCArray(
+        initialPoints.map((p) => new google.maps.LatLng(p.latitude, p.longitude)),
+      )
       const polygon = new google.maps.Polygon({
         map,
-        paths: initialPoints.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+        paths: path,
         strokeColor: EDIT_COLOR,
         strokeWeight: 2,
         fillColor: EDIT_COLOR,
@@ -73,7 +80,7 @@ export default function GoogleBoundaryMapEditor({
         zIndex: 10,
       })
       polygonRef.current = polygon
-      const path = polygon.getPath()
+      pathRef.current = path
 
       // Numbered dots on every vertex — rebuilt on any path change (≤100, cheap).
       const renderNumbers = () => {
@@ -273,16 +280,16 @@ export default function GoogleBoundaryMapEditor({
   }
 
   function handleUndo() {
-    const path = polygonRef.current?.getPath()
+    const path = pathRef.current
     if (path?.getLength() > 0) path.removeAt(path.getLength() - 1)
   }
 
   function handleClear() {
-    polygonRef.current?.getPath().clear()
+    pathRef.current?.clear()
   }
 
   function handleDone() {
-    const path = polygonRef.current.getPath()
+    const path = pathRef.current
     const points = []
     for (let i = 0; i < path.getLength(); i++) {
       const point = path.getAt(i)
