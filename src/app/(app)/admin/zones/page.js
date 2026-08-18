@@ -27,23 +27,11 @@ function toFormPoints(boundary) {
 }
 
 /** Shared create/edit form: name, city, optional polygon boundary. */
-function ZoneForm({ initial, zoneId, onSave, onCancel, saveLabel }) {
+function ZoneForm({ initial, zoneId, onSave, onCancel, onBoundarySaved, saveLabel }) {
   const [form, setForm] = useState(initial)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [mapOpen, setMapOpen] = useState(false)
-
-  // Editor returns numbers; rows hold strings. 6 decimals ≈ 0.1 m precision.
-  const applyDrawnPoints = (drawn) => {
-    setForm({
-      ...form,
-      points: drawn.map((point) => ({
-        latitude: point.latitude.toFixed(6),
-        longitude: point.longitude.toFixed(6),
-      })),
-    })
-    setMapOpen(false)
-  }
 
   const parsedBoundary = parseBoundaryPoints(form.points)
   const boundaryValid =
@@ -107,11 +95,15 @@ function ZoneForm({ initial, zoneId, onSave, onCancel, saveLabel }) {
 
       {mapOpen && (
         <GoogleBoundaryMapEditor
-          zoneName={form.name}
-          excludeZoneId={zoneId}
+          initialZoneId={zoneId}
+          defaultName={form.name}
+          defaultCity={form.city}
           initialPoints={parseBoundaryPoints(form.points) ?? []}
-          onDone={applyDrawnPoints}
-          onCancel={() => setMapOpen(false)}
+          onClose={() => setMapOpen(false)}
+          onSaved={() => {
+            setMapOpen(false)
+            onBoundarySaved?.()
+          }}
         />
       )}
 
@@ -249,6 +241,7 @@ export default function AdminZonesPage() {
       <ZoneForm
         initial={emptyForm}
         saveLabel="Add zone"
+        onBoundarySaved={fetchZones}
         onSave={async (payload) => {
           await apiClient.post('/zones', payload)
           await fetchZones()
@@ -285,6 +278,10 @@ export default function AdminZonesPage() {
             <ZoneForm
               key={zone.id}
               zoneId={zone.id}
+              onBoundarySaved={() => {
+                setEditingId(null)
+                fetchZones()
+              }}
               initial={{ name: zone.name, city: zone.city, points: toFormPoints(zone.boundary) }}
               saveLabel="Save changes"
               onCancel={() => setEditingId(null)}

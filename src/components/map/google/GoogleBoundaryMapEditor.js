@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { getMapProvider } from '@/lib/map-providers'
 import { buildingColor, zoneColor } from '@/lib/constants'
@@ -9,6 +9,7 @@ import { DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 import { Button } from '@/components/ui/Button'
+import { Input, Select } from '@/components/ui/Input'
 import { IconSearch } from '@/components/ui/icons'
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 } // country-level fallback
@@ -18,16 +19,17 @@ const EDIT_COLOR = '#0e7569' // --color-fiber
 
 /**
  * Full-screen draw/edit surface for a zone boundary. One editable polygon is
- * the source of truth: map clicks append vertices, Google's handles drag and
- * insert them, Undo pops the last. Done extracts the path in API shape
- * ({ latitude, longitude }); nothing persists here — the zone form saves.
+ * the source of truth: in Draw mode map clicks append vertices, Google's
+ * handles drag and insert them, Undo pops the last. Done opens a save panel:
+ * update an existing zone's boundary, or create a new zone with it.
  */
 export default function GoogleBoundaryMapEditor({
-  zoneName,
-  excludeZoneId,
+  initialZoneId,
+  defaultName = '',
+  defaultCity = '',
   initialPoints = [],
-  onDone,
-  onCancel,
+  onClose,
+  onSaved,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
@@ -53,6 +55,17 @@ export default function GoogleBoundaryMapEditor({
   // Location search (same provider stack as the add-building flow).
   const [query, setQuery] = useState('')
   const [predictions, setPredictions] = useState([])
+
+  // Save panel: update an existing zone's boundary or create a new zone.
+  const drawnRef = useRef(null)
+  const [zoneList, setZoneList] = useState([])
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saveMode, setSaveMode] = useState(initialZoneId ? 'existing' : 'new')
+  const [targetZoneId, setTargetZoneId] = useState(initialZoneId ?? '')
+  const [name, setName] = useState(defaultName)
+  const [city, setCity] = useState(defaultCity)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -256,8 +269,10 @@ export default function GoogleBoundaryMapEditor({
           }),
         )
       }
-      const zones = (zonesRes?.data.data ?? []).filter(
-        (zone) => zone.id !== excludeZoneId && zone.boundary?.length >= 3,
+      const allZones = zonesRes?.data.data ?? []
+      setZoneList(allZones.map((zone) => ({ id: zone.id, name: zone.name })))
+      const zones = allZones.filter(
+        (zone) => zone.id !== initialZoneId && zone.boundary?.length >= 3,
       )
       zones.forEach((zone, index) => {
         const overlay = new google.maps.Polygon({
@@ -279,7 +294,7 @@ export default function GoogleBoundaryMapEditor({
     return () => {
       cancelled = true
     }
-  }, [ready, excludeZoneId])
+  }, [ready, initialZoneId])
 
   // Toggle only the zone outlines; building dots always show.
   useEffect(() => {
@@ -352,7 +367,27 @@ export default function GoogleBoundaryMapEditor({
       const point = path.getAt(i)
       points.push({ latitude: point.lat(), longitude: point.lng() })
     }
-    onDone(points)
+    drawnRef.current = points
+    setSaveError(null)
+    setSaveOpen(true)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const boundary = drawnRef.current
+      if (saveMode === 'existing') {
+        // Boundary-only update — the zone's name/city/operator stay untouched.
+        await apiClient.patch(`/zones/${targetZoneId}`, { boundary })
+      } else {
+        await apiClient.post('/zones', { name: name.trim(), city: city.trim(), boundary })
+      }
+      onSaved?.()
+    } catch (err) {
+      setSaving(false)
+      setSaveError(getApiErrorMessage(err))
+    }
   }
 
   return (
@@ -361,7 +396,7 @@ export default function GoogleBoundaryMapEditor({
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-line bg-card px-4 py-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-wide text-faint">Zone boundary</p>
-          <p className="truncate font-bold">{zoneName?.trim() || 'New zone'}</p>
+          <p className="truncate font-bold">{defaultName?.trim() || 'New zone'}</p>
         </div>
         <p className="text-sm tabular-nums text-muted">
           {pointCount} point{pointCount === 1 ? '' : 's'}
@@ -374,11 +409,11 @@ export default function GoogleBoundaryMapEditor({
         <Button variant="dangerGhost" onClick={handleClear} disabled={pointCount === 0}>
           Clear
         </Button>
-        <Button variant="secondary" onClick={onCancel}>
+        <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
         <Button onClick={handleDone} disabled={pointCount < 3}>
-          Done
+          Save…
         </Button>
       </div>
 
@@ -453,6 +488,99 @@ export default function GoogleBoundaryMapEditor({
             ? 'Tap the map to add points · switch to Pan & zoom to move around'
             : 'Navigate to the area, then switch to Draw points · drag handles to adjust'}
         </p>
+
+        {/* Save panel: pick a zone to update, or create a new one. */}
+        {saveOpen && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
+            <div className="flex w-full max-w-md flex-col gap-4 rounded-card bg-card p-5 shadow-lift">
+              <h2 className="text-base font-bold">Save boundary</h2>
+
+              <div className="flex overflow-hidden rounded-btn border border-line text-sm font-medium">
+                <button
+                  onClick={() => setSaveMode('existing')}
+                  aria-pressed={saveMode === 'existing'}
+                  className={`flex-1 px-3 py-2.5 transition-colors ${
+                    saveMode === 'existing' ? 'bg-fiber text-white' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  Update existing zone
+                </button>
+                <button
+                  onClick={() => setSaveMode('new')}
+                  aria-pressed={saveMode === 'new'}
+                  className={`flex-1 px-3 py-2.5 transition-colors ${
+                    saveMode === 'new' ? 'bg-fiber text-white' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  Create new zone
+                </button>
+              </div>
+
+              {saveMode === 'existing' ? (
+                <div className="flex flex-col gap-2">
+                  <Select
+                    id="boundary-zone"
+                    value={targetZoneId}
+                    onChange={(e) => setTargetZoneId(e.target.value)}
+                  >
+                    <option value="">Choose a zone…</option>
+                    {zoneList.map((zone) => (
+                      <option key={zone.id} value={zone.id}>
+                        {zone.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="text-xs font-normal text-muted">
+                    Only the boundary is replaced — the zone&apos;s name, city, and operator stay
+                    as they are.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <Input
+                    id="boundary-name"
+                    placeholder="Zone name e.g. Wakad West"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                  <Input
+                    id="boundary-city"
+                    placeholder="City e.g. Pune"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {saveError && (
+                <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
+                  {saveError}
+                </p>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  disabled={saving}
+                  onClick={() => setSaveOpen(false)}
+                >
+                  Back
+                </Button>
+                <Button
+                  className="flex-1"
+                  loading={saving}
+                  disabled={
+                    saveMode === 'existing' ? !targetZoneId : !name.trim() || !city.trim()
+                  }
+                  onClick={handleSave}
+                >
+                  {saveMode === 'existing' ? 'Update zone' : 'Create zone'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
