@@ -37,9 +37,17 @@ export default function GoogleBoundaryMapEditor({
   const rubberRef = useRef(null)
   const overlaysRef = useRef([]) // building dots + other-zone outlines
   const zonesShownRef = useRef(true)
+  const projectionRef = useRef(null) // OverlayView for pixel → LatLng
+  const drawingRef = useRef(false)
+  const cleanupDomRef = useRef(null)
   const [ready, setReady] = useState(false)
   const [pointCount, setPointCount] = useState(initialPoints.length)
   const [zonesShown, setZonesShown] = useState(true)
+  // Pan & zoom vs Draw: Google's own map-click event proved unreliable, so
+  // Draw mode captures DOM clicks on the container and projects them to
+  // coordinates — and doubling as an explicit mode makes the UX clearer.
+  // Start in Pan so the user can navigate to the area first.
+  const [drawing, setDrawing] = useState(false)
   const [layer, setLayer] = useMapLayer('boundary', 'hybrid')
 
   // Location search (same provider stack as the add-building flow).
@@ -62,15 +70,17 @@ export default function GoogleBoundaryMapEditor({
       })
       mapRef.current = map
 
-      // Own the path as an explicit MVCArray: on current Maps JS builds a
-      // polygon constructed with an EMPTY paths array returns undefined from
-      // getPath(), so we hand the polygon our array and never ask for it back.
+      // Own the ring as an explicit MVCArray, wrapped in a rings MVCArray:
+      // `paths` is a collection of rings, so a flat empty array means ZERO
+      // rings (getPath() === undefined) and a flat MVCArray of LatLngs gets
+      // misread as rings (v3.65 poly.js forEach crashes). One explicit ring
+      // works for every case, including starting empty.
       const path = new google.maps.MVCArray(
         initialPoints.map((p) => new google.maps.LatLng(p.latitude, p.longitude)),
       )
       const polygon = new google.maps.Polygon({
         map,
-        paths: path,
+        paths: new google.maps.MVCArray([path]),
         strokeColor: EDIT_COLOR,
         strokeWeight: 2,
         fillColor: EDIT_COLOR,
@@ -114,11 +124,34 @@ export default function GoogleBoundaryMapEditor({
       path.addListener('remove_at', syncCount)
       path.addListener('set_at', syncCount)
 
-      // Click appends the next vertex (drawing and refining share one mode).
-      map.addListener('click', (event) => {
-        if (!event.latLng || path.getLength() >= MAX_POINTS) return
-        path.push(event.latLng)
-      })
+      // Pixel → LatLng projection (an empty OverlayView is the documented way).
+      const projectionOverlay = new google.maps.OverlayView()
+      projectionOverlay.onAdd = () => {}
+      projectionOverlay.draw = () => {}
+      projectionOverlay.onRemove = () => {}
+      projectionOverlay.setMap(map)
+      projectionRef.current = projectionOverlay
+
+      // Draw mode adds vertices from DOM clicks — Google's map 'click' event
+      // proved unreliable, plain container clicks are not.
+      const container = containerRef.current
+      const pixelToLatLng = (event) => {
+        const projection = projectionRef.current?.getProjection()
+        if (!projection) return null
+        const rect = container.getBoundingClientRect()
+        return projection.fromContainerPixelToLatLng(
+          new google.maps.Point(event.clientX - rect.left, event.clientY - rect.top),
+        )
+      }
+      const isMapSurface = (event) =>
+        // Ignore Google's own controls (zoom buttons, attribution links).
+        !event.target.closest('button, a, .gmnoprint, .gm-style-cc')
+      const onContainerClick = (event) => {
+        if (!drawingRef.current || !isMapSurface(event)) return
+        if (path.getLength() >= MAX_POINTS) return
+        const latLng = pixelToLatLng(event)
+        if (latLng) path.push(latLng)
+      }
 
       // Rubber band from the last vertex to the cursor (desktop only).
       const rubber = new google.maps.Polyline({
@@ -131,15 +164,24 @@ export default function GoogleBoundaryMapEditor({
         zIndex: 9,
       })
       rubberRef.current = rubber
-      map.addListener('mousemove', (event) => {
+      const onContainerMove = (event) => {
         const len = path.getLength()
-        if (!event.latLng || len === 0 || len >= MAX_POINTS) {
+        if (!drawingRef.current || len === 0 || len >= MAX_POINTS) {
           rubber.setPath([])
           return
         }
-        rubber.setPath([path.getAt(len - 1), event.latLng])
-      })
-      map.addListener('mouseout', () => rubber.setPath([]))
+        const latLng = pixelToLatLng(event)
+        rubber.setPath(latLng ? [path.getAt(len - 1), latLng] : [])
+      }
+      const onContainerLeave = () => rubber.setPath([])
+      container.addEventListener('click', onContainerClick)
+      container.addEventListener('mousemove', onContainerMove)
+      container.addEventListener('mouseleave', onContainerLeave)
+      cleanupDomRef.current = () => {
+        container.removeEventListener('click', onContainerClick)
+        container.removeEventListener('mousemove', onContainerMove)
+        container.removeEventListener('mouseleave', onContainerLeave)
+      }
 
       // Right-click a vertex to remove it (Undo covers the common case).
       polygon.addListener('rightclick', (event) => {
@@ -158,6 +200,8 @@ export default function GoogleBoundaryMapEditor({
     })
     return () => {
       cancelled = true
+      cleanupDomRef.current?.()
+      projectionRef.current?.setMap(null)
       polygonRef.current?.setMap(null)
       numberMarkersRef.current.forEach((m) => m.setMap(null))
       overlaysRef.current.forEach((o) => o.setMap(null))
@@ -169,6 +213,19 @@ export default function GoogleBoundaryMapEditor({
   useEffect(() => {
     if (mapRef.current && ready) mapRef.current.setMapTypeId(layer)
   }, [layer, ready])
+
+  // Draw mode: freeze pan/drag gestures (zoom buttons still work) and show a
+  // crosshair so every click reads as "place a point". Pan mode restores
+  // normal navigation and never adds points.
+  useEffect(() => {
+    drawingRef.current = drawing
+    if (!mapRef.current || !ready) return
+    mapRef.current.setOptions({
+      gestureHandling: drawing ? 'none' : 'greedy',
+      draggableCursor: drawing ? 'crosshair' : null,
+    })
+    if (!drawing) rubberRef.current?.setPath([])
+  }, [drawing, ready])
 
   // Context overlays: faded building dots + faint other-zone outlines.
   useEffect(() => {
@@ -357,6 +414,28 @@ export default function GoogleBoundaryMapEditor({
           )}
         </div>
 
+        {/* Mode toggle: Pan & zoom vs Draw (segmented, MapLayerControl style) */}
+        <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 overflow-hidden rounded-btn border border-line bg-card/95 text-sm font-medium shadow-soft backdrop-blur">
+          <button
+            onClick={() => setDrawing(false)}
+            aria-pressed={!drawing}
+            className={`px-4 py-2.5 transition-colors ${
+              drawing ? 'text-muted hover:text-ink' : 'bg-fiber text-white'
+            }`}
+          >
+            Pan &amp; zoom
+          </button>
+          <button
+            onClick={() => setDrawing(true)}
+            aria-pressed={drawing}
+            className={`px-4 py-2.5 transition-colors ${
+              drawing ? 'bg-fiber text-white' : 'text-muted hover:text-ink'
+            }`}
+          >
+            Draw points
+          </button>
+        </div>
+
         <label className="absolute bottom-4 left-3 z-10 flex cursor-pointer items-center gap-2 rounded-full border border-line bg-card px-3.5 py-2 text-xs font-medium shadow-md">
           <input
             type="checkbox"
@@ -370,7 +449,9 @@ export default function GoogleBoundaryMapEditor({
         <MapLayerControl value={layer} onChange={setLayer} position="right-3 top-3" />
 
         <p className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-line bg-card/90 px-4 py-1.5 text-xs text-muted shadow">
-          Click the map to add points · drag handles to adjust · right-click a point to remove it
+          {drawing
+            ? 'Tap the map to add points · switch to Pan & zoom to move around'
+            : 'Navigate to the area, then switch to Draw points · drag handles to adjust'}
         </p>
       </div>
     </div>
