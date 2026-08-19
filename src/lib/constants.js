@@ -13,6 +13,20 @@ export const ZONE_COLORS = [
 
 export const zoneColor = (index) => ZONE_COLORS[index % ZONE_COLORS.length]
 
+// Fiber cable types with FIXED render colors — the color on the map IS the
+// type, so field teams read the network at a glance. Shared by the fiber
+// editor, admin list, and the /map layer.
+export const FIBER_TYPE_COLORS = {
+  '2 core': '#eab308', // yellow
+  '4 core': '#2563eb', // blue
+  '6 core': '#10b981', // green
+  '12 core': '#a855f7', // purple
+  '24 core': '#f97316', // orange
+  '48 core': '#dc2626', // red
+}
+export const FIBER_TYPES = Object.keys(FIBER_TYPE_COLORS)
+export const fiberTypeColor = (type) => FIBER_TYPE_COLORS[type] ?? FIBER_TYPE_COLORS['2 core']
+
 // Live-connection marker colors: green when the fiber connection is live,
 // red when it isn't yet.
 export const LIVE_COLOR = '#22c55e' // green

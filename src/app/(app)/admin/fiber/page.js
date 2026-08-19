@@ -6,6 +6,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { IconEdit, IconTrash, IconPlus } from '@/components/ui/icons'
+import { fiberTypeColor } from '@/lib/constants'
 
 // Client-only: Google Maps JS touches window.
 const GoogleFiberEditor = dynamic(() => import('@/components/map/google/GoogleFiberEditor'), {
@@ -45,7 +46,8 @@ export default function AdminFiberPage() {
 
   const segmentCount = (route) => route.segments?.length ?? 0
   const pointCount = (route) =>
-    (route.segments ?? []).reduce((sum, segment) => sum + segment.length, 0)
+    (route.segments ?? []).reduce((sum, segment) => sum + (segment.points?.length ?? 0), 0)
+  const typeList = (route) => [...new Set((route.segments ?? []).map((s) => s.fiberType))]
 
   return (
     <main className="mx-auto max-w-2xl">
@@ -80,16 +82,23 @@ export default function AdminFiberPage() {
             key={route.id}
             className="flex items-center justify-between gap-3 rounded-card bg-card p-4 shadow-soft"
           >
-            <span
-              className="h-4 w-4 shrink-0 rounded-full border-2 border-white shadow"
-              style={{ backgroundColor: route.color }}
-            />
+            <span className="flex shrink-0 -space-x-1.5">
+              {typeList(route)
+                .slice(0, 4)
+                .map((type) => (
+                  <span
+                    key={type}
+                    title={type}
+                    className="h-4 w-4 rounded-full border-2 border-white shadow"
+                    style={{ backgroundColor: fiberTypeColor(type) }}
+                  />
+                ))}
+            </span>
             <div className="min-w-0 flex-1">
               <p className="truncate font-bold">{route.name}</p>
               <p className="text-sm font-normal text-muted">
                 {segmentCount(route)} line{segmentCount(route) === 1 ? '' : 's'} ·{' '}
-                {pointCount(route)} points
-                {route.fiberType && ` · ${route.fiberType}`}
+                {pointCount(route)} points · {typeList(route).join(' + ')}
                 {route.placement && ` · ${route.placement}`}
                 {route.fiberId && ` · ${route.fiberId}`}
               </p>

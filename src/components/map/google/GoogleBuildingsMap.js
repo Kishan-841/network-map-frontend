@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
-import { buildingColor, zoneColor } from '@/lib/constants'
+import { buildingColor, zoneColor, fiberTypeColor } from '@/lib/constants'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
@@ -185,8 +185,8 @@ export default function GoogleBuildingsMap({
         (segment) =>
           new google.maps.Polyline({
             map,
-            path: segment.map((p) => ({ lat: p.latitude, lng: p.longitude })),
-            strokeColor: route.color,
+            path: (segment.points ?? []).map((p) => ({ lat: p.latitude, lng: p.longitude })),
+            strokeColor: fiberTypeColor(segment.fiberType),
             strokeOpacity: 0.9,
             strokeWeight: 3,
             clickable: false,

@@ -5,7 +5,7 @@ import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { getMapProvider } from '@/lib/map-providers'
-import { buildingColor, zoneColor } from '@/lib/constants'
+import { buildingColor, zoneColor, FIBER_TYPES, fiberTypeColor } from '@/lib/constants'
 import { buildingDotIcon, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
@@ -19,8 +19,6 @@ const DEFAULT_ZOOM = 5
 const MAX_SEGMENT_POINTS = 200 // API caps (fiber-route.schemas.js)
 const MAX_SEGMENTS = 50
 const SNAP_PX = 12 // branch starts snap to an existing vertex within this radius
-const SWATCHES = ['#f59e0b', '#dc2626', '#2563eb', '#10b981', '#a855f7', '#ec4899', '#f97316', '#0f172a']
-const FIBER_TYPES = ['2 core', '4 core', '6 core', '12 core', '24 core', '48 core']
 
 const polylineCentroid = (points) => ({
   lat: points.reduce((sum, p) => sum + p.latitude, 0) / points.length,
@@ -67,8 +65,11 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
   const cleanupDomRef = useRef(null)
   const [ready, setReady] = useState(false)
   const [counts, setCounts] = useState({ lines: 0, points: 0, segments: 0, activeLen: 0 })
-  const [color, setColor] = useState(initialRoute?.color ?? SWATCHES[0])
-  const colorRef = useRef(initialRoute?.color ?? SWATCHES[0])
+  // The type selected for the line being drawn — switching type mid-route
+  // starts a new segment continuing from the last point.
+  const initialType = initialRoute?.segments?.at(-1)?.fiberType ?? '2 core'
+  const [currentType, setCurrentType] = useState(initialType)
+  const typeRef = useRef(initialType)
   // Overlays are lazy AND optional (same pattern as the boundary editor).
   const [buildingsShown, setBuildingsShown] = useState(() =>
     readPref('fiber-buildings-shown', false),
@@ -97,7 +98,6 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
   const [saveMode, setSaveMode] = useState(initialRoute?.id ? 'existing' : 'new')
   const [targetRouteId, setTargetRouteId] = useState(initialRoute?.id ?? '')
   const [name, setName] = useState(initialRoute?.name ?? '')
-  const [fiberType, setFiberType] = useState(initialRoute?.fiberType ?? '')
   const [fiberId, setFiberId] = useState(initialRoute?.fiberId ?? '')
   const [placement, setPlacement] = useState(initialRoute?.placement ?? 'OUT')
   const [remark, setRemark] = useState(initialRoute?.remark ?? '')
@@ -142,7 +142,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
                 icon: {
                   path: google.maps.SymbolPath.CIRCLE,
                   scale: isGrowingTip ? 7 : 4.5,
-                  fillColor: colorRef.current,
+                  fillColor: fiberTypeColor(segment.fiberType),
                   fillOpacity: 1,
                   strokeColor: '#ffffff',
                   strokeWeight: 2,
@@ -166,14 +166,16 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
 
       // Polylines take a FLAT path (unlike polygon rings) — an explicit
       // MVCArray of LatLngs is still the safe construction on v3.65.
-      const addSegment = (points = []) => {
+      const addSegment = (points = [], fiberType = typeRef.current) => {
         const path = new google.maps.MVCArray(
-          points.map((p) => new google.maps.LatLng(p.latitude, p.longitude)),
+          points.map((p) =>
+            p instanceof google.maps.LatLng ? p : new google.maps.LatLng(p.latitude, p.longitude),
+          ),
         )
         const polyline = new google.maps.Polyline({
           map,
           path,
-          strokeColor: colorRef.current,
+          strokeColor: fiberTypeColor(fiberType),
           strokeOpacity: 0.95,
           strokeWeight: 3,
           editable: true,
@@ -186,7 +188,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
         polyline.addListener('rightclick', (event) => {
           if (event.vertex !== undefined) path.removeAt(event.vertex)
         })
-        segmentsRef.current.push({ path, polyline })
+        segmentsRef.current.push({ path, polyline, fiberType })
         activeRef.current = segmentsRef.current.length - 1
         sync()
       }
@@ -251,7 +253,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
       const rubber = new google.maps.Polyline({
         map,
         path: [],
-        strokeColor: colorRef.current,
+        strokeColor: fiberTypeColor(typeRef.current),
         strokeOpacity: 0.5,
         strokeWeight: 2,
         clickable: false,
@@ -281,9 +283,13 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
       // Load the existing route (or start a fresh empty trunk), then frame it.
       const initialSegments = initialRoute?.segments ?? []
       if (initialSegments.length > 0) {
-        initialSegments.forEach((segment) => addSegment(segment))
+        initialSegments.forEach((segment) =>
+          addSegment(segment.points ?? [], segment.fiberType ?? '2 core'),
+        )
         const bounds = new google.maps.LatLngBounds()
-        initialSegments.flat().forEach((p) => bounds.extend({ lat: p.latitude, lng: p.longitude }))
+        initialSegments
+          .flatMap((segment) => segment.points ?? [])
+          .forEach((p) => bounds.extend({ lat: p.latitude, lng: p.longitude }))
         map.fitBounds(bounds, 64)
       } else {
         addSegment([])
@@ -360,15 +366,15 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
           (segment) =>
             new google.maps.Polyline({
               map,
-              path: segment.map((p) => ({ lat: p.latitude, lng: p.longitude })),
-              strokeColor: route.color,
+              path: (segment.points ?? []).map((p) => ({ lat: p.latitude, lng: p.longitude })),
+              strokeColor: fiberTypeColor(segment.fiberType),
               strokeOpacity: 0.65,
               strokeWeight: 2.5,
               clickable: false,
               zIndex: 4,
             }),
         )
-        const start = route.segments[0]?.[0]
+        const start = route.segments[0]?.points?.[0]
         if (start) {
           lines.push(
             new google.maps.Marker({
@@ -379,7 +385,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
               icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 scale: 5,
-                fillColor: route.color,
+                fillColor: fiberTypeColor(route.segments[0]?.fiberType),
                 fillOpacity: 1,
                 strokeColor: '#ffffff',
                 strokeWeight: 2,
@@ -562,16 +568,28 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
     mapRef.current?.setZoom(15)
   }
 
-  function applyColor(next) {
-    setColor(next)
-    colorRef.current = next
-    segmentsRef.current.forEach((segment) => segment.polyline.setOptions({ strokeColor: next }))
-    rubberRef.current?.setOptions({ strokeColor: next })
-    syncRef.current?.()
+  // Switching type mid-route: the cable continues in the new type — a new
+  // segment starts at the active line's last point. On a line that hasn't
+  // really started (0–1 points), just retype/recolor it.
+  function selectType(type) {
+    setCurrentType(type)
+    typeRef.current = type
+    rubberRef.current?.setOptions({ strokeColor: fiberTypeColor(type) })
+    const active = segmentsRef.current[activeRef.current]
+    if (!active) return
+    if (active.path.getLength() >= 2) {
+      if (active.fiberType !== type) {
+        addSegmentRef.current?.([active.path.getAt(active.path.getLength() - 1)], type)
+      }
+    } else {
+      active.fiberType = type
+      active.polyline.setOptions({ strokeColor: fiberTypeColor(type) })
+      syncRef.current?.()
+    }
   }
 
   function handleNewLine() {
-    addSegmentRef.current?.([])
+    addSegmentRef.current?.([], typeRef.current)
   }
 
   function handleUndo() {
@@ -602,9 +620,9 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
           const point = segment.path.getAt(i)
           points.push({ latitude: point.lat(), longitude: point.lng() })
         }
-        return points
+        return { fiberType: segment.fiberType, points }
       })
-      .filter((points) => points.length >= 2)
+      .filter((segment) => segment.points.length >= 2)
     drawnRef.current = segments
     setSaveError(null)
     setSaveOpen(true)
@@ -616,7 +634,6 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
     setTargetRouteId(id)
     const route = routesData?.find((r) => r.id === id)
     if (route) {
-      setFiberType(route.fiberType ?? '')
       setFiberId(route.fiberId ?? '')
       setPlacement(route.placement ?? 'OUT')
       setRemark(route.remark ?? '')
@@ -648,8 +665,6 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
     try {
       const payload = {
         segments: drawnRef.current,
-        color,
-        fiberType,
         fiberId: fiberId.trim(),
         placement,
         remark: remark.trim() || null,
@@ -668,7 +683,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
     }
   }
 
-  const detailsComplete = Boolean(fiberType && fiberId.trim())
+  const detailsComplete = Boolean(fiberId.trim())
 
   const canBranch = ready && counts.activeLen >= 2 && counts.segments < MAX_SEGMENTS
 
@@ -759,6 +774,27 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
           >
             Draw points
           </button>
+        </div>
+
+        {/* Fiber type selector + legend in one: the color IS the type. While
+            drawing, switching type continues the cable as a new segment. */}
+        <div className="absolute left-3 top-[7.25rem] z-10 flex max-w-[calc(100%-6rem)] flex-wrap gap-1.5 rounded-btn border border-line bg-card/95 p-1.5 shadow-soft backdrop-blur sm:left-1/2 sm:top-[3.9rem] sm:-translate-x-1/2">
+          {FIBER_TYPES.map((type) => (
+            <button
+              key={type}
+              onClick={() => selectType(type)}
+              aria-pressed={currentType === type}
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                currentType === type ? 'bg-paper ring-1 ring-line' : 'text-muted hover:text-ink'
+              }`}
+            >
+              <span
+                className="h-2.5 w-2.5 rounded-full border border-white shadow"
+                style={{ backgroundColor: fiberTypeColor(type) }}
+              />
+              {type}
+            </button>
+          ))}
         </div>
 
         {/* Legend: overlays load lazily — nothing is fetched until enabled. */}
@@ -912,26 +948,12 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
                 />
               )}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Select
-                  id="fiber-type"
-                  value={fiberType}
-                  onChange={(e) => setFiberType(e.target.value)}
-                >
-                  <option value="">Fiber type…</option>
-                  {FIBER_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </Select>
-                <Input
-                  id="fiber-id"
-                  placeholder="Fiber ID e.g. FBR-014"
-                  value={fiberId}
-                  onChange={(e) => setFiberId(e.target.value)}
-                />
-              </div>
+              <Input
+                id="fiber-id"
+                placeholder="Fiber ID e.g. FBR-014"
+                value={fiberId}
+                onChange={(e) => setFiberId(e.target.value)}
+              />
 
               <div className="flex items-center justify-between gap-3 rounded-btn border border-line bg-card px-4 py-3">
                 <span className="text-sm font-medium text-ink">Placement</span>
@@ -993,26 +1015,6 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
                       onChange={handleImagesPicked}
                     />
                   </label>
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">Color</p>
-                <div className="flex flex-wrap gap-2">
-                  {SWATCHES.map((swatch) => (
-                    <button
-                      key={swatch}
-                      aria-label={`Color ${swatch}`}
-                      aria-pressed={color === swatch}
-                      onClick={() => applyColor(swatch)}
-                      className={`h-8 w-8 rounded-full border-2 transition-transform ${
-                        color === swatch
-                          ? 'scale-110 border-ink'
-                          : 'border-white shadow hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: swatch }}
-                    />
-                  ))}
                 </div>
               </div>
 
