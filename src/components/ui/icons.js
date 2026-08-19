@@ -32,6 +32,7 @@ export {
   ScrollText as IconLogs,
   Upload as IconUpload,
   Download as IconDownload,
+  Eye as IconEye,
 } from 'lucide-react'
 
 /** Brand glyph: three network nodes joined by fiber links. */
