@@ -7,6 +7,7 @@ import { useBuildings } from '@/hooks/useBuildings'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useOperators } from '@/hooks/useOperators'
 import { useCities } from '@/hooks/useCities'
+import { MANAGE_LINKS } from '@/lib/manage-links'
 import { useCountUp } from '@/hooks/useCountUp'
 import { Select } from '@/components/ui/Input'
 import { LiveDonut, OperatorBar, SurveysLine } from '@/components/dashboard/DashboardCharts'
@@ -80,15 +81,6 @@ function CountTile({ href, icon: TileIcon, label, value }) {
   )
 }
 
-const MANAGE_LINKS = [
-  { href: '/admin/cities', label: 'Cities', sub: 'Operator groups', icon: IconMap, adminOnly: true },
-  { href: '/admin/operators', label: 'Operators', sub: 'Zone groups', icon: IconLayers },
-  { href: '/admin/zones', label: 'Zones', sub: 'Coverage areas', icon: IconPin },
-  { href: '/admin/fiber', label: 'Fiber routes', sub: 'Network lines', icon: IconNavigate },
-  { href: '/admin/building-types', label: 'Building types', sub: 'Form options', icon: IconBuildings },
-  { href: '/admin/users', label: 'Users', sub: 'Team & roles', icon: IconUser, adminOnly: true },
-  { href: '/admin/system-logs', label: 'System logs', sub: 'Audit trail', icon: IconLogs, adminOnly: true },
-]
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)

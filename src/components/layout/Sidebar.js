@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
+import { MANAGE_LINKS } from '@/lib/manage-links'
 import {
   NodeMark,
   IconDashboard,
@@ -63,6 +64,35 @@ export function Sidebar() {
     router.replace('/login')
   }
 
+  // Plain render helper (not a component) — keeps link identity stable and
+  // shares one style between the main nav and the Manage section.
+  const navLink = ({ href, label, icon: NavIcon }) => {
+    const active = pathname.startsWith(href)
+    return (
+      <Link
+        key={href}
+        href={href}
+        title={collapsed ? label : undefined}
+        aria-current={active ? 'page' : undefined}
+        className={`group flex items-center gap-3 rounded-btn py-2.5 text-sm font-medium transition-colors duration-200 ${
+          collapsed ? 'justify-center px-0' : 'px-3.5'
+        } ${
+          active
+            ? 'bg-primary text-primary-content shadow-sm'
+            : 'text-neutral-content/60 hover:bg-neutral-content/10 hover:text-neutral-content'
+        }`}
+      >
+        <NavIcon
+          className={`h-5 w-5 shrink-0 transition-transform duration-200 ${
+            collapsed ? '' : 'group-hover:translate-x-0.5'
+          }`}
+          strokeWidth={1.8}
+        />
+        {!collapsed && label}
+      </Link>
+    )
+  }
+
   return (
     <aside
       className={`fixed inset-y-0 left-0 z-40 hidden flex-col bg-neutral text-neutral-content transition-[width] duration-300 lg:flex ${
@@ -105,34 +135,29 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Nav */}
-      <nav className="flex flex-col gap-1 px-3">
-        {NAV_ITEMS.map(({ href, label, icon: NavIcon }) => {
-          const active = pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={collapsed ? label : undefined}
-              aria-current={active ? 'page' : undefined}
-              className={`group flex items-center gap-3 rounded-btn py-2.5 text-sm font-medium transition-colors duration-200 ${
-                collapsed ? 'justify-center px-0' : 'px-3.5'
-              } ${
-                active
-                  ? 'bg-primary text-primary-content shadow-sm'
-                  : 'text-neutral-content/60 hover:bg-neutral-content/10 hover:text-neutral-content'
-              }`}
-            >
-              <NavIcon
-                className={`h-5 w-5 shrink-0 transition-transform duration-200 ${
-                  collapsed ? '' : 'group-hover:translate-x-0.5'
-                }`}
-                strokeWidth={1.8}
-              />
-              {!collapsed && label}
-            </Link>
-          )
-        })}
+      {/* Nav (scrollable — the Manage section makes it tall on short screens) */}
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3">
+        <div className="flex flex-col gap-1">
+          {NAV_ITEMS.map((item) => navLink(item))}
+        </div>
+
+        {/* Manage: the dashboard's admin grid, mirrored for big screens. */}
+        {['ADMIN', 'MANAGER'].includes(user?.role) && (
+          <>
+            {collapsed ? (
+              <div className="mx-auto my-3 h-px w-8 bg-neutral-content/15" />
+            ) : (
+              <p className="px-3.5 pb-1 pt-5 text-[11px] font-medium uppercase tracking-wider text-neutral-content/40">
+                Manage
+              </p>
+            )}
+            <div className="flex flex-col gap-1">
+              {MANAGE_LINKS.filter((link) => !link.adminOnly || user?.role === 'ADMIN').map(
+                (item) => navLink(item),
+              )}
+            </div>
+          </>
+        )}
       </nav>
 
       {/* Bottom: user + theme toggle + logout */}
