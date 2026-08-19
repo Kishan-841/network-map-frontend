@@ -73,6 +73,11 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
   )
   const [zonesShown, setZonesShown] = useState(() => readPref('fiber-zones-shown', false))
   const [zonesData, setZonesData] = useState(null)
+  // Existing fiber routes render as context by default — the whole point is
+  // seeing what's already laid so new lines don't overlap or duplicate it.
+  const [othersShown, setOthersShown] = useState(() => readPref('fiber-others-shown', true))
+  const [routesData, setRoutesData] = useState(null)
+  const otherFiberRef = useRef(null)
   const [selectedBuilding, setSelectedBuilding] = useState(null)
   // Pan & zoom vs Draw — DOM clicks + projection; Google's map 'click' event
   // is unreliable in Maps JS v3.65. Start in Pan to navigate first.
@@ -288,6 +293,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
       buildingClustererRef.current?.clearMarkers()
       buildingClustererRef.current = null
       zoneOverlaysRef.current?.forEach((o) => o.setMap(null))
+      otherFiberRef.current?.forEach((o) => o.setMap(null))
       mapRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -308,19 +314,82 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
     if (!drawing) rubberRef.current?.setPath([])
   }, [drawing, ready])
 
-  // Route list for the save panel (light — names only used).
+  // One fetch on mount feeds both the save panel's route list and the
+  // "other fiber" context overlay.
   useEffect(() => {
     let cancelled = false
     apiClient
       .get('/fiber-routes')
       .then((res) => {
-        if (!cancelled) setRouteList(res.data.data.map((r) => ({ id: r.id, name: r.name })))
+        if (cancelled) return
+        setRoutesData(res.data.data)
+        setRouteList(res.data.data.map((r) => ({ id: r.id, name: r.name })))
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
   }, [])
+
+  // Existing fiber overlay: each route in its own color, dimmer and thinner
+  // than the line being drawn, with a name tag at its start point.
+  useEffect(() => {
+    writePref('fiber-others-shown', othersShown)
+    const map = mapRef.current
+    if (!ready || !map || !routesData) return
+    if (!othersShown) {
+      otherFiberRef.current?.forEach((overlay) => overlay.setMap(null))
+      return
+    }
+    if (otherFiberRef.current) {
+      otherFiberRef.current.forEach((overlay) => overlay.setMap(map))
+      return
+    }
+    otherFiberRef.current = routesData
+      .filter((route) => route.id !== initialRoute?.id && route.segments?.length)
+      .flatMap((route) => {
+        const lines = route.segments.map(
+          (segment) =>
+            new google.maps.Polyline({
+              map,
+              path: segment.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+              strokeColor: route.color,
+              strokeOpacity: 0.65,
+              strokeWeight: 2.5,
+              clickable: false,
+              zIndex: 4,
+            }),
+        )
+        const start = route.segments[0]?.[0]
+        if (start) {
+          lines.push(
+            new google.maps.Marker({
+              map,
+              position: { lat: start.latitude, lng: start.longitude },
+              clickable: false,
+              zIndex: 4,
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 5,
+                fillColor: route.color,
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 2,
+                labelOrigin: new google.maps.Point(0, -2.4),
+              },
+              label: {
+                text: route.name.toUpperCase(),
+                color: '#ffffff',
+                fontSize: '11px',
+                fontWeight: '700',
+                className: 'fiber-zone-label',
+              },
+            }),
+          )
+        }
+        return lines
+      })
+  }, [othersShown, ready, routesData, initialRoute?.id])
 
   // Lazy zones fetch feeds the zones overlay only when first enabled.
   useEffect(() => {
@@ -664,6 +733,15 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
               className="checkbox checkbox-xs"
             />
             Zones
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-full border border-line bg-card px-3.5 py-2 text-xs font-medium shadow-md">
+            <input
+              type="checkbox"
+              checked={othersShown}
+              onChange={(e) => setOthersShown(e.target.checked)}
+              className="checkbox checkbox-xs"
+            />
+            Other fiber
           </label>
           {counts.points > 0 && (
             <button
