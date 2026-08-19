@@ -41,6 +41,8 @@ export default function GoogleBuildingsMap({
   const markersRef = useRef(new Map())
   const zoneOverlaysRef = useRef([])
   const fiberOverlaysRef = useRef([])
+  // Hovered/tapped fiber segment → floating details card at the cursor.
+  const [fiberInfo, setFiberInfo] = useState(null)
   const fittedRef = useRef(false)
   const clustererRef = useRef(null)
   const onSelectRef = useRef(onSelect)
@@ -176,23 +178,40 @@ export default function GoogleBuildingsMap({
   }, [zones, ready])
 
   // Fiber routes: plain colored polylines (trunk + branches per route).
+  // Hover (or tap, on touch) shows a details card, like building pins do.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
     fiberOverlaysRef.current.forEach((line) => line.setMap(null))
     fiberOverlaysRef.current = fiberRoutes.flatMap((route) =>
-      (route.segments ?? []).map(
-        (segment) =>
-          new google.maps.Polyline({
-            map,
-            path: (segment.points ?? []).map((p) => ({ lat: p.latitude, lng: p.longitude })),
-            strokeColor: fiberTypeColor(segment.fiberType),
-            strokeOpacity: 0.9,
-            strokeWeight: 3,
-            clickable: false,
-            zIndex: 5,
-          }),
-      ),
+      (route.segments ?? []).map((segment) => {
+        const line = new google.maps.Polyline({
+          map,
+          path: (segment.points ?? []).map((p) => ({ lat: p.latitude, lng: p.longitude })),
+          strokeColor: fiberTypeColor(segment.fiberType),
+          strokeOpacity: 0.9,
+          strokeWeight: 4,
+          zIndex: 5,
+        })
+        const show = (event) => {
+          const dom = event.domEvent
+          if (!dom) return
+          setFiberInfo({
+            x: dom.clientX,
+            y: dom.clientY,
+            name: route.name,
+            fiberType: segment.fiberType,
+            fiberId: route.fiberId,
+            placement: route.placement,
+            remark: route.remark,
+          })
+        }
+        line.addListener('mouseover', show)
+        line.addListener('mousemove', show)
+        line.addListener('click', show) // touch devices have no hover
+        line.addListener('mouseout', () => setFiberInfo(null))
+        return line
+      }),
     )
   }, [fiberRoutes, ready])
 
@@ -289,6 +308,45 @@ export default function GoogleBuildingsMap({
     <div className="relative isolate z-0 h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       <MapLayerControl value={layer} onChange={setLayer} position="right-3 top-[4.75rem] lg:top-24" />
+
+      {/* Fiber hover/tap card — fixed at the cursor, like a rich tooltip.
+          The fiberRoutes guard hides a stale card when the layer toggles off
+          (no mouseout fires once the lines are gone). */}
+      {fiberInfo && fiberRoutes.length > 0 && (
+        <div
+          className="pointer-events-none fixed z-50 w-56 rounded-card border border-line bg-card p-3 shadow-lift"
+          style={{
+            left: Math.min(fiberInfo.x + 14, window.innerWidth - 240),
+            top: Math.min(fiberInfo.y + 14, window.innerHeight - 140),
+          }}
+        >
+          <p className="truncate text-sm font-bold">{fiberInfo.name}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-medium">
+            <span
+              className="flex items-center gap-1.5 rounded-full bg-paper px-2 py-0.5 text-muted"
+            >
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: fiberTypeColor(fiberInfo.fiberType) }}
+              />
+              {fiberInfo.fiberType}
+            </span>
+            {fiberInfo.placement && (
+              <span className="rounded-full bg-paper px-2 py-0.5 text-muted">
+                {fiberInfo.placement}
+              </span>
+            )}
+            {fiberInfo.fiberId && (
+              <span className="rounded-full bg-paper px-2 py-0.5 text-muted">
+                {fiberInfo.fiberId}
+              </span>
+            )}
+          </div>
+          {fiberInfo.remark && (
+            <p className="mt-1.5 line-clamp-2 text-xs font-normal text-muted">{fiberInfo.remark}</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
