@@ -1,28 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { createSessionResource } from '@/lib/session-resource'
 
-/** Full operator list (legacy array shape) for filter dropdowns. */
+const useOperatorsResource = createSessionResource('/operators')
+
+/** Full operator list for filter dropdowns, fetched once per session. */
 export function useOperators() {
-  const [operators, setOperators] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    apiClient
-      .get('/operators')
-      .then((res) => {
-        if (!cancelled) setOperators(res.data.data)
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  return { operators, loading }
+  const { data, loading } = useOperatorsResource()
+  return { operators: data, loading }
 }

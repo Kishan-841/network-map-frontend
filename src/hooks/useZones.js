@@ -1,27 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { createSessionResource } from '@/lib/session-resource'
 
+const useZonesResource = createSessionResource('/zones')
+
+/** Zone list (role-scoped by the API), fetched once per session. */
 export function useZones() {
-  const [zones, setZones] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    apiClient
-      .get('/zones')
-      .then((res) => {
-        if (!cancelled) setZones(res.data.data)
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  return { zones, loading }
+  const { data, loading } = useZonesResource()
+  return { zones: data, loading }
 }

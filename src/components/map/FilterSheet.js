@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useZones } from '@/hooks/useZones'
 import { useOperators } from '@/hooks/useOperators'
+import { useUsers } from '@/hooks/useUsers'
 import { useAuthStore } from '@/stores/auth-store'
-import { apiClient } from '@/lib/api-client'
 
 const selectClass =
   'min-h-12 w-full rounded-xl border border-line bg-card px-4 text-base outline-none focus:ring-2 focus:ring-fiber/30'
@@ -22,9 +22,10 @@ function FilterSheetBody({ filters, onApply, onClose }) {
   const { zones } = useZones()
   const { operators } = useOperators()
   const role = useAuthStore((s) => s.user?.role)
-  const [surveyors, setSurveyors] = useState([])
-  const [local, setLocal] = useState(filters)
   const canFilterSurveyor = role === 'ADMIN' || role === 'MANAGER'
+  // Session-cached — reopening the sheet costs zero requests.
+  const { users: surveyors } = useUsers(canFilterSurveyor)
+  const [local, setLocal] = useState(filters)
 
   // Picking an operator narrows the zone list to that operator's zones and
   // clears a now-mismatched zone selection.
@@ -41,15 +42,6 @@ function FilterSheetBody({ filters, onApply, onClose }) {
       return next
     })
   }
-
-  useEffect(() => {
-    if (canFilterSurveyor) {
-      apiClient
-        .get('/users')
-        .then((res) => setSurveyors(res.data.data))
-        .catch(() => setSurveyors([]))
-    }
-  }, [canFilterSurveyor])
 
   const set = (key) => (e) => setLocal({ ...local, [key]: e.target.value })
 
