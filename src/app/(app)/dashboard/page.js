@@ -142,9 +142,11 @@ export default function DashboardPage() {
           </p>
         </div>
         {canManage && operators.length > 0 && (
-          <div className="flex w-full gap-2 sm:w-auto">
+          // Stacked on mobile — a long operator name would otherwise widen
+          // the row past the viewport and make the page scroll sideways.
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">
             {cities.length > 0 && (
-              <div className="flex-1 sm:w-44 sm:flex-none">
+              <div className="min-w-0 sm:w-44">
                 <Select id="dash-city" value={cityId} onChange={(e) => selectCity(e.target.value)}>
                   <option value="">All cities</option>
                   {cities.map((city) => (
@@ -155,9 +157,10 @@ export default function DashboardPage() {
                 </Select>
               </div>
             )}
-            <div className="flex-1 sm:w-56 sm:flex-none">
+            <div className="min-w-0 sm:w-56">
             <Select
               id="dash-operator"
+              className="max-w-full"
               value={operatorId}
               onChange={(e) => setOperatorId(e.target.value)}
             >
