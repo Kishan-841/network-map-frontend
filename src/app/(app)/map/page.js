@@ -74,7 +74,8 @@ export default function MapPage() {
         </button>
       </div>
 
-      <p className="absolute left-1/2 top-20 z-40 -translate-x-1/2 rounded-full border border-line bg-card px-4 py-1.5 font-mono text-[11px] uppercase tracking-wide text-muted shadow lg:top-24">
+      {/* Sits BELOW the map-style switcher on mobile — on one row they collide. */}
+      <p className="absolute left-1/2 top-[7.25rem] z-40 -translate-x-1/2 rounded-full border border-line bg-card px-4 py-1.5 font-mono text-[11px] uppercase tracking-wide text-muted shadow sm:top-20 lg:top-24">
         {loading
           ? 'Loading…'
           : `${visibleBuildings.length} building${visibleBuildings.length === 1 ? '' : 's'}${
