@@ -30,9 +30,15 @@ export default function MapPage() {
   const [zonesShown, setZonesShown] = useState(true)
   const [liveShown, setLiveShown] = useState(true)
   const [notLiveShown, setNotLiveShown] = useState(true)
-  // Fiber layer is lazy: nothing is fetched until first toggled on.
+  // Fiber layer is lazy: nothing is fetched until first toggled on. The
+  // operator filter scopes it — routes without an operator always show.
   const [fiberShown, setFiberShown] = useState(false)
   const { routes: fiberRoutes } = useFiberRoutes(fiberShown)
+  const visibleFiberRoutes = useMemo(() => {
+    if (!fiberShown) return []
+    if (!filters.operatorId) return fiberRoutes
+    return fiberRoutes.filter((route) => route.operatorId === filters.operatorId)
+  }, [fiberShown, fiberRoutes, filters.operatorId])
 
   const query = useMemo(
     () => ({ ...filters, search: debouncedSearch || undefined }),
@@ -56,7 +62,7 @@ export default function MapPage() {
       <BuildingsMap
         buildings={visibleBuildings}
         zones={zonesShown ? zones : []}
-        fiberRoutes={fiberShown ? fiberRoutes : []}
+        fiberRoutes={visibleFiberRoutes}
         selectedId={selected?.id}
         onSelect={setSelected}
       />
@@ -107,7 +113,7 @@ export default function MapPage() {
         notLiveShown={notLiveShown}
         onToggleNotLive={() => setNotLiveShown((v) => !v)}
         fiberShown={fiberShown}
-        fiberCount={fiberRoutes.length}
+        fiberCount={visibleFiberRoutes.length}
         onToggleFiber={() => setFiberShown((v) => !v)}
       />
 

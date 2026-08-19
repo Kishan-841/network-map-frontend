@@ -8,6 +8,7 @@ import { getMapProvider } from '@/lib/map-providers'
 import { buildingColor, zoneColor, FIBER_TYPES, fiberTypeColor } from '@/lib/constants'
 import { buildingDotIcon, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
+import { useOperators } from '@/hooks/useOperators'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
@@ -99,6 +100,8 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
   const [targetRouteId, setTargetRouteId] = useState(initialRoute?.id ?? '')
   const [name, setName] = useState(initialRoute?.name ?? '')
   const [fiberId, setFiberId] = useState(initialRoute?.fiberId ?? '')
+  const [operatorId, setOperatorId] = useState(initialRoute?.operatorId ?? '')
+  const { operators } = useOperators()
   const [placement, setPlacement] = useState(initialRoute?.placement ?? 'OUT')
   const [remark, setRemark] = useState(initialRoute?.remark ?? '')
   const [images, setImages] = useState(initialRoute?.images ?? [])
@@ -636,6 +639,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
     if (route) {
       setFiberId(route.fiberId ?? '')
       setPlacement(route.placement ?? 'OUT')
+      setOperatorId(route.operatorId ?? '')
       setRemark(route.remark ?? '')
       setImages(route.images ?? [])
     }
@@ -667,6 +671,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
         segments: drawnRef.current,
         fiberId: fiberId.trim(),
         placement,
+        operatorId: operatorId || null,
         remark: remark.trim() || null,
         images,
       }
@@ -948,12 +953,26 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
                 />
               )}
 
-              <Input
-                id="fiber-id"
-                placeholder="Fiber ID e.g. FBR-014"
-                value={fiberId}
-                onChange={(e) => setFiberId(e.target.value)}
-              />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  id="fiber-id"
+                  placeholder="Fiber ID e.g. FBR-014"
+                  value={fiberId}
+                  onChange={(e) => setFiberId(e.target.value)}
+                />
+                <Select
+                  id="fiber-operator"
+                  value={operatorId}
+                  onChange={(e) => setOperatorId(e.target.value)}
+                >
+                  <option value="">No operator</option>
+                  {operators.map((operator) => (
+                    <option key={operator.id} value={operator.id}>
+                      {operator.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
 
               <div className="flex items-center justify-between gap-3 rounded-btn border border-line bg-card px-4 py-3">
                 <span className="text-sm font-medium text-ink">Placement</span>

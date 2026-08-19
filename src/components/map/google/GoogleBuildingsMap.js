@@ -224,6 +224,7 @@ export default function GoogleBuildingsMap({
             fiberType: segment.fiberType,
             fiberId: route.fiberId,
             placement: route.placement,
+            operator: route.operator?.name,
             remark: route.remark,
           })
         }
@@ -361,6 +362,11 @@ export default function GoogleBuildingsMap({
             {fiberInfo.fiberId && (
               <span className="rounded-full bg-paper px-2 py-0.5 text-muted">
                 {fiberInfo.fiberId}
+              </span>
+            )}
+            {fiberInfo.operator && (
+              <span className="rounded-full bg-fiber-tint px-2 py-0.5 text-fiber">
+                {fiberInfo.operator}
               </span>
             )}
           </div>

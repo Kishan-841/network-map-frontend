@@ -101,6 +101,7 @@ export default function AdminFiberPage() {
                 {pointCount(route)} points · {typeList(route).join(' + ')}
                 {route.placement && ` · ${route.placement}`}
                 {route.fiberId && ` · ${route.fiberId}`}
+                {route.operator?.name && ` · ${route.operator.name}`}
               </p>
             </div>
             <button
