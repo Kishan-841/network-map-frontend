@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useBuildings } from '@/hooks/useBuildings'
 import { useZones } from '@/hooks/useZones'
@@ -16,6 +16,13 @@ const BuildingsMap = dynamic(() => import('@/components/map/BuildingsMap'), { ss
 export default function MapPage() {
   const [filters, setFilters] = useState({})
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  // One API call per pause in typing — not one per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 350)
+    return () => clearTimeout(timer)
+  }, [search])
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selected, setSelected] = useState(null)
   // Legend-driven declutter toggles.
@@ -27,7 +34,10 @@ export default function MapPage() {
   const [fiberShown, setFiberShown] = useState(false)
   const { routes: fiberRoutes } = useFiberRoutes(fiberShown)
 
-  const query = useMemo(() => ({ ...filters, search: search || undefined }), [filters, search])
+  const query = useMemo(
+    () => ({ ...filters, search: debouncedSearch || undefined }),
+    [filters, debouncedSearch],
+  )
   // The map wants everything the API allows in one page (markers, not rows).
   const { buildings, loading } = useBuildings({ ...query, pageSize: 500 })
   const { zones } = useZones()
