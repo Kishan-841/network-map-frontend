@@ -141,8 +141,9 @@ export function Sidebar() {
           {NAV_ITEMS.map((item) => navLink(item))}
         </div>
 
-        {/* Manage: the dashboard's admin grid, mirrored for big screens. */}
-        {['ADMIN', 'MANAGER'].includes(user?.role) && (
+        {/* Manage: the dashboard's admin grid, mirrored for big screens.
+            Sidebar entry is ADMIN-only (user decision). */}
+        {user?.role === 'ADMIN' && (
           <>
             {collapsed ? (
               <div className="mx-auto my-3 h-px w-8 bg-neutral-content/15" />
@@ -151,11 +152,7 @@ export function Sidebar() {
                 Manage
               </p>
             )}
-            <div className="flex flex-col gap-1">
-              {MANAGE_LINKS.filter((link) => !link.adminOnly || user?.role === 'ADMIN').map(
-                (item) => navLink(item),
-              )}
-            </div>
+            <div className="flex flex-col gap-1">{MANAGE_LINKS.map((item) => navLink(item))}</div>
           </>
         )}
       </nav>
