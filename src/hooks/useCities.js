@@ -9,3 +9,5 @@ export function useCities() {
   const { data, loading } = useCitiesResource()
   return { cities: data, loading }
 }
+
+export const invalidateCities = () => useCitiesResource.invalidate()

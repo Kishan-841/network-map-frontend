@@ -11,14 +11,14 @@ import { useAuthStore } from '@/stores/auth-store'
  * The cache dies with the JS session (hard refresh / new tab) or when the
  * logged-in user changes (logout, different login), never in between.
  *
- * Trade-off (deliberate): freshly created zones/operators/etc. won't appear
- * in dropdowns until a refresh. Reference data changes rarely; admin pages
- * that EDIT these lists keep their own always-fresh fetches.
+ * Staleness is handled by invalidation: every admin mutation (create/update/
+ * delete/import) calls the resource's `invalidate()`, clearing the cache so
+ * the NEXT consumer fetches fresh data. No polling, no TTL.
  */
 export function createSessionResource(path) {
   const cache = { userId: undefined, data: null, promise: null }
 
-  return function useSessionResource(enabled = true) {
+  function useSessionResource(enabled = true) {
     const userId = useAuthStore((s) => s.user?.id)
     const cached = enabled && cache.userId === userId ? cache.data : null
     const [data, setData] = useState(cached)
@@ -56,4 +56,13 @@ export function createSessionResource(path) {
 
     return { data: data ?? [], loading }
   }
+
+  // Flip the stale flag: drops the cached copy (and any in-flight promise)
+  // so the next mount of the hook fetches from the API again.
+  useSessionResource.invalidate = () => {
+    cache.data = null
+    cache.promise = null
+  }
+
+  return useSessionResource
 }

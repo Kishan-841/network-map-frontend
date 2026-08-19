@@ -9,3 +9,5 @@ export function useOperators() {
   const { data, loading } = useOperatorsResource()
   return { operators: data, loading }
 }
+
+export const invalidateOperators = () => useOperatorsResource.invalidate()

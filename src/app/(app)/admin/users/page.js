@@ -8,6 +8,7 @@ import { Input, Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { DataTable } from '@/components/ui/DataTable'
 import { ZoneMultiSelect } from '@/components/admin/ZoneMultiSelect'
+import { invalidateUsers } from '@/hooks/useUsers'
 import { BulkAssignZonesModal } from '@/components/admin/BulkAssignZonesModal'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconPlus, IconEdit, IconUpload } from '@/components/ui/icons'
@@ -253,7 +254,12 @@ export default function AdminUsersPage() {
     ? { page: result.data.page, totalPages: result.data.totalPages, total: result.data.total }
     : null
   const listError = !loading && result?.error ? result.error : null
-  const refresh = () => setRefreshTick((tick) => tick + 1)
+  // User mutations also drop the session-cached user directory (filter
+  // dropdowns) so it refetches on next use.
+  const refresh = () => {
+    invalidateUsers()
+    setRefreshTick((tick) => tick + 1)
+  }
 
   async function toggleActive(user) {
     setBusyId(user.id)

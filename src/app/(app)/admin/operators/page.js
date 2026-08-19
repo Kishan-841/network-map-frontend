@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { Pagination } from '@/components/ui/Pagination'
 import { ImportOperatorMappingModal } from '@/components/admin/ImportOperatorMappingModal'
-import { useCities } from '@/hooks/useCities'
+import { useCities, invalidateCities } from '@/hooks/useCities'
+import { invalidateOperators } from '@/hooks/useOperators'
+import { invalidateZones } from '@/hooks/useZones'
 import { IconEdit, IconTrash, IconUpload, IconLayers } from '@/components/ui/icons'
 
 const emptyForm = { name: '', cityId: '' }
@@ -113,7 +115,15 @@ export default function AdminOperatorsPage() {
   const pagination = result?.data
     ? { page: result.data.page, totalPages: result.data.totalPages, total: result.data.total }
     : null
-  const refresh = () => setRefreshTick((t) => t + 1)
+  // Operator mutations invalidate the operator dropdown cache; the mapping
+  // import also creates zones and cities, so those caches drop too (cheap —
+  // it only forces one refetch on next use).
+  const refresh = () => {
+    invalidateOperators()
+    invalidateZones()
+    invalidateCities()
+    setRefreshTick((t) => t + 1)
+  }
 
   async function handleDelete(operator) {
     if (!window.confirm(`Delete operator "${operator.name}"? Its zones stay, unlinked.`)) return

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiClient } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { CrudList } from '@/components/admin/CrudList'
+import { invalidateCities } from '@/hooks/useCities'
+import { invalidateOperators } from '@/hooks/useOperators'
 
 export default function AdminCitiesPage() {
   const [cities, setCities] = useState(null)
@@ -21,6 +23,14 @@ export default function AdminCitiesPage() {
   useEffect(() => {
     fetchCities()
   }, [fetchCities])
+
+  // City mutations invalidate the cached city dropdowns AND the operator
+  // cache (operator rows embed their city's name).
+  const refreshAfterMutation = async () => {
+    invalidateCities()
+    invalidateOperators()
+    await fetchCities()
+  }
 
   return (
     <main className="mx-auto max-w-2xl">
@@ -46,15 +56,15 @@ export default function AdminCitiesPage() {
         )}
         onCreate={async (draft) => {
           await apiClient.post('/cities', draft)
-          await fetchCities()
+          await refreshAfterMutation()
         }}
         onUpdate={async (id, draft) => {
           await apiClient.patch(`/cities/${id}`, draft)
-          await fetchCities()
+          await refreshAfterMutation()
         }}
         onDelete={async (id) => {
           await apiClient.delete(`/cities/${id}`)
-          await fetchCities()
+          await refreshAfterMutation()
         }}
       />
     </main>

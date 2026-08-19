@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input'
 import { BoundaryEditor, parseBoundaryPoints } from '@/components/admin/BoundaryEditor'
 import { ImportZonesModal } from '@/components/admin/ImportZonesModal'
 import { Pagination } from '@/components/ui/Pagination'
+import { invalidateZones } from '@/hooks/useZones'
 import { IconEdit, IconTrash, IconPin, IconUpload, IconDownload, IconMap } from '@/components/ui/icons'
 
 // Client-only: Google Maps JS touches window.
@@ -175,7 +176,13 @@ export default function AdminZonesPage() {
   const pagination = result?.data
     ? { page: result.data.page, totalPages: result.data.totalPages, total: result.data.total }
     : null
-  const fetchZones = () => setRefreshTick((tick) => tick + 1)
+  // Called after every zone mutation (create/update/delete/import/boundary
+  // save) — also drops the session-cached zone list so dropdowns everywhere
+  // pick up the change on their next mount.
+  const fetchZones = () => {
+    invalidateZones()
+    setRefreshTick((tick) => tick + 1)
+  }
 
   async function handleExport() {
     setExporting(true)

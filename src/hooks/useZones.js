@@ -9,3 +9,5 @@ export function useZones() {
   const { data, loading } = useZonesResource()
   return { zones: data, loading }
 }
+
+export const invalidateZones = () => useZonesResource.invalidate()

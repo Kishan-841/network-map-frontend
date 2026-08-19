@@ -12,3 +12,5 @@ export function useUsers(enabled = true) {
   const { data, loading } = useUsersResource(enabled)
   return { users: data, loading }
 }
+
+export const invalidateUsers = () => useUsersResource.invalidate()
