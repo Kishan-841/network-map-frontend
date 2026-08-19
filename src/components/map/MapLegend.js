@@ -122,7 +122,7 @@ export function MapLegend({
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full rounded-t-2xl bg-card p-5 pb-8 shadow-xl"
+            className="w-full rounded-t-2xl bg-card p-5 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">

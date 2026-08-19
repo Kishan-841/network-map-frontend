@@ -39,7 +39,10 @@ export default function MapPage() {
     : []
 
   return (
-    <div className="fixed inset-x-0 top-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] transition-[left] duration-300 lg:bottom-0 lg:left-[var(--sidebar-w)]">
+    // z-50 lifts the page's own stacking context above the z-40 bottom nav —
+    // fixed ancestors cap children's z-index, so the legend sheet/backdrop
+    // could never cover the nav from inside without it.
+    <div className="fixed inset-x-0 top-0 z-50 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] transition-[left] duration-300 lg:bottom-0 lg:left-[var(--sidebar-w)]">
       <BuildingsMap
         buildings={visibleBuildings}
         zones={zonesShown ? zones : []}
