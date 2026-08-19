@@ -22,6 +22,9 @@ export function MapLegend({
   onToggleLive,
   notLiveShown,
   onToggleNotLive,
+  fiberShown,
+  fiberCount,
+  onToggleFiber,
 }) {
   const [open, setOpen] = useState(false)
 
@@ -85,6 +88,20 @@ export function MapLegend({
           <span className="shrink-0 text-xs font-normal tabular-nums text-faint">{zoneCount}</span>
         </button>
       )}
+
+      <button
+        onClick={onToggleFiber}
+        aria-pressed={fiberShown}
+        className={`flex items-center gap-2.5 rounded-btn px-2 py-1.5 text-left transition-colors hover:bg-paper ${
+          fiberShown ? '' : 'opacity-40'
+        }`}
+      >
+        <span className="h-0.5 w-4 shrink-0 rounded-full bg-[#f59e0b]" />
+        <span className="flex-1 truncate text-sm font-medium">Fiber</span>
+        <span className="shrink-0 text-xs font-normal tabular-nums text-faint">
+          {fiberShown ? fiberCount : ''}
+        </span>
+      </button>
     </div>
   )
 

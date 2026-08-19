@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useBuildings } from '@/hooks/useBuildings'
 import { useZones } from '@/hooks/useZones'
+import { useFiberRoutes } from '@/hooks/useFiberRoutes'
 import { FilterSheet } from '@/components/map/FilterSheet'
 import { SelectedBuildingCard } from '@/components/map/SelectedBuildingCard'
 import { MapLegend } from '@/components/map/MapLegend'
@@ -22,6 +23,9 @@ export default function MapPage() {
   const [zonesShown, setZonesShown] = useState(true)
   const [liveShown, setLiveShown] = useState(true)
   const [notLiveShown, setNotLiveShown] = useState(true)
+  // Fiber layer is lazy: nothing is fetched until first toggled on.
+  const [fiberShown, setFiberShown] = useState(false)
+  const { routes: fiberRoutes } = useFiberRoutes(fiberShown)
 
   const query = useMemo(() => ({ ...filters, search: search || undefined }), [filters, search])
   // The map wants everything the API allows in one page (markers, not rows).
@@ -39,6 +43,7 @@ export default function MapPage() {
       <BuildingsMap
         buildings={visibleBuildings}
         zones={zonesShown ? zones : []}
+        fiberRoutes={fiberShown ? fiberRoutes : []}
         selectedId={selected?.id}
         onSelect={setSelected}
       />
@@ -87,6 +92,9 @@ export default function MapPage() {
         onToggleLive={() => setLiveShown((v) => !v)}
         notLiveShown={notLiveShown}
         onToggleNotLive={() => setNotLiveShown((v) => !v)}
+        fiberShown={fiberShown}
+        fiberCount={fiberRoutes.length}
+        onToggleFiber={() => setFiberShown((v) => !v)}
       />
 
       <SelectedBuildingCard building={selected} onClose={() => setSelected(null)} />

@@ -29,11 +29,18 @@ const pinIcon = (building, selected) => {
 }
 
 /** Same contract as LeafletBuildingsMap — Google Maps JS implementation. */
-export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, onSelect }) {
+export default function GoogleBuildingsMap({
+  buildings,
+  zones = [],
+  fiberRoutes = [],
+  selectedId,
+  onSelect,
+}) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markersRef = useRef(new Map())
   const zoneOverlaysRef = useRef([])
+  const fiberOverlaysRef = useRef([])
   const fittedRef = useRef(false)
   const clustererRef = useRef(null)
   const onSelectRef = useRef(onSelect)
@@ -73,6 +80,7 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
       clustererRef.current = null
       markersRef.current.forEach((marker) => marker.setMap(null))
       markersRef.current.clear()
+      fiberOverlaysRef.current.forEach((line) => line.setMap(null))
       mapRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -166,6 +174,27 @@ export default function GoogleBuildingsMap({ buildings, zones = [], selectedId, 
     const zoomListener = map.addListener('zoom_changed', applyZoomStyle)
     return () => zoomListener.remove()
   }, [zones, ready])
+
+  // Fiber routes: plain colored polylines (trunk + branches per route).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    fiberOverlaysRef.current.forEach((line) => line.setMap(null))
+    fiberOverlaysRef.current = fiberRoutes.flatMap((route) =>
+      (route.segments ?? []).map(
+        (segment) =>
+          new google.maps.Polyline({
+            map,
+            path: segment.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+            strokeColor: route.color,
+            strokeOpacity: 0.9,
+            strokeWeight: 3,
+            clickable: false,
+            zIndex: 5,
+          }),
+      ),
+    )
+  }, [fiberRoutes, ready])
 
   // Diff markers against the buildings prop — never tear down the world.
   // Selection is handled in its own effect so a tap only re-icons two pins.
