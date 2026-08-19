@@ -15,6 +15,15 @@ const polygonCentroid = (points) => ({
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 } // country-level fallback
 const DEFAULT_ZOOM = 5
+
+// Map instance pool: Google bills one "Dynamic Map load" per `new Map()`, so
+// the main map is created ONCE per tab session and re-attached on every
+// visit. Overlays (markers/zones/fiber) are still torn down per mount — only
+// the billable Map object and its viewport survive. window.__mapLoads counts
+// constructions so the saving is verifiable in the console.
+let pooledMap = null
+let pooledContainer = null
+let pooledFitted = false
 // Below this zoom, small zone polygons are near-invisible — show a colored
 // dot notation at the centroid instead.
 const ZONE_DETAIL_ZOOM = 13
@@ -43,7 +52,6 @@ export default function GoogleBuildingsMap({
   const fiberOverlaysRef = useRef([])
   // Hovered/tapped fiber segment → floating details card at the cursor.
   const [fiberInfo, setFiberInfo] = useState(null)
-  const fittedRef = useRef(false)
   const clustererRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   const selectedIdRef = useRef(selectedId)
@@ -58,17 +66,26 @@ export default function GoogleBuildingsMap({
   useEffect(() => {
     let cancelled = false
     loadGoogleMaps().then(({ Map }) => {
-      if (cancelled || mapRef.current) return
-      mapRef.current = new Map(containerRef.current, {
-        center: DEFAULT_CENTER,
-        zoom: DEFAULT_ZOOM,
-        mapTypeId: layer, // 'roadmap' | 'satellite' | 'hybrid'
-        disableDefaultUI: true,
-        zoomControl: true,
-        gestureHandling: 'greedy',
-        clickableIcons: false, // building taps belong to OUR markers, not Google POIs
-        styles: DECLUTTER_MAP_STYLE, // hide Google's POI icon clutter
-      })
+      if (cancelled || mapRef.current || !containerRef.current) return
+      if (!pooledMap) {
+        // The ONLY place a billable map load can happen for this page.
+        pooledContainer = document.createElement('div')
+        pooledContainer.style.width = '100%'
+        pooledContainer.style.height = '100%'
+        pooledMap = new Map(pooledContainer, {
+          center: DEFAULT_CENTER,
+          zoom: DEFAULT_ZOOM,
+          mapTypeId: layer, // 'roadmap' | 'satellite' | 'hybrid'
+          disableDefaultUI: true,
+          zoomControl: true,
+          gestureHandling: 'greedy',
+          clickableIcons: false, // building taps belong to OUR markers, not Google POIs
+          styles: DECLUTTER_MAP_STYLE, // hide Google's POI icon clutter
+        })
+        window.__mapLoads = (window.__mapLoads ?? 0) + 1
+      }
+      containerRef.current.appendChild(pooledContainer)
+      mapRef.current = pooledMap
       clustererRef.current = new MarkerClusterer({
         map: mapRef.current,
         markers: [],
@@ -83,6 +100,10 @@ export default function GoogleBuildingsMap({
       markersRef.current.forEach((marker) => marker.setMap(null))
       markersRef.current.clear()
       fiberOverlaysRef.current.forEach((line) => line.setMap(null))
+      zoneOverlaysRef.current.forEach((overlay) => overlay.setMap(null))
+      zoneOverlaysRef.current = []
+      // Detach (never destroy) the pooled map so the next visit is free.
+      if (pooledContainer?.parentNode) pooledContainer.parentNode.removeChild(pooledContainer)
       mapRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -275,11 +296,12 @@ export default function GoogleBuildingsMap({
     if (changed) clusterer.render()
 
     // Fit-to-all on first load (user decision) — later refetches keep the view.
-    if (!fittedRef.current && buildings.length > 0) {
+    // Fit once per SESSION — revisits keep the viewport the user left at.
+    if (!pooledFitted && buildings.length > 0) {
       const bounds = new google.maps.LatLngBounds()
       buildings.forEach((b) => bounds.extend({ lat: b.latitude, lng: b.longitude }))
       map.fitBounds(bounds, 48)
-      fittedRef.current = true
+      pooledFitted = true
     }
   }, [buildings, ready])
 
