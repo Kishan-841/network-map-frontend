@@ -89,6 +89,9 @@ export default function AdminFiberPage() {
               <p className="text-sm font-normal text-muted">
                 {segmentCount(route)} line{segmentCount(route) === 1 ? '' : 's'} ·{' '}
                 {pointCount(route)} points
+                {route.fiberType && ` · ${route.fiberType}`}
+                {route.placement && ` · ${route.placement}`}
+                {route.fiberId && ` · ${route.fiberId}`}
               </p>
             </div>
             <button

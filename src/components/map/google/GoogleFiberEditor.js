@@ -10,8 +10,9 @@ import { buildingDotIcon, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 import { Button } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Input'
+import { Input, Select, Textarea } from '@/components/ui/Input'
 import { IconSearch } from '@/components/ui/icons'
+import { uploadFile } from '@/lib/upload'
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 } // country-level fallback
 const DEFAULT_ZOOM = 5
@@ -19,6 +20,7 @@ const MAX_SEGMENT_POINTS = 200 // API caps (fiber-route.schemas.js)
 const MAX_SEGMENTS = 50
 const SNAP_PX = 12 // branch starts snap to an existing vertex within this radius
 const SWATCHES = ['#f59e0b', '#dc2626', '#2563eb', '#10b981', '#a855f7', '#ec4899', '#f97316', '#0f172a']
+const FIBER_TYPES = ['2 core', '4 core', '6 core', '12 core', '24 core', '48 core']
 
 const polylineCentroid = (points) => ({
   lat: points.reduce((sum, p) => sum + p.latitude, 0) / points.length,
@@ -95,6 +97,12 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
   const [saveMode, setSaveMode] = useState(initialRoute?.id ? 'existing' : 'new')
   const [targetRouteId, setTargetRouteId] = useState(initialRoute?.id ?? '')
   const [name, setName] = useState(initialRoute?.name ?? '')
+  const [fiberType, setFiberType] = useState(initialRoute?.fiberType ?? '')
+  const [fiberId, setFiberId] = useState(initialRoute?.fiberId ?? '')
+  const [placement, setPlacement] = useState(initialRoute?.placement ?? 'OUT')
+  const [remark, setRemark] = useState(initialRoute?.remark ?? '')
+  const [images, setImages] = useState(initialRoute?.images ?? [])
+  const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
@@ -602,13 +610,53 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
     setSaveOpen(true)
   }
 
+  // Picking an existing target pre-fills its saved details so an update
+  // starts from what's on record.
+  function selectTarget(id) {
+    setTargetRouteId(id)
+    const route = routesData?.find((r) => r.id === id)
+    if (route) {
+      setFiberType(route.fiberType ?? '')
+      setFiberId(route.fiberId ?? '')
+      setPlacement(route.placement ?? 'OUT')
+      setRemark(route.remark ?? '')
+      setImages(route.images ?? [])
+    }
+  }
+
+  async function handleImagesPicked(event) {
+    const files = [...event.target.files]
+    event.target.value = ''
+    if (files.length === 0) return
+    setUploading(true)
+    setSaveError(null)
+    try {
+      for (const file of files) {
+        const url = await uploadFile(file)
+        setImages((prev) => [...prev, url])
+      }
+    } catch (err) {
+      setSaveError(getApiErrorMessage(err, 'Image upload failed'))
+    } finally {
+      setUploading(false)
+    }
+  }
+
   async function handleSave() {
     setSaving(true)
     setSaveError(null)
     try {
-      const payload = { segments: drawnRef.current, color }
+      const payload = {
+        segments: drawnRef.current,
+        color,
+        fiberType,
+        fiberId: fiberId.trim(),
+        placement,
+        remark: remark.trim() || null,
+        images,
+      }
       if (saveMode === 'existing') {
-        // Geometry + color update — the route's name stays.
+        // Geometry + details update — the route's name stays.
         await apiClient.patch(`/fiber-routes/${targetRouteId}`, payload)
       } else {
         await apiClient.post('/fiber-routes', { name: name.trim(), ...payload })
@@ -619,6 +667,8 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
       setSaveError(getApiErrorMessage(err))
     }
   }
+
+  const detailsComplete = Boolean(fiberType && fiberId.trim())
 
   const canBranch = ready && counts.activeLen >= 2 && counts.segments < MAX_SEGMENTS
 
@@ -811,7 +861,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
         {/* Save panel: update an existing route, or create a new one. */}
         {saveOpen && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
-            <div className="flex w-full max-w-md flex-col gap-4 rounded-card bg-card p-5 shadow-lift">
+            <div className="flex max-h-full w-full max-w-md flex-col gap-4 overflow-y-auto rounded-card bg-card p-5 shadow-lift">
               <h2 className="text-base font-bold">Save fiber route</h2>
 
               <div className="flex overflow-hidden rounded-btn border border-line text-sm font-medium">
@@ -840,7 +890,7 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
                   <Select
                     id="fiber-route-target"
                     value={targetRouteId}
-                    onChange={(e) => setTargetRouteId(e.target.value)}
+                    onChange={(e) => selectTarget(e.target.value)}
                   >
                     <option value="">Choose a route…</option>
                     {routeList.map((route) => (
@@ -861,6 +911,90 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
                   onChange={(e) => setName(e.target.value)}
                 />
               )}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Select
+                  id="fiber-type"
+                  value={fiberType}
+                  onChange={(e) => setFiberType(e.target.value)}
+                >
+                  <option value="">Fiber type…</option>
+                  {FIBER_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </Select>
+                <Input
+                  id="fiber-id"
+                  placeholder="Fiber ID e.g. FBR-014"
+                  value={fiberId}
+                  onChange={(e) => setFiberId(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-btn border border-line bg-card px-4 py-3">
+                <span className="text-sm font-medium text-ink">Placement</span>
+                <div className="flex overflow-hidden rounded-full border border-line">
+                  {['IN', 'OUT'].map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={placement === option}
+                      onClick={() => setPlacement(option)}
+                      className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                        placement === option ? 'bg-fiber text-white' : 'text-muted hover:text-ink'
+                      }`}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Textarea
+                id="fiber-remark"
+                rows={2}
+                placeholder="Remark (optional)"
+                value={remark}
+                onChange={(e) => setRemark(e.target.value)}
+              />
+
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">
+                  Photos
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {images.map((url) => (
+                    <span key={url} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt="Fiber"
+                        className="h-14 w-14 rounded-btn border border-line object-cover"
+                      />
+                      <button
+                        aria-label="Remove photo"
+                        onClick={() => setImages((prev) => prev.filter((u) => u !== url))}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-bad text-[10px] font-bold text-white shadow"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                  <label className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-btn border border-dashed border-line text-xl text-muted transition-colors hover:border-fiber hover:text-fiber">
+                    {uploading ? <span className="loading loading-spinner loading-sm" /> : '+'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={handleImagesPicked}
+                    />
+                  </label>
+                </div>
+              </div>
 
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">Color</p>
@@ -900,7 +1034,11 @@ export default function GoogleFiberEditor({ initialRoute, onClose, onSaved }) {
                 <Button
                   className="flex-1"
                   loading={saving}
-                  disabled={saveMode === 'existing' ? !targetRouteId : !name.trim()}
+                  disabled={
+                    uploading ||
+                    !detailsComplete ||
+                    (saveMode === 'existing' ? !targetRouteId : !name.trim())
+                  }
                   onClick={handleSave}
                 >
                   {saveMode === 'existing' ? 'Update route' : 'Create route'}
