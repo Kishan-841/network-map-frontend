@@ -12,7 +12,10 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
 import { Fab } from '@/components/ui/Fab'
-import { IconPlus, IconSearch, IconBuildings } from '@/components/ui/icons'
+import { IconPlus, IconSearch, IconBuildings, IconUpload } from '@/components/ui/icons'
+import { ImportBuildingsModal } from '@/components/buildings/ImportBuildingsModal'
+import { invalidateZones } from '@/hooks/useZones'
+import { invalidateOperators } from '@/hooks/useOperators'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -76,7 +79,8 @@ function BuildingsList() {
     return () => clearTimeout(timer)
   }, [search])
 
-  const { buildings, pagination, loading } = useBuildings({
+  const [importOpen, setImportOpen] = useState(false)
+  const { buildings, pagination, loading, refetch } = useBuildings({
     search: debouncedSearch || undefined,
     operatorId: operatorId || undefined,
     cityId: cityId || undefined,
@@ -132,13 +136,24 @@ function BuildingsList() {
         title="Buildings"
         sub={pagination ? `${pagination.total} surveyed` : 'Loading…'}
         action={
-          <Link
-            href="/buildings/add"
-            className="hidden h-12 items-center gap-2 rounded-btn bg-fiber px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-fiber-deep lg:inline-flex"
-          >
-            <IconPlus className="h-4.5 w-4.5" />
-            Add building
-          </Link>
+          <div className="hidden items-center gap-2 lg:flex">
+            {role === 'ADMIN' && (
+              <button
+                onClick={() => setImportOpen(true)}
+                className="inline-flex h-12 items-center gap-2 rounded-btn border border-line bg-card px-4 text-sm font-medium transition-colors hover:border-fiber/50"
+              >
+                <IconUpload className="h-4.5 w-4.5" />
+                Bulk upload
+              </button>
+            )}
+            <Link
+              href="/buildings/add"
+              className="inline-flex h-12 items-center gap-2 rounded-btn bg-fiber px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-fiber-deep"
+            >
+              <IconPlus className="h-4.5 w-4.5" />
+              Add building
+            </Link>
+          </div>
         }
       />
 
@@ -199,6 +214,18 @@ function BuildingsList() {
         pagination={pagination}
         onPageChange={setPage}
       />
+
+      {importOpen && (
+        <ImportBuildingsModal
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            // The import may have created new zones/operators.
+            invalidateZones()
+            invalidateOperators()
+            refetch()
+          }}
+        />
+      )}
 
       <Fab href="/buildings/add" label="Add building" />
     </main>
