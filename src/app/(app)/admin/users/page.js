@@ -9,12 +9,14 @@ import { Modal } from '@/components/ui/Modal'
 import { DataTable } from '@/components/ui/DataTable'
 import { ZoneMultiSelect } from '@/components/admin/ZoneMultiSelect'
 import { invalidateUsers } from '@/hooks/useUsers'
+import { ROLE_LABELS } from '@/lib/roles'
+import { useCities } from '@/hooks/useCities'
 import { BulkAssignZonesModal } from '@/components/admin/BulkAssignZonesModal'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconPlus, IconEdit, IconUpload } from '@/components/ui/icons'
 
-const ROLES = ['SURVEYOR', 'MANAGER', 'ADMIN']
-const roleLabel = (role) => role.charAt(0) + role.slice(1).toLowerCase()
+const ROLES = ['SURVEYOR', 'MANAGER', 'ADMIN', 'ACQUISITION_AGENT', 'ACQUISITION_LEAD']
+const roleLabel = (role) => ROLE_LABELS[role] ?? role
 
 // Keep the assigned-zones line short so it never widens the row (which would
 // push the action buttons into a horizontal scroll). Show a couple of names,
@@ -29,11 +31,17 @@ const ROLE_CHIP = {
   ADMIN: 'bg-doc-tint text-doc',
   MANAGER: 'bg-fiber-tint text-fiber',
   SURVEYOR: 'bg-scan-tint text-scan',
+  ACQUISITION_AGENT: 'bg-warn-tint text-warn',
+  ACQUISITION_LEAD: 'bg-doc-tint text-doc',
 }
 
 function RoleBadge({ role }) {
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_CHIP[role]}`}>
+    <span
+      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+        ROLE_CHIP[role] ?? 'bg-line/60 text-muted'
+      }`}
+    >
       {roleLabel(role)}
     </span>
   )
@@ -67,6 +75,16 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
         }
       : { name: '', email: '', password: '', role: 'SURVEYOR', zoneIds: [] },
   )
+  // Acquisition agents are mapped to a city + pincodes instead of zones.
+  const [territory, setTerritory] = useState(() => ({
+    cityId: initial?.pincodes?.[0]?.cityId ?? '',
+    pincodes: (initial?.pincodes ?? []).map((p) => p.pincode).join(', '),
+  }))
+  const { cities } = useCities()
+  const pincodeList = territory.pincodes
+    .split(/[,\s]+/)
+    .map((p) => p.trim())
+    .filter(Boolean)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -82,10 +100,18 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
         if (!isSelf) patch.role = form.role // never let an admin change their own role
         if (form.password.trim()) patch.password = form.password
         if (form.role === 'SURVEYOR') patch.zoneIds = form.zoneIds
+        if (form.role === 'ACQUISITION_AGENT') {
+          patch.cityId = territory.cityId || null
+          patch.pincodes = pincodeList
+        }
         await apiClient.patch(`/users/${initial.id}`, patch)
       } else {
         const body = { ...form }
         if (body.role !== 'SURVEYOR') delete body.zoneIds
+        if (body.role === 'ACQUISITION_AGENT') {
+          body.cityId = territory.cityId || null
+          body.pincodes = pincodeList
+        }
         await apiClient.post('/users', body)
       }
       onSaved()
@@ -140,6 +166,31 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
             </option>
           ))}
         </Select>
+
+        {form.role === 'ACQUISITION_AGENT' && (
+          <>
+            <Select
+              id="u-city"
+              label="City"
+              value={territory.cityId}
+              onChange={(e) => setTerritory((t) => ({ ...t, cityId: e.target.value }))}
+            >
+              <option value="">Select city…</option>
+              {cities.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+            <Input
+              id="u-pincodes"
+              label="Pincodes"
+              placeholder="411014, 411057"
+              value={territory.pincodes}
+              onChange={(e) => setTerritory((t) => ({ ...t, pincodes: e.target.value }))}
+            />
+          </>
+        )}
 
         {form.role === 'SURVEYOR' && (
           <ZoneMultiSelect

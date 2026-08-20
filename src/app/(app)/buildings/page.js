@@ -16,6 +16,7 @@ import { IconPlus, IconSearch, IconBuildings, IconUpload } from '@/components/ui
 import { ImportBuildingsModal } from '@/components/buildings/ImportBuildingsModal'
 import { invalidateZones } from '@/hooks/useZones'
 import { invalidateOperators } from '@/hooks/useOperators'
+import { isAgent, isLead, isAcquisition, designationLabel } from '@/lib/roles'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -55,12 +56,60 @@ const COLUMNS = [
   },
 ]
 
+// Acquisition rows carry a contact person + pincode instead of a zone.
+const ACQUISITION_COLUMNS = [
+  {
+    key: 'buildingName',
+    header: 'Building',
+    className: 'max-w-[380px]',
+    render: (b) => (
+      <div className="min-w-0 max-w-[380px]">
+        <p className="truncate font-bold">{b.buildingName}</p>
+        <p className="truncate text-xs font-normal text-muted">{b.formattedAddress}</p>
+      </div>
+    ),
+  },
+  {
+    key: 'contact',
+    header: 'Contact person',
+    render: (b) =>
+      b.contact ? (
+        <div className="min-w-0">
+          <p className="truncate">{b.contact.contactName}</p>
+          <p className="truncate text-xs text-muted">
+            {b.contact.designation === 'OTHER'
+              ? b.contact.designationOther
+              : designationLabel(b.contact.designation)}
+            {b.contact.contactPhone ? ` · ${b.contact.contactPhone}` : ''}
+          </p>
+        </div>
+      ) : (
+        '—'
+      ),
+    className: 'max-w-[220px]',
+  },
+  {
+    key: 'pincode',
+    header: 'Pincode',
+    render: (b) => b.pincode ?? '—',
+    className: 'tabular-nums text-muted',
+  },
+  {
+    key: 'createdAt',
+    header: 'Added',
+    render: (b) => dateFormat.format(new Date(b.createdAt)),
+    className: 'tabular-nums text-muted',
+  },
+]
+
 function BuildingsList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const operatorId = searchParams.get('operatorId') ?? ''
   const cityId = searchParams.get('cityId') ?? ''
   const role = useAuthStore((s) => s.user?.role)
+  const acquisition = isAcquisition(role)
+  const agentFilter = searchParams.get('createdById') ?? ''
   // Only admins/managers can list operators/cities (both APIs are role-gated).
   const canFilterOperator = role === 'ADMIN' || role === 'MANAGER'
   const { operators } = useOperators()
@@ -84,6 +133,7 @@ function BuildingsList() {
     search: debouncedSearch || undefined,
     operatorId: operatorId || undefined,
     cityId: cityId || undefined,
+    createdById: agentFilter || undefined,
     page,
     pageSize,
   })
@@ -133,11 +183,15 @@ function BuildingsList() {
   return (
     <main>
       <PageHeader
-        title="Buildings"
-        sub={pagination ? `${pagination.total} surveyed` : 'Loading…'}
+        title={isAgent(role) ? 'My buildings' : 'Buildings'}
+        sub={
+          pagination
+            ? `${pagination.total} ${acquisition ? 'logged' : 'surveyed'}`
+            : 'Loading…'
+        }
         action={
           <div className="hidden items-center gap-2 lg:flex">
-            {role === 'ADMIN' && (
+            {role === 'ADMIN' && !acquisition && (
               <button
                 onClick={() => setImportOpen(true)}
                 className="inline-flex h-12 items-center gap-2 rounded-btn border border-line bg-card px-4 text-sm font-medium transition-colors hover:border-fiber/50"
@@ -146,13 +200,15 @@ function BuildingsList() {
                 Bulk upload
               </button>
             )}
-            <Link
-              href="/buildings/add"
-              className="inline-flex h-12 items-center gap-2 rounded-btn bg-fiber px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-fiber-deep"
-            >
-              <IconPlus className="h-4.5 w-4.5" />
-              Add building
-            </Link>
+            {!isLead(role) && (
+              <Link
+                href="/buildings/add"
+                className="inline-flex h-12 items-center gap-2 rounded-btn bg-fiber px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-fiber-deep"
+              >
+                <IconPlus className="h-4.5 w-4.5" />
+                Add building
+              </Link>
+            )}
           </div>
         }
       />
@@ -168,7 +224,7 @@ function BuildingsList() {
             className="h-12 w-full rounded-full border border-line bg-card pl-11 pr-4 text-[15px] shadow-soft outline-none transition-shadow duration-200 placeholder:text-faint focus:border-fiber focus:ring-2 focus:ring-fiber/15"
           />
         </div>
-        {canFilterOperator && cities.length > 0 && (
+        {!acquisition && canFilterOperator && cities.length > 0 && (
           <div className="w-36 shrink-0 sm:w-44 lg:ml-auto">
             <Select id="buildings-city" value={cityId} onChange={(e) => setCity(e.target.value)}>
               <option value="">All cities</option>
@@ -180,7 +236,7 @@ function BuildingsList() {
             </Select>
           </div>
         )}
-        {canFilterOperator && operators.length > 0 && (
+        {!acquisition && canFilterOperator && operators.length > 0 && (
           <div className={`w-44 shrink-0 sm:w-56 ${cities.length > 0 ? '' : 'lg:ml-auto'}`}>
             <Select
               id="buildings-operator"
@@ -199,7 +255,7 @@ function BuildingsList() {
       </div>
 
       <DataTable
-        columns={COLUMNS}
+        columns={acquisition ? ACQUISITION_COLUMNS : COLUMNS}
         rows={loading ? null : buildings}
         loading={loading}
         renderCard={(building) => <BuildingCard building={building} />}
@@ -227,7 +283,7 @@ function BuildingsList() {
         />
       )}
 
-      <Fab href="/buildings/add" label="Add building" />
+      {!isLead(role) && <Fab href="/buildings/add" label="Add building" />}
     </main>
   )
 }

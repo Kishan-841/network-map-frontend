@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
+import { homePathFor } from '@/lib/roles'
 import { loginSchema } from '@/schemas/auth'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -53,7 +54,8 @@ export default function LoginPage() {
     try {
       const res = await apiClient.post('/auth/login', values)
       setAuth(res.data.data)
-      router.replace('/dashboard')
+      // Each team lands on its own home (agents never see the coverage map).
+      router.replace(homePathFor(res.data.data.user?.role))
     } catch (err) {
       setServerError(getApiErrorMessage(err, 'Login failed'))
     }

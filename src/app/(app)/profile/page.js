@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
+import { ROLE_LABELS } from '@/lib/roles'
 import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -46,7 +47,7 @@ export default function ProfilePage() {
           <div className="mt-5 border-t border-line/60 pt-4">
             <p className="text-xs font-normal uppercase tracking-wide text-faint">Role</p>
             <p className="mt-1.5 inline-flex rounded-full bg-fiber-tint px-3 py-1 text-xs font-medium capitalize text-fiber">
-              {user.role?.toLowerCase()}
+              {ROLE_LABELS[user.role] ?? user.role}
             </p>
           </div>
         </div>

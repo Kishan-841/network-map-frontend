@@ -11,6 +11,9 @@ import { SearchStep } from '@/components/buildings/SearchStep'
 import { ConfirmLocationStep } from '@/components/buildings/ConfirmLocationStep'
 import { DuplicateWarningStep } from '@/components/buildings/DuplicateWarningStep'
 import { DetailsForm } from '@/components/buildings/DetailsForm'
+import { AcquisitionDetailsForm } from '@/components/buildings/AcquisitionDetailsForm'
+import { useAuthStore } from '@/stores/auth-store'
+import { isAgent } from '@/lib/roles'
 
 const STEPS = [
   { key: 'find', title: 'Find the building' },
@@ -67,6 +70,7 @@ export default function AddBuildingPage() {
   const [manual, setManual] = useState(false)
   const [draft, setDraft] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const agent = isAgent(useAuthStore((s) => s.user?.role))
   const [serverError, setServerError] = useState(null)
   const [duplicates, setDuplicates] = useState([])
   const [checkingDuplicates, setCheckingDuplicates] = useState(false)
@@ -136,6 +140,52 @@ export default function AddBuildingPage() {
       setStep('details')
     } finally {
       setCheckingDuplicates(false)
+    }
+  }
+
+  async function handleAcquisitionSubmit(values, files) {
+    setSubmitting(true)
+    setServerError(null)
+    try {
+      const photos = [
+        { type: 'SELFIE', url: await uploadFile(files.selfie) },
+        { type: 'CONTACT_PERSON', url: await uploadFile(files.contactPhoto) },
+      ]
+      if (files.entrancePhoto) {
+        photos.push({ type: 'ENTRANCE', url: await uploadFile(files.entrancePhoto) })
+      }
+      const {
+        pincode,
+        contactName,
+        contactPhone,
+        contactEmail,
+        designation,
+        designationOther,
+        ...details
+      } = values
+      await apiClient.post('/buildings', {
+        placeId: draft.placeId,
+        buildingName: draft.buildingName,
+        formattedAddress: draft.formattedAddress,
+        latitude: draft.latitude,
+        longitude: draft.longitude,
+        pincode,
+        contact: {
+          contactName,
+          contactPhone,
+          contactEmail: contactEmail || null,
+          designation,
+          designationOther: designation === 'OTHER' ? designationOther : null,
+        },
+        details: Object.values(details).some((v) => v !== undefined && v !== '')
+          ? details
+          : undefined,
+        photos,
+      })
+      router.replace('/buildings')
+    } catch (err) {
+      setServerError(getApiErrorMessage(err, 'Could not save the building'))
+      setSubmitting(false)
     }
   }
 
@@ -212,7 +262,15 @@ export default function AddBuildingPage() {
         />
       )}
       {step === 'details' && (
-        <DetailsForm onSubmit={handleSubmit} submitting={submitting} serverError={serverError} />
+        agent ? (
+          <AcquisitionDetailsForm
+            onSubmit={handleAcquisitionSubmit}
+            submitting={submitting}
+            serverError={serverError}
+          />
+        ) : (
+          <DetailsForm onSubmit={handleSubmit} submitting={submitting} serverError={serverError} />
+        )
       )}
     </main>
   )

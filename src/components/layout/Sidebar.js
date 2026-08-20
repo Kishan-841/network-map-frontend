@@ -8,6 +8,7 @@ import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
 import { MANAGE_LINKS } from '@/lib/manage-links'
+import { isAgent, isLead, ROLE_LABELS } from '@/lib/roles'
 import {
   NodeMark,
   IconDashboard,
@@ -21,9 +22,18 @@ import {
   IconLogout,
 } from '@/components/ui/icons'
 
-const NAV_ITEMS = [
+const COVERAGE_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/map', label: 'Map', icon: IconMap },
+  { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+const AGENT_NAV = [
+  { href: '/buildings', label: 'My buildings', icon: IconBuildings },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+const LEAD_NAV = [
+  { href: '/acquisition', label: 'Acquisition team', icon: IconDashboard },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
@@ -53,6 +63,11 @@ export function Sidebar() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const { sidebarCollapsed: collapsed, toggleSidebar } = useUiStore()
   const { theme, toggle: toggleTheme } = useTheme()
+  const NAV_ITEMS = isAgent(user?.role)
+    ? AGENT_NAV
+    : isLead(user?.role)
+      ? LEAD_NAV
+      : COVERAGE_NAV
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '80px' : '280px')
@@ -177,8 +192,8 @@ export function Sidebar() {
             {!collapsed && (
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{user.name}</span>
-                <span className="block text-xs font-normal capitalize text-neutral-content/50">
-                  {user.role?.toLowerCase()}
+                <span className="block text-xs font-normal text-neutral-content/50">
+                  {ROLE_LABELS[user.role] ?? user.role}
                 </span>
               </span>
             )}
