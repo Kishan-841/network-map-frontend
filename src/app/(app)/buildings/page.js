@@ -17,6 +17,7 @@ import { ImportBuildingsModal } from '@/components/buildings/ImportBuildingsModa
 import { invalidateZones } from '@/hooks/useZones'
 import { invalidateOperators } from '@/hooks/useOperators'
 import { isAgent, isLead, isAcquisition, designationLabel } from '@/lib/roles'
+import { useUsers } from '@/hooks/useUsers'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -102,6 +103,19 @@ const ACQUISITION_COLUMNS = [
   },
 ]
 
+// Leads also see WHO logged each building.
+const AGENT_COLUMN = {
+  key: 'agent',
+  header: 'Agent',
+  render: (b) => b.createdBy?.name ?? '—',
+  className: 'max-w-[160px] text-muted',
+}
+const LEAD_COLUMNS = [
+  ...ACQUISITION_COLUMNS.slice(0, 2),
+  AGENT_COLUMN,
+  ...ACQUISITION_COLUMNS.slice(2),
+]
+
 function BuildingsList() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -114,6 +128,9 @@ function BuildingsList() {
   const canFilterOperator = role === 'ADMIN' || role === 'MANAGER'
   const { operators } = useOperators()
   const { cities } = useCities()
+  // Leads filter their team's registry by agent and city.
+  const { users } = useUsers(isLead(role))
+  const agents = users.filter((u) => u.role === 'ACQUISITION_AGENT')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -153,6 +170,15 @@ function BuildingsList() {
     applyFilters(id, operatorStillValid ? operatorId : '')
   }
   const setOperator = (id) => applyFilters(cityId, id)
+  // Acquisition filters keep both params in the URL so the view is shareable.
+  const applyAcquisitionFilters = (nextAgentId, nextCityId) => {
+    setPage(1)
+    const params = new URLSearchParams()
+    if (nextAgentId) params.set('createdById', nextAgentId)
+    if (nextCityId) params.set('cityId', nextCityId)
+    const qs = params.toString()
+    router.replace(qs ? `/buildings?${qs}` : '/buildings')
+  }
   const visibleOperators = cityId ? operators.filter((o) => o.city?.id === cityId) : operators
 
   const emptyState = (
@@ -161,12 +187,22 @@ function BuildingsList() {
         <IconBuildings className="h-7 w-7" strokeWidth={1.8} />
       </span>
       <p className="mt-4 font-bold">
-        {debouncedSearch ? 'No buildings match your search' : 'No buildings surveyed'}
+        {debouncedSearch
+          ? 'No buildings match your search'
+          : isLead(role)
+            ? 'Your team hasn’t logged anything yet'
+            : acquisition
+              ? 'You haven’t logged any buildings yet'
+              : 'No buildings surveyed'}
       </p>
       <p className="mt-1 max-w-xs text-sm font-normal text-muted">
         {debouncedSearch
           ? 'Try a different name, address or zone.'
-          : 'Capture your first building from its entrance to start the registry.'}
+          : isLead(role)
+            ? agentFilter || cityId
+              ? 'Nothing matches these filters — try clearing them.'
+              : 'Buildings your agents log will appear here.'
+            : 'Capture your first building from its entrance to start the registry.'}
       </p>
       {!debouncedSearch && (
         <Link
@@ -224,6 +260,38 @@ function BuildingsList() {
             className="h-12 w-full rounded-full border border-line bg-card pl-11 pr-4 text-[15px] shadow-soft outline-none transition-shadow duration-200 placeholder:text-faint focus:border-fiber focus:ring-2 focus:ring-fiber/15"
           />
         </div>
+        {isLead(role) && (
+          <>
+            <div className="w-40 shrink-0 sm:w-52 lg:ml-auto">
+              <Select
+                id="buildings-agent"
+                value={agentFilter}
+                onChange={(e) => applyAcquisitionFilters(e.target.value, cityId)}
+              >
+                <option value="">All agents</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="w-36 shrink-0 sm:w-44">
+              <Select
+                id="buildings-acq-city"
+                value={cityId}
+                onChange={(e) => applyAcquisitionFilters(agentFilter, e.target.value)}
+              >
+                <option value="">All cities</option>
+                {cities.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </>
+        )}
         {!acquisition && canFilterOperator && cities.length > 0 && (
           <div className="w-36 shrink-0 sm:w-44 lg:ml-auto">
             <Select id="buildings-city" value={cityId} onChange={(e) => setCity(e.target.value)}>
@@ -255,7 +323,7 @@ function BuildingsList() {
       </div>
 
       <DataTable
-        columns={acquisition ? ACQUISITION_COLUMNS : COLUMNS}
+        columns={isLead(role) ? LEAD_COLUMNS : acquisition ? ACQUISITION_COLUMNS : COLUMNS}
         rows={loading ? null : buildings}
         loading={loading}
         renderCard={(building) => <BuildingCard building={building} />}
