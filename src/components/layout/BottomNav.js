@@ -14,11 +14,13 @@ const COVERAGE_NAV = [
 ]
 // The acquisition team never sees the map or the coverage registry.
 const AGENT_NAV = [
+  { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'My buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const LEAD_NAV = [
   { href: '/acquisition', label: 'Team', icon: IconDashboard },
+  { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]

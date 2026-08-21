@@ -5,6 +5,9 @@ import dynamic from 'next/dynamic'
 import { useBuildings } from '@/hooks/useBuildings'
 import { useZones } from '@/hooks/useZones'
 import { useFiberRoutes } from '@/hooks/useFiberRoutes'
+import { useAuthStore } from '@/stores/auth-store'
+import { isAcquisition } from '@/lib/roles'
+import { AcquisitionMap } from '@/components/map/AcquisitionMap'
 import { FilterSheet } from '@/components/map/FilterSheet'
 import { SelectedBuildingCard } from '@/components/map/SelectedBuildingCard'
 import { MapLegend } from '@/components/map/MapLegend'
@@ -14,6 +17,14 @@ import { IconSearch } from '@/components/ui/icons'
 const BuildingsMap = dynamic(() => import('@/components/map/BuildingsMap'), { ssr: false })
 
 export default function MapPage() {
+  const role = useAuthStore((s) => s.user?.role)
+  // The acquisition team gets their own map: their buildings, no coverage
+  // zones/fiber/operators.
+  if (isAcquisition(role)) return <AcquisitionMap />
+  return <CoverageMapPage />
+}
+
+function CoverageMapPage() {
   const [filters, setFilters] = useState({})
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')

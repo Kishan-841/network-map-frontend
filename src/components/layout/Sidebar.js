@@ -29,11 +29,13 @@ const COVERAGE_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const AGENT_NAV = [
+  { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'My buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const LEAD_NAV = [
   { href: '/acquisition', label: 'Acquisition team', icon: IconDashboard },
+  { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]

@@ -35,6 +35,6 @@ export const homePathFor = (role) =>
   isAgent(role) ? '/buildings' : isLead(role) ? '/acquisition' : '/dashboard'
 
 /** Route prefixes the acquisition team must never reach. */
-const COVERAGE_ONLY = ['/map', '/dashboard', '/admin']
+const COVERAGE_ONLY = ['/dashboard', '/admin']
 export const isForbiddenPath = (role, pathname) =>
   isAcquisition(role) && COVERAGE_ONLY.some((p) => pathname.startsWith(p))
