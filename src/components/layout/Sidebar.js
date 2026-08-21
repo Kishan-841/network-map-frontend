@@ -15,6 +15,7 @@ import {
   IconMap,
   IconBuildings,
   IconUser,
+  IconUsers,
   IconSun,
   IconMoon,
   IconCollapse,
@@ -34,9 +35,11 @@ const AGENT_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const LEAD_NAV = [
-  { href: '/acquisition', label: 'Acquisition team', icon: IconDashboard },
+  // `exact` — /acquisition/users is a sibling tab, not a child of the dashboard.
+  { href: '/acquisition', label: 'Acquisition team', icon: IconDashboard, exact: true },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/acquisition/users', label: 'Users', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
@@ -83,8 +86,8 @@ export function Sidebar() {
 
   // Plain render helper (not a component) — keeps link identity stable and
   // shares one style between the main nav and the Manage section.
-  const navLink = ({ href, label, icon: NavIcon }) => {
-    const active = pathname.startsWith(href)
+  const navLink = ({ href, label, icon: NavIcon, exact }) => {
+    const active = exact ? pathname === href : pathname.startsWith(href)
     return (
       <Link
         key={href}

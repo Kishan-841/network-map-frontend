@@ -5,13 +5,14 @@ import Link from 'next/link'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Input'
-import { Modal } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Input'
 import { useCities } from '@/hooks/useCities'
+import { useUsers, invalidateUsers } from '@/hooks/useUsers'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconPlus, IconUser } from '@/components/ui/icons'
 import { designationLabel } from '@/lib/roles'
 import { ChartCard, TrendChart, BarList, fillDays } from '@/components/acquisition/Charts'
+import { AgentFormModal } from '@/components/acquisition/AgentFormModal'
 
 const iso = (d) => d.toISOString().slice(0, 10)
 const daysAgo = (n) => {
@@ -52,119 +53,17 @@ function Kpi({ label, value, sub, delta }) {
   )
 }
 
-function NewAgentModal({ onClose, onCreated }) {
-  const { cities } = useCities()
-  const [form, setForm] = useState({ name: '', email: '', password: '', cityId: '', pincodes: '' })
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-
-  const pincodeList = form.pincodes
-    .split(/[,\s]+/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-  const valid =
-    form.name.trim() &&
-    form.email.trim() &&
-    form.password.length >= 8 &&
-    form.cityId &&
-    pincodeList.length > 0 &&
-    pincodeList.every((p) => /^[1-9][0-9]{5}$/.test(p))
-
-  async function save() {
-    setBusy(true)
-    setError(null)
-    try {
-      await apiClient.post('/users', {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        password: form.password,
-        role: 'ACQUISITION_AGENT',
-        cityId: form.cityId,
-        pincodes: pincodeList,
-      })
-      onCreated()
-      onClose()
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not create the agent'))
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Add acquisition agent"
-      footer={
-        <div className="flex gap-3">
-          <Button variant="secondary" className="flex-1" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button className="flex-1" loading={busy} disabled={!valid} onClick={save}>
-            Create agent
-          </Button>
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <Input
-          id="agent-name"
-          label="Name"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
-        <Input
-          id="agent-email"
-          label="Email"
-          inputMode="email"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-        />
-        <Input
-          id="agent-password"
-          label="Password"
-          type="password"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
-        <p className="-mt-1 text-xs font-normal text-muted">
-          At least 8 characters, with a letter and a number.
-        </p>
-        <Select
-          id="agent-city"
-          label="City"
-          value={form.cityId}
-          onChange={(e) => setForm({ ...form, cityId: e.target.value })}
-        >
-          <option value="">Select city…</option>
-          {cities.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
-        <Input
-          id="agent-pincodes"
-          label="Pincodes"
-          placeholder="411014, 411057"
-          value={form.pincodes}
-          onChange={(e) => setForm({ ...form, pincodes: e.target.value })}
-        />
-        <p className="-mt-1 text-xs font-normal text-muted">
-          Comma-separated 6-digit PIN codes the agent covers.
-        </p>
-        {error && (
-          <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
-        )}
-      </div>
-    </Modal>
-  )
-}
-
 export default function AcquisitionPage() {
   const role = useAuthStore((s) => s.user?.role)
+  // Full roster for the filter dropdowns — the stats response is itself
+  // filtered, so it can't populate its own filters.
+  const { users } = useUsers(true)
+  const { cities } = useCities()
+  const allAgents = (users ?? []).filter((u) => u.role === 'ACQUISITION_AGENT')
   const [rangeKey, setRangeKey] = useState('7d')
   const [custom, setCustom] = useState({ from: daysAgo(6), to: iso(new Date()) })
+  const [agentId, setAgentId] = useState('')
+  const [cityId, setCityId] = useState('')
   const [stats, setStats] = useState(null)
   const [error, setError] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
@@ -177,10 +76,17 @@ export default function AcquisitionPage() {
 
   const load = useCallback(() => {
     apiClient
-      .get('/stats/acquisition', { params: { dateFrom: range.from, dateTo: range.to } })
+      .get('/stats/acquisition', {
+        params: {
+          dateFrom: range.from,
+          dateTo: range.to,
+          ...(agentId && { agentId }),
+          ...(cityId && { cityId }),
+        },
+      })
       .then((res) => setStats(res.data.data))
       .catch((err) => setError(getApiErrorMessage(err, 'Could not load team stats')))
-  }, [range.from, range.to])
+  }, [range.from, range.to, agentId, cityId])
 
   useEffect(() => {
     load()
@@ -192,6 +98,14 @@ export default function AcquisitionPage() {
     [stats, range.from, range.to],
   )
   const activeInRange = stats ? stats.agents.filter((a) => a.buildings > 0).length : null
+  // Spelled out so a filtered dashboard never looks like the whole team.
+  const scopeLabel = [
+    agentId ? allAgents.find((a) => a.id === agentId)?.name : null,
+    cityId ? cities.find((c) => c.id === cityId)?.name : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  const scopeSuffix = scopeLabel ? ` · ${scopeLabel}` : ''
   const idleAgents = (stats?.agents ?? []).filter((a) => a.buildings === 0 && a.isActive)
 
   return (
@@ -223,6 +137,43 @@ export default function AcquisitionPage() {
             {r.label}
           </button>
         ))}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="w-40 sm:w-48">
+            <Select
+              id="dash-agent"
+              value={agentId}
+              onChange={(e) => setAgentId(e.target.value)}
+            >
+              <option value="">All agents</option>
+              {allAgents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="w-36 sm:w-44">
+            <Select id="dash-city" value={cityId} onChange={(e) => setCityId(e.target.value)}>
+              <option value="">All cities</option>
+              {cities.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {(agentId || cityId) && (
+            <button
+              onClick={() => {
+                setAgentId('')
+                setCityId('')
+              }}
+              className="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-ink"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
         {rangeKey === 'custom' && (
           <div className="flex items-center gap-2">
             <input
@@ -275,7 +226,7 @@ export default function AcquisitionPage() {
       <div className="mb-4">
         <ChartCard
           title="Buildings logged per day"
-          subtitle={`${range.from} → ${range.to}`}
+          subtitle={`${range.from} → ${range.to}${scopeSuffix}`}
           empty={trendPoints.length === 0 ? 'No data for this range.' : null}
         >
           <TrendChart points={trendPoints} />
@@ -360,7 +311,14 @@ export default function AcquisitionPage() {
       </div>
 
       {addOpen && (
-        <NewAgentModal onClose={() => setAddOpen(false)} onCreated={() => setTick((t) => t + 1)} />
+        <AgentFormModal
+          onClose={() => setAddOpen(false)}
+          onSaved={() => {
+            // Drop the cached directory so the new agent shows in the filters.
+            invalidateUsers()
+            setTick((t) => t + 1)
+          }}
+        />
       )}
     </main>
   )

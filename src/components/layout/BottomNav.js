@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { IconDashboard, IconMap, IconBuildings, IconUser } from '@/components/ui/icons'
+import { IconDashboard, IconMap, IconBuildings, IconUser, IconUsers } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
 import { isAgent, isLead } from '@/lib/roles'
 
@@ -19,7 +19,9 @@ const AGENT_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const LEAD_NAV = [
-  { href: '/acquisition', label: 'Team', icon: IconDashboard },
+  // `exact` — /acquisition/users is a sibling tab, not a child of the dashboard.
+  { href: '/acquisition', label: 'Team', icon: IconDashboard, exact: true },
+  { href: '/acquisition/users', label: 'Users', icon: IconUsers },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
@@ -34,8 +36,8 @@ export function BottomNav() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
       <div className="mx-auto flex h-18 max-w-lg">
-        {NAV_ITEMS.map(({ href, label, icon: NavIcon }) => {
-          const active = pathname.startsWith(href)
+        {NAV_ITEMS.map(({ href, label, icon: NavIcon, exact }) => {
+          const active = exact ? pathname === href : pathname.startsWith(href)
           return (
             <Link
               key={href}

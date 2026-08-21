@@ -5,6 +5,7 @@ export {
   Map as IconMap,
   Building2 as IconBuildings,
   User as IconUser,
+  Users as IconUsers,
   CircleCheck as IconOkCircle,
   Clock as IconClock,
   House as IconHome,
