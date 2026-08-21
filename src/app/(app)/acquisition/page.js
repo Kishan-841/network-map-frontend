@@ -10,6 +10,8 @@ import { Modal } from '@/components/ui/Modal'
 import { useCities } from '@/hooks/useCities'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconPlus, IconUser } from '@/components/ui/icons'
+import { designationLabel } from '@/lib/roles'
+import { ChartCard, TrendChart, BarList, fillDays } from '@/components/acquisition/Charts'
 
 const iso = (d) => d.toISOString().slice(0, 10)
 const daysAgo = (n) => {
@@ -26,33 +28,26 @@ const RANGES = [
   { key: 'custom', label: 'Custom', from: null, to: null },
 ]
 
-function Kpi({ label, value, sub }) {
+function Kpi({ label, value, sub, delta }) {
+  // Delta is period-over-period; arrow + sign carry the meaning, colour only
+  // reinforces it (never colour alone).
+  const up = delta > 0
+  const down = delta < 0
   return (
     <div className="rounded-card bg-card p-4 shadow-soft">
-      <p className="text-2xl font-bold tabular-nums">{value}</p>
+      <div className="flex items-baseline gap-2">
+        <p className="text-2xl font-bold tabular-nums">{value}</p>
+        {delta != null && delta !== 0 && (
+          <span
+            className={`text-xs font-medium tabular-nums ${up ? 'text-ok' : 'text-bad'}`}
+            title="vs the previous period of the same length"
+          >
+            {up ? '▲' : down ? '▼' : ''} {Math.abs(delta)}
+          </span>
+        )}
+      </div>
       <p className="text-sm font-medium">{label}</p>
       {sub && <p className="text-xs font-normal text-muted">{sub}</p>}
-    </div>
-  )
-}
-
-/** Simple inline bar chart — avoids pulling a chart library for one view. */
-function Trend({ points }) {
-  if (!points?.length) {
-    return <p className="text-sm font-normal text-muted">No buildings logged in this range.</p>
-  }
-  const max = Math.max(...points.map((p) => p.count))
-  return (
-    <div className="flex h-32 items-end gap-1 overflow-x-auto">
-      {points.map((p) => (
-        <div key={p.date} className="flex min-w-6 flex-1 flex-col items-center gap-1" title={`${p.date}: ${p.count}`}>
-          <div
-            className="w-full rounded-t bg-fiber"
-            style={{ height: `${Math.max(4, (p.count / max) * 100)}%` }}
-          />
-          <span className="text-[9px] tabular-nums text-faint">{p.date.slice(5)}</span>
-        </div>
-      ))}
     </div>
   )
 }
@@ -191,6 +186,14 @@ export default function AcquisitionPage() {
     load()
   }, [load, tick])
 
+  // Zero-filled so quiet days read as "no work", not missing data.
+  const trendPoints = useMemo(
+    () => fillDays(stats?.trend ?? [], range.from, range.to),
+    [stats, range.from, range.to],
+  )
+  const activeInRange = stats ? stats.agents.filter((a) => a.buildings > 0).length : null
+  const idleAgents = (stats?.agents ?? []).filter((a) => a.buildings === 0 && a.isActive)
+
   return (
     <main className="stagger mx-auto max-w-4xl">
       <PageHeader
@@ -243,70 +246,118 @@ export default function AcquisitionPage() {
         <p className="mb-4 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
       )}
 
-      {/* KPIs */}
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="In selected range" value={stats?.totalInRange ?? '—'} />
-        <Kpi label="Today" value={stats?.today ?? '—'} />
-        <Kpi label="Contacts captured" value={stats?.contactsCaptured ?? '—'} sub="in range" />
-        <Kpi label="Active agents" value={stats?.activeAgents ?? '—'} />
+      {/* Headline numbers */}
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi
+          label="Buildings logged"
+          value={stats?.totalInRange ?? '—'}
+          sub="in selected range"
+          delta={
+            stats?.previousRangeTotal != null
+              ? stats.totalInRange - stats.previousRangeTotal
+              : null
+          }
+        />
+        <Kpi
+          label="Home pass reached"
+          value={stats?.homePassReached ?? '—'}
+          sub="flats across those buildings"
+        />
+        <Kpi label="Contacts captured" value={stats?.contactsCaptured ?? '—'} sub="decision-makers met" />
+        <Kpi
+          label="Agents active"
+          value={activeInRange == null ? '—' : `${activeInRange}/${stats?.agents?.length ?? 0}`}
+          sub="logged in this range"
+        />
       </div>
 
       {/* Trend */}
-      <section className="mb-5 rounded-card bg-card p-4 shadow-soft">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-faint">
-          Buildings logged per day
-        </p>
-        <Trend points={stats?.trend} />
-      </section>
+      <div className="mb-4">
+        <ChartCard
+          title="Buildings logged per day"
+          subtitle={`${range.from} → ${range.to}`}
+          empty={trendPoints.length === 0 ? 'No data for this range.' : null}
+        >
+          <TrendChart points={trendPoints} />
+        </ChartCard>
+      </div>
 
-      {/* Per-agent table */}
-      <section className="rounded-card bg-card p-4 shadow-soft">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-faint">Agents</p>
-        {stats?.agents?.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs text-faint">
-                <tr>
-                  <th className="py-2">Agent</th>
-                  <th className="py-2">Pincodes</th>
-                  <th className="py-2 pr-6 text-right">Buildings</th>
-                  <th className="py-2">Last activity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.agents.map((a) => (
-                  <tr key={a.id} className="border-t border-line/60">
-                    <td className="py-2.5">
-                      <Link
-                        href={`/buildings?createdById=${a.id}`}
-                        className="flex items-center gap-2 font-medium hover:text-fiber"
-                      >
-                        <IconUser className="h-4 w-4 text-faint" strokeWidth={1.8} />
-                        <span className="min-w-0">
-                          <span className="block truncate">{a.name}</span>
-                          <span className="block truncate text-xs font-normal text-muted">
-                            {a.email}
-                          </span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="py-2.5 text-xs text-muted">{a.pincodes.join(', ') || '—'}</td>
-                    <td className="py-2.5 pr-6 text-right font-bold tabular-nums">{a.buildings}</td>
-                    <td className="py-2.5 text-xs text-muted">
-                      {a.lastActivity ? new Date(a.lastActivity).toLocaleString('en-IN') : '—'}
-                      {!a.isActive && <span className="ml-2 text-bad">inactive</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm font-normal text-muted">
-            No agents yet — add your first one to start tracking.
-          </p>
-        )}
-      </section>
+      {/* Leaderboard + who they meet */}
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Buildings by agent" subtitle="Who is logging the most">
+          <BarList
+            rows={(stats?.agents ?? [])
+              .map((a) => ({ id: a.id, label: a.name, value: a.buildings }))
+              .sort((x, y) => y.value - x.value)}
+            emptyLabel="No agents yet."
+          />
+        </ChartCard>
+
+        <ChartCard
+          title="Who agents are meeting"
+          subtitle="Designation of the contact person"
+        >
+          <BarList
+            rows={(stats?.byDesignation ?? []).map((d) => ({
+              id: d.designation,
+              label: designationLabel(d.designation),
+              value: d.count,
+            }))}
+            emptyLabel="No contacts captured in this range."
+          />
+        </ChartCard>
+      </div>
+
+      {/* Pincode coverage + agents needing attention */}
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Pincode coverage" subtitle="Where the work is happening">
+          <BarList
+            rows={(stats?.byPincode ?? []).map((p) => ({
+              id: p.pincode,
+              label: p.pincode,
+              value: p.count,
+            }))}
+            emptyLabel="No buildings logged in this range."
+          />
+        </ChartCard>
+
+        <ChartCard
+          title="Needs attention"
+          subtitle="Agents with nothing logged in this range"
+        >
+          {idleAgents.length === 0 ? (
+            <p className="py-4 text-sm font-normal text-muted">
+              Every agent logged at least one building. 🎉
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {idleAgents.slice(0, 6).map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between gap-3 rounded-btn bg-paper px-3 py-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{a.name}</span>
+                    <span className="block truncate text-xs text-muted">
+                      {a.pincodes.join(', ') || 'No pincodes assigned'}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs text-muted">
+                    {a.lastActivity
+                      ? `last ${new Date(a.lastActivity).toLocaleDateString('en-IN')}`
+                      : 'never logged'}
+                  </span>
+                </li>
+              ))}
+              {idleAgents.length > 6 && (
+                <li className="pt-1 text-xs font-normal text-muted">
+                  +{idleAgents.length - 6} more
+                </li>
+              )}
+            </ul>
+          )}
+        </ChartCard>
+      </div>
 
       {addOpen && (
         <NewAgentModal onClose={() => setAddOpen(false)} onCreated={() => setTick((t) => t + 1)} />
