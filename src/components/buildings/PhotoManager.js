@@ -6,6 +6,14 @@ import { uploadFile } from '@/lib/upload'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconDoc, IconCamera } from '@/components/ui/icons'
 
+/**
+ * Read URLs arrive presigned (…jpg?X-Amz-Signature=…), so the extension lives
+ * on the path, not at the end of the string.
+ */
+function isPdf(url = '') {
+  return url.split('?')[0].toLowerCase().endsWith('.pdf')
+}
+
 const PHOTO_LABELS = {
   PERMISSION_LETTER: 'Permission letter',
   ENTRANCE: 'Entrance',
@@ -84,7 +92,7 @@ export function PhotoManager({ building, onChanged }) {
               className="group relative overflow-hidden rounded-card bg-card shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift"
             >
               <a href={photo.url} target="_blank" rel="noreferrer" className="block">
-                {photo.url.endsWith('.pdf') ? (
+                {isPdf(photo.url) ? (
                   <span className="flex h-32 flex-col items-center justify-center gap-2 text-sm font-normal text-muted">
                     <span className="flex h-10 w-10 items-center justify-center rounded-full bg-doc-tint text-doc">
                       <IconDoc className="h-5 w-5" strokeWidth={1.8} />
