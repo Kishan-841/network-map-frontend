@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useBuildings } from '@/hooks/useBuildings'
 import { useOperators } from '@/hooks/useOperators'
@@ -13,8 +13,9 @@ import { Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
 import { Fab } from '@/components/ui/Fab'
 import { IconPlus, IconSearch, IconBuildings, IconUpload } from '@/components/ui/icons'
+import { BulkLiveBar } from '@/components/buildings/BulkLiveBar'
 import { ImportBuildingsModal } from '@/components/buildings/ImportBuildingsModal'
-import { invalidateZones } from '@/hooks/useZones'
+import { useZones, invalidateZones } from '@/hooks/useZones'
 import { invalidateOperators } from '@/hooks/useOperators'
 import { isAgent, isLead, isAcquisition, designationLabel } from '@/lib/roles'
 import { useUsers } from '@/hooks/useUsers'
@@ -135,6 +136,15 @@ function BuildingsList() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  // Bulk go-live is a coverage-registry action, admins and managers only.
+  const canBulkEdit = role === 'ADMIN' || role === 'MANAGER'
+  const zoneId = searchParams.get('zoneId') ?? ''
+  const { zones } = useZones()
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  // "Select all N matching" — the ids are never loaded, the server resolves
+  // the filter, so this works past the page (and past the 500-row list cap).
+  const [selectAllMatching, setSelectAllMatching] = useState(false)
+  const [toast, setToast] = useState(null)
 
   // Server-side search: debounce keystrokes, reset to page 1 on a new query.
   useEffect(() => {
@@ -146,20 +156,41 @@ function BuildingsList() {
   }, [search])
 
   const [importOpen, setImportOpen] = useState(false)
+  // One source of truth for the active filter: the list requests it and the
+  // bulk update replays the very same object server-side.
+  const activeFilter = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      zoneId: zoneId || undefined,
+      operatorId: operatorId || undefined,
+      cityId: cityId || undefined,
+      createdById: agentFilter || undefined,
+    }),
+    [debouncedSearch, zoneId, operatorId, cityId, agentFilter],
+  )
   const { buildings, pagination, loading, refetch } = useBuildings({
-    search: debouncedSearch || undefined,
-    operatorId: operatorId || undefined,
-    cityId: cityId || undefined,
-    createdById: agentFilter || undefined,
+    ...activeFilter,
     page,
     pageSize,
   })
 
-  const applyFilters = (nextCityId, nextOperatorId) => {
+  // Any change of filter, page or page size invalidates a selection the user
+  // can no longer see — silently keeping it would mark the wrong buildings.
+  const filterKey = JSON.stringify({ activeFilter, page, pageSize })
+  const lastFilterKey = useRef(filterKey)
+  useEffect(() => {
+    if (lastFilterKey.current === filterKey) return
+    lastFilterKey.current = filterKey
+    setSelectedIds(new Set())
+    setSelectAllMatching(false)
+  }, [filterKey])
+
+  const applyFilters = (nextCityId, nextOperatorId, nextZoneId = zoneId) => {
     setPage(1)
     const params = new URLSearchParams()
     if (nextCityId) params.set('cityId', nextCityId)
     if (nextOperatorId) params.set('operatorId', nextOperatorId)
+    if (nextZoneId) params.set('zoneId', nextZoneId)
     const qs = params.toString()
     router.replace(qs ? `/buildings?${qs}` : '/buildings')
   }
@@ -167,9 +198,15 @@ function BuildingsList() {
   const setCity = (id) => {
     const operatorStillValid =
       operatorId && operators.some((o) => o.id === operatorId && (!id || o.city?.id === id))
-    applyFilters(id, operatorStillValid ? operatorId : '')
+    applyFilters(id, operatorStillValid ? operatorId : '', operatorStillValid ? zoneId : '')
   }
-  const setOperator = (id) => applyFilters(cityId, id)
+  const setOperator = (id) => {
+    const zoneStillValid = zoneId && zones.some((z) => z.id === zoneId && (!id || z.operatorId === id))
+    applyFilters(cityId, id, zoneStillValid ? zoneId : '')
+  }
+  const setZone = (id) => applyFilters(cityId, operatorId, id)
+  // Zones follow the operator filter; with none set, show them all.
+  const visibleZones = operatorId ? zones.filter((z) => z.operatorId === operatorId) : zones
   // Acquisition filters keep both params in the URL so the view is shareable.
   const applyAcquisitionFilters = (nextAgentId, nextCityId) => {
     setPage(1)
@@ -180,6 +217,17 @@ function BuildingsList() {
     router.replace(qs ? `/buildings?${qs}` : '/buildings')
   }
   const visibleOperators = cityId ? operators.filter((o) => o.city?.id === cityId) : operators
+
+  // Names the user recognises, so a bulk confirmation says what it will touch
+  // rather than making them trust an opaque count.
+  const scopeLabel = [
+    zoneId ? zones.find((z) => z.id === zoneId)?.name : null,
+    operatorId ? operators.find((o) => o.id === operatorId)?.name : null,
+    cityId ? cities.find((c) => c.id === cityId)?.name : null,
+    debouncedSearch ? `“${debouncedSearch}”` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   const emptyState = (
     <div className="flex flex-col items-center rounded-card bg-card px-6 py-16 text-center shadow-soft">
@@ -320,7 +368,54 @@ function BuildingsList() {
             </Select>
           </div>
         )}
+        {!acquisition && zones.length > 0 && (
+          <div className="w-40 shrink-0 sm:w-48">
+            <Select id="buildings-zone" value={zoneId} onChange={(e) => setZone(e.target.value)}>
+              <option value="">All zones</option>
+              {visibleZones.map((zone) => (
+                <option key={zone.id} value={zone.id}>
+                  {zone.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
       </div>
+
+      {toast && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-btn bg-ok-tint px-4 py-3 text-sm font-medium text-ok">
+          {toast}
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="text-xs font-medium underline-offset-2 hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {canBulkEdit && (
+        <BulkLiveBar
+          selectedCount={selectedIds.size}
+          totalMatching={pagination?.total ?? 0}
+          allMatching={selectAllMatching}
+          filter={activeFilter}
+          ids={selectedIds}
+          scopeLabel={scopeLabel}
+          onSelectAllMatching={() => setSelectAllMatching(true)}
+          onClear={() => {
+            setSelectedIds(new Set())
+            setSelectAllMatching(false)
+          }}
+          onDone={({ count, isLive }) => {
+            setSelectedIds(new Set())
+            setSelectAllMatching(false)
+            setToast(`${count} building${count === 1 ? '' : 's'} marked ${isLive ? 'live' : 'not live'}`)
+            refetch()
+          }}
+        />
+      )}
 
       <DataTable
         columns={isLead(role) ? LEAD_COLUMNS : acquisition ? ACQUISITION_COLUMNS : COLUMNS}
@@ -337,6 +432,30 @@ function BuildingsList() {
         }}
         pagination={pagination}
         onPageChange={setPage}
+        selection={
+          canBulkEdit
+            ? {
+                selectedIds,
+                onToggle: (id) => {
+                  setSelectAllMatching(false)
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(id)) next.delete(id)
+                    else next.add(id)
+                    return next
+                  })
+                },
+                onToggleAll: (ids, checked) => {
+                  setSelectAllMatching(false)
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev)
+                    ids.forEach((id) => (checked ? next.add(id) : next.delete(id)))
+                    return next
+                  })
+                },
+              }
+            : undefined
+        }
       />
 
       {importOpen && (
