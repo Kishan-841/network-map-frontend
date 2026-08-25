@@ -5,6 +5,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { uploadFile } from '@/lib/upload'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconDoc, IconCamera } from '@/components/ui/icons'
+import { canManageBuildings } from '@/lib/roles'
 
 /**
  * Read URLs arrive presigned (…jpg?X-Amz-Signature=…), so the extension lives
@@ -32,7 +33,7 @@ const ADD_OPTIONS = [
 export function PhotoManager({ building, onChanged }) {
   const user = useAuthStore((s) => s.user)
   const role = user?.role
-  const isManager = role === 'ADMIN' || role === 'MANAGER'
+  const isManager = canManageBuildings(role)
   const canDelete = isManager || building?.createdById === user?.id
   const addOptions = ADD_OPTIONS.filter((option) => !option.managerOnly || isManager)
   const fileInputRef = useRef(null)

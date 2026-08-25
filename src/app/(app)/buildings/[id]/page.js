@@ -12,6 +12,7 @@ import { EditBuildingModal } from '@/components/buildings/EditBuildingModal'
 import { Button } from '@/components/ui/Button'
 import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
+import { canManageBuildings } from '@/lib/roles'
 
 /** Card section of label/value rows. Hides rows without values, and itself when empty. */
 function Section({ title, rows }) {
@@ -40,7 +41,7 @@ function Section({ title, rows }) {
 export default function BuildingDetailPage({ params }) {
   const { id } = use(params)
   const role = useAuthStore((s) => s.user?.role)
-  const canEdit = role === 'ADMIN' || role === 'MANAGER'
+  const canEdit = canManageBuildings(role)
   const isAdmin = role === 'ADMIN'
   const router = useRouter()
   const [building, setBuilding] = useState(null)

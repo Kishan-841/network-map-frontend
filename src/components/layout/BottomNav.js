@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { IconDashboard, IconMap, IconBuildings, IconUser, IconUsers } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
-import { isAgent, isLead } from '@/lib/roles'
+import { isAgent, isLead, isSupervisor } from '@/lib/roles'
 
 const COVERAGE_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
@@ -16,6 +16,11 @@ const COVERAGE_NAV = [
 const AGENT_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'My buildings', icon: IconBuildings },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+const SUPERVISOR_NAV = [
+  { href: '/map', label: 'Map', icon: IconMap },
+  { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const LEAD_NAV = [
@@ -31,7 +36,13 @@ const LEAD_NAV = [
 export function BottomNav() {
   const pathname = usePathname()
   const role = useAuthStore((s) => s.user?.role)
-  const NAV_ITEMS = isAgent(role) ? AGENT_NAV : isLead(role) ? LEAD_NAV : COVERAGE_NAV
+  const NAV_ITEMS = isAgent(role)
+    ? AGENT_NAV
+    : isLead(role)
+      ? LEAD_NAV
+      : isSupervisor(role)
+        ? SUPERVISOR_NAV
+        : COVERAGE_NAV
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">

@@ -15,7 +15,7 @@ import { BulkAssignZonesModal } from '@/components/admin/BulkAssignZonesModal'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconPlus, IconEdit, IconUpload } from '@/components/ui/icons'
 
-const ROLES = ['SURVEYOR', 'MANAGER', 'ADMIN', 'ACQUISITION_AGENT', 'ACQUISITION_LEAD']
+const ROLES = ['SURVEYOR', 'MANAGER', 'SUPERVISOR', 'ADMIN', 'ACQUISITION_AGENT', 'ACQUISITION_LEAD']
 const roleLabel = (role) => ROLE_LABELS[role] ?? role
 
 // Keep the assigned-zones line short so it never widens the row (which would

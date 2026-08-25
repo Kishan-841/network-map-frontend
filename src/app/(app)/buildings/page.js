@@ -17,7 +17,14 @@ import { BulkLiveBar } from '@/components/buildings/BulkLiveBar'
 import { ImportBuildingsModal } from '@/components/buildings/ImportBuildingsModal'
 import { useZones, invalidateZones } from '@/hooks/useZones'
 import { invalidateOperators } from '@/hooks/useOperators'
-import { isAgent, isLead, isAcquisition, designationLabel } from '@/lib/roles'
+import {
+  isAgent,
+  isLead,
+  isAcquisition,
+  isSupervisor,
+  designationLabel,
+  canManageBuildings,
+} from '@/lib/roles'
 import { useUsers } from '@/hooks/useUsers'
 
 const SEARCH_DEBOUNCE_MS = 350
@@ -104,6 +111,45 @@ const ACQUISITION_COLUMNS = [
   },
 ]
 
+/**
+ * A supervisor's list mixes both registries, so each row has to say which one
+ * it came from — a coverage row and an acquisition row otherwise look alike
+ * while meaning very different things (zone vs pincode, surveyor vs agent).
+ */
+const REGISTRY_COLUMN = {
+  key: 'source',
+  header: 'Registry',
+  render: (b) => (
+    <span
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
+        b.source === 'ACQUISITION' ? 'bg-doc-tint text-doc' : 'bg-fiber-tint text-fiber'
+      }`}
+    >
+      {b.source === 'ACQUISITION' ? 'Acquisition' : 'Coverage'}
+    </span>
+  ),
+}
+const ADDED_BY_COLUMN = {
+  key: 'addedBy',
+  header: 'Added by',
+  render: (b) => b.createdBy?.name ?? '—',
+  className: 'max-w-[150px] text-muted',
+}
+// Everything, whoever logged it — zone for coverage rows, pincode for
+// acquisition ones, both shown rather than one column that means two things.
+const SUPERVISOR_COLUMNS = [
+  COLUMNS[0],
+  REGISTRY_COLUMN,
+  {
+    key: 'area',
+    header: 'Zone / pincode',
+    render: (b) => b.zone?.name ?? b.pincode ?? '—',
+    className: 'max-w-[160px] text-muted',
+  },
+  ADDED_BY_COLUMN,
+  COLUMNS[3],
+]
+
 // Leads also see WHO logged each building.
 const AGENT_COLUMN = {
   key: 'agent',
@@ -126,7 +172,7 @@ function BuildingsList() {
   const acquisition = isAcquisition(role)
   const agentFilter = searchParams.get('createdById') ?? ''
   // Only admins/managers can list operators/cities (both APIs are role-gated).
-  const canFilterOperator = role === 'ADMIN' || role === 'MANAGER'
+  const canFilterOperator = canManageBuildings(role)
   const { operators } = useOperators()
   const { cities } = useCities()
   // Leads filter their team's registry by agent and city.
@@ -137,7 +183,7 @@ function BuildingsList() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   // Bulk go-live is a coverage-registry action, admins and managers only.
-  const canBulkEdit = role === 'ADMIN' || role === 'MANAGER'
+  const canBulkEdit = canManageBuildings(role)
   const zoneId = searchParams.get('zoneId') ?? ''
   const { zones } = useZones()
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -267,7 +313,7 @@ function BuildingsList() {
   return (
     <main>
       <PageHeader
-        title={isAgent(role) ? 'My buildings' : 'Buildings'}
+        title={isAgent(role) ? 'My buildings' : isSupervisor(role) ? 'All buildings' : 'Buildings'}
         sub={
           pagination
             ? `${pagination.total} ${acquisition ? 'logged' : 'surveyed'}`
@@ -418,7 +464,15 @@ function BuildingsList() {
       )}
 
       <DataTable
-        columns={isLead(role) ? LEAD_COLUMNS : acquisition ? ACQUISITION_COLUMNS : COLUMNS}
+        columns={
+          isLead(role)
+            ? LEAD_COLUMNS
+            : acquisition
+              ? ACQUISITION_COLUMNS
+              : isSupervisor(role)
+                ? SUPERVISOR_COLUMNS
+                : COLUMNS
+        }
         rows={loading ? null : buildings}
         loading={loading}
         renderCard={(building) => <BuildingCard building={building} />}

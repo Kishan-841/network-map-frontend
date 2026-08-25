@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/Button'
+import { canManageBuildings } from '@/lib/roles'
 
 /**
  * Shows whether the fiber connection is live and lets an admin/manager flip it
@@ -11,7 +12,7 @@ import { Button } from '@/components/ui/Button'
  */
 export function LiveToggle({ building, onChanged }) {
   const role = useAuthStore((s) => s.user?.role)
-  const canEdit = role === 'ADMIN' || role === 'MANAGER'
+  const canEdit = canManageBuildings(role)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 

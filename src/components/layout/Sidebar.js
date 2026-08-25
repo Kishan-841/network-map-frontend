@@ -8,7 +8,7 @@ import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
 import { MANAGE_LINKS } from '@/lib/manage-links'
-import { isAgent, isLead, ROLE_LABELS } from '@/lib/roles'
+import { isAgent, isLead, isSupervisor, ROLE_LABELS } from '@/lib/roles'
 import {
   NodeMark,
   IconDashboard,
@@ -32,6 +32,12 @@ const COVERAGE_NAV = [
 const AGENT_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'My buildings', icon: IconBuildings },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+// Oversight role: everything the map and registry offer, no administration.
+const SUPERVISOR_NAV = [
+  { href: '/map', label: 'Map', icon: IconMap },
+  { href: '/buildings', label: 'All buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const LEAD_NAV = [
@@ -72,7 +78,9 @@ export function Sidebar() {
     ? AGENT_NAV
     : isLead(user?.role)
       ? LEAD_NAV
-      : COVERAGE_NAV
+      : isSupervisor(user?.role)
+        ? SUPERVISOR_NAV
+        : COVERAGE_NAV
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '80px' : '280px')
