@@ -130,6 +130,12 @@ export default function DashboardPage() {
       .slice(0, 5)
   }, [buildings, loading])
 
+  // The dashboard's own filters ride along to the buildings list, so the
+  // number you clicked and the list you land on always agree.
+  const tierLinkQuery = [
+    cityId ? `&cityId=${cityId}` : '',
+    operatorId ? `&operatorId=${operatorId}` : '',
+  ].join('')
   const selectedOperatorName = operators.find((o) => o.id === operatorId)?.name
   const selectedCityName = cities.find((c) => c.id === cityId)?.name
   const scopeLabel = [selectedCityName, selectedOperatorName].filter(Boolean).join(' · ')
@@ -239,6 +245,7 @@ export default function DashboardPage() {
                 <HomePassTierBar
                   byHomePassTier={serverStats.byHomePassTier}
                   unratedBuildings={serverStats.unratedBuildings}
+                  filterQuery={tierLinkQuery}
                 />
                 <LiveDonut byLive={serverStats.byLive} />
                 <SurveysLine overTime={serverStats.overTime} />

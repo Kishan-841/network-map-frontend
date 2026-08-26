@@ -213,6 +213,7 @@ function BuildingsList() {
   // Bulk go-live is a coverage-registry action, admins and managers only.
   const canBulkEdit = canManageBuildings(role)
   const zoneId = searchParams.get('zoneId') ?? ''
+  const tier = searchParams.get('tier') ?? ''
   const { zones } = useZones()
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   // "Select all N matching" — the ids are never loaded, the server resolves
@@ -239,8 +240,9 @@ function BuildingsList() {
       operatorId: operatorId || undefined,
       cityId: cityId || undefined,
       createdById: agentFilter || undefined,
+      tier: tier || undefined,
     }),
-    [debouncedSearch, zoneId, operatorId, cityId, agentFilter],
+    [debouncedSearch, zoneId, operatorId, cityId, agentFilter, tier],
   )
   const { buildings, pagination, loading, refetch } = useBuildings({
     ...activeFilter,
@@ -259,15 +261,17 @@ function BuildingsList() {
     setSelectAllMatching(false)
   }, [filterKey])
 
-  const applyFilters = (nextCityId, nextOperatorId, nextZoneId = zoneId) => {
+  const applyFilters = (nextCityId, nextOperatorId, nextZoneId = zoneId, nextTier = tier) => {
     setPage(1)
     const params = new URLSearchParams()
     if (nextCityId) params.set('cityId', nextCityId)
     if (nextOperatorId) params.set('operatorId', nextOperatorId)
     if (nextZoneId) params.set('zoneId', nextZoneId)
+    if (nextTier) params.set('tier', nextTier)
     const qs = params.toString()
     router.replace(qs ? `/buildings?${qs}` : '/buildings')
   }
+  const setTier = (next) => applyFilters(cityId, operatorId, zoneId, next)
   // Changing city resets the operator unless it belongs to the new city.
   const setCity = (id) => {
     const operatorStillValid =
@@ -298,6 +302,7 @@ function BuildingsList() {
     zoneId ? zones.find((z) => z.id === zoneId)?.name : null,
     operatorId ? operators.find((o) => o.id === operatorId)?.name : null,
     cityId ? cities.find((c) => c.id === cityId)?.name : null,
+    tier ? (TIER_LABEL[tier] ?? 'No home pass') : null,
     debouncedSearch ? `“${debouncedSearch}”` : null,
   ]
     .filter(Boolean)
@@ -451,6 +456,21 @@ function BuildingsList() {
                   {zone.name}
                 </option>
               ))}
+            </Select>
+          </div>
+        )}
+        {!acquisition && (
+          // Arriving from the dashboard sets this — it has to be visible and
+          // clearable, or the list looks short for no stated reason.
+          <div className="w-36 shrink-0 sm:w-44">
+            <Select id="buildings-tier" value={tier} onChange={(e) => setTier(e.target.value)}>
+              <option value="">All tiers</option>
+              {Object.entries(TIER_LABEL).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+              <option value="UNRATED">No home pass</option>
             </Select>
           </div>
         )}

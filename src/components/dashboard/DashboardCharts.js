@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import {
   ResponsiveContainer,
   PieChart,
@@ -52,7 +53,11 @@ const tooltipStyle = {
  * carry more home pass than everything below them, and a count alone hides it.
  * Unrated sits below the rule so the rows still reconcile to the total.
  */
-export function HomePassTierBar({ byHomePassTier, unratedBuildings = 0 }) {
+export function HomePassTierBar({ byHomePassTier, unratedBuildings = 0, filterQuery = '' }) {
+  // Each row opens the buildings list already filtered to that tier, carrying
+  // the dashboard's own city/operator filters through — otherwise the number
+  // you clicked and the list you land on would disagree.
+  const hrefFor = (tier) => `/buildings?tier=${tier}${filterQuery}`
   const tiers = byHomePassTier ?? []
   const max = Math.max(1, ...tiers.map((t) => t.buildings))
   const totalHomePass = tiers.reduce((sum, t) => sum + (t.homePass ?? 0), 0)
@@ -76,10 +81,12 @@ export function HomePassTierBar({ byHomePassTier, unratedBuildings = 0 }) {
             {tiers.map((tier, i) => {
               const share = totalHomePass ? Math.round((tier.homePass / totalHomePass) * 100) : 0
               return (
-                <li
-                  key={tier.key}
-                  title={`${tier.label} (${tier.max === null ? `${tier.min}+` : `${tier.min}–${tier.max}`} HP): ${tier.buildings} buildings, ${tier.homePass} home pass`}
-                >
+                <li key={tier.key}>
+                  <Link
+                    href={hrefFor(tier.key)}
+                    title={`Show the ${tier.buildings} ${tier.label} buildings`}
+                    className="-mx-2 block rounded-btn px-2 py-1 transition-colors duration-150 hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fiber"
+                  >
                   <div className="mb-1 flex items-baseline justify-between gap-3">
                     <span className="min-w-0 truncate text-sm">
                       {tier.label}
@@ -106,16 +113,21 @@ export function HomePassTierBar({ byHomePassTier, unratedBuildings = 0 }) {
                       }}
                     />
                   </div>
+                  </Link>
                 </li>
               )
             })}
           </ul>
           {unratedBuildings > 0 && (
-            <p className="mt-4 border-t border-line pt-3 text-xs font-normal text-muted">
+            <Link
+              href={hrefFor('UNRATED')}
+              title="Show the buildings with no home pass recorded"
+              className="mt-4 block border-t border-line pt-3 text-xs font-normal text-muted transition-colors duration-150 hover:text-fiber"
+            >
               <span className="font-medium text-ink">{unratedBuildings}</span> building
               {unratedBuildings === 1 ? '' : 's'} with no home pass recorded yet — untiered until
               someone fills the figure in.
-            </p>
+            </Link>
           )}
         </>
       )}
