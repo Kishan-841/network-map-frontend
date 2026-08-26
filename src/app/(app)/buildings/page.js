@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useBuildings } from '@/hooks/useBuildings'
+import { TIER_LABEL, TIER_STYLE } from '@/lib/home-pass-tier'
 import { useOperators } from '@/hooks/useOperators'
 import { useCities } from '@/hooks/useCities'
 import { useAuthStore } from '@/stores/auth-store'
@@ -31,6 +32,31 @@ const SEARCH_DEBOUNCE_MS = 350
 
 const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' })
 
+/**
+ * Home-pass tier, computed by the API so the boundaries live in exactly one
+ * place. Colour is a single-hue ladder that darkens as the tier rises — the
+ * name is always present, so the tier never depends on colour alone.
+ */
+function TierBadge({ building }) {
+  const tier = building.homePassTier
+  // No figure recorded is a different fact from "small" — say so, don't
+  // quietly render the bottom tier.
+  if (!tier) return <span className="text-sm text-faint">—</span>
+  return (
+    <span
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${TIER_STYLE[tier]}`}
+      title={`${building.details?.homePass ?? 0} home pass`}
+    >
+      {TIER_LABEL[tier]}
+    </span>
+  )
+}
+const TIER_COLUMN = {
+  key: 'tier',
+  header: 'Tier',
+  render: (b) => <TierBadge building={b} />,
+}
+
 const COLUMNS = [
   {
     key: 'buildingName',
@@ -57,6 +83,7 @@ const COLUMNS = [
     render: (b) => b.details?.homePass ?? '—',
     className: 'tabular-nums text-muted',
   },
+  TIER_COLUMN,
   {
     key: 'createdAt',
     header: 'Added',
@@ -147,7 +174,8 @@ const SUPERVISOR_COLUMNS = [
     className: 'max-w-[160px] text-muted',
   },
   ADDED_BY_COLUMN,
-  COLUMNS[3],
+  TIER_COLUMN,
+  COLUMNS.at(-1),
 ]
 
 // Leads also see WHO logged each building.

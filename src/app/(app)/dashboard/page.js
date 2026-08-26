@@ -10,7 +10,12 @@ import { useCities } from '@/hooks/useCities'
 import { MANAGE_LINKS } from '@/lib/manage-links'
 import { useCountUp } from '@/hooks/useCountUp'
 import { Select } from '@/components/ui/Input'
-import { LiveDonut, OperatorBar, SurveysLine } from '@/components/dashboard/DashboardCharts'
+import {
+  LiveDonut,
+  OperatorBar,
+  SurveysLine,
+  HomePassTierBar,
+} from '@/components/dashboard/DashboardCharts'
 import {
   IconBuildings,
   IconHome,
@@ -231,6 +236,10 @@ export default function DashboardPage() {
                 Insights{selectedOperatorName ? ` · ${selectedOperatorName}` : ''}
               </p>
               <div className="grid gap-4 lg:grid-cols-2">
+                <HomePassTierBar
+                  byHomePassTier={serverStats.byHomePassTier}
+                  unratedBuildings={serverStats.unratedBuildings}
+                />
                 <LiveDonut byLive={serverStats.byLive} />
                 <SurveysLine overTime={serverStats.overTime} />
                 <OperatorBar

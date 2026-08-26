@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { TIER_LABEL, TIER_STYLE } from '@/lib/home-pass-tier'
 
 export function BuildingCard({ building }) {
   return (
@@ -10,6 +11,13 @@ export function BuildingCard({ building }) {
       <span className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-ok" />
       <p className="min-w-0 truncate text-[15px] font-bold">{building.buildingName}</p>
       <p className="mt-1 truncate text-sm font-normal text-muted">{building.formattedAddress}</p>
+      {building.homePassTier && (
+        <span
+          className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${TIER_STYLE[building.homePassTier]}`}
+        >
+          {TIER_LABEL[building.homePassTier]}
+        </span>
+      )}
       <div className="mt-3 flex gap-4 text-xs font-normal text-faint">
         {building.zone?.name && <span>{building.zone.name}</span>}
         {building.details?.homePass != null && <span>{building.details.homePass} home pass</span>}
