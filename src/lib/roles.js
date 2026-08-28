@@ -9,6 +9,7 @@ export const ROLE_LABELS = {
   ACQUISITION_AGENT: 'Acquisition agent',
   ACQUISITION_LEAD: 'Acquisition lead',
   SUPERVISOR: 'Supervisor',
+  PARTNER_MANAGER: 'Partner manager',
 }
 
 export const isAgent = (role) => role === 'ACQUISITION_AGENT'
@@ -19,6 +20,8 @@ export const isAcquisition = (role) => isAgent(role) || isLead(role)
 export const isCoverage = (role) => ['ADMIN', 'MANAGER', 'SURVEYOR'].includes(role)
 /** Oversight across BOTH registries — sees every building, edits any of them. */
 export const isSupervisor = (role) => role === 'SUPERVISOR'
+/** Recruits external referral partners; never touches the building registry. */
+export const isPartnerManager = (role) => role === 'PARTNER_MANAGER'
 /**
  * May create and edit building CONTENT, whoever logged it. Distinct from
  * administration (users, zones, operators, logs), which stays with ADMIN.
@@ -49,15 +52,23 @@ export const homePathFor = (role) =>
         // coverage dashboard is not theirs.
         isSupervisor(role)
         ? '/map'
-        : '/dashboard'
+        : isPartnerManager(role)
+          ? '/partners'
+          : '/dashboard'
 
 /** Route prefixes each role must never reach. */
 const COVERAGE_ONLY = ['/dashboard', '/admin']
 // A supervisor reads every building but administers nothing, and has no
 // coverage dashboard of its own.
 const OFF_LIMITS_FOR_SUPERVISOR = ['/dashboard', '/admin', '/acquisition']
+// A partner manager works with people, not the registry: everything about
+// buildings, zones and the map is off limits.
+const PARTNER_MANAGER_ALLOWED = ['/partners', '/profile']
 export const isForbiddenPath = (role, pathname) => {
   if (isAcquisition(role)) return COVERAGE_ONLY.some((p) => pathname.startsWith(p))
   if (isSupervisor(role)) return OFF_LIMITS_FOR_SUPERVISOR.some((p) => pathname.startsWith(p))
+  // Allow-list rather than deny-list: a new staff route must not silently
+  // become reachable by this role just because nobody remembered to add it.
+  if (isPartnerManager(role)) return !PARTNER_MANAGER_ALLOWED.some((p) => pathname.startsWith(p))
   return false
 }

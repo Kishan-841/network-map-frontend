@@ -8,7 +8,7 @@ import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
 import { MANAGE_LINKS } from '@/lib/manage-links'
-import { isAgent, isLead, isSupervisor, ROLE_LABELS } from '@/lib/roles'
+import { isAgent, isLead, isSupervisor, isPartnerManager, ROLE_LABELS } from '@/lib/roles'
 import {
   NodeMark,
   IconDashboard,
@@ -35,6 +35,11 @@ const AGENT_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // Oversight role: everything the map and registry offer, no administration.
+// Recruits partners; no building or map access at all.
+const PARTNER_MANAGER_NAV = [
+  { href: '/partners', label: 'Partners', icon: IconUsers },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
 const SUPERVISOR_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'All buildings', icon: IconBuildings },
@@ -80,7 +85,9 @@ export function Sidebar() {
       ? LEAD_NAV
       : isSupervisor(user?.role)
         ? SUPERVISOR_NAV
-        : COVERAGE_NAV
+        : isPartnerManager(user?.role)
+          ? PARTNER_MANAGER_NAV
+          : COVERAGE_NAV
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '80px' : '280px')
