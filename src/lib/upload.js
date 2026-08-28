@@ -26,10 +26,17 @@ export async function compressImage(file) {
   return new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' })
 }
 
-export async function uploadFile(file) {
+/**
+ * Upload one file and get back its stored URL.
+ *
+ * `client` defaults to the staff API client. Partners pass their own client
+ * so the request carries a PARTNER token — the uploads route accepts either
+ * identity, but the two never share a token.
+ */
+export async function uploadFile(file, client = apiClient) {
   const prepared = await compressImage(file)
   const formData = new FormData()
   formData.append('file', prepared)
-  const res = await apiClient.post('/uploads', formData)
+  const res = await client.post('/uploads', formData)
   return res.data.data.url
 }
