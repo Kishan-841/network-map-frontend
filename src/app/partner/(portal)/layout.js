@@ -105,7 +105,9 @@ export default function PartnerPortalLayout({ children }) {
           <nav className="mx-auto flex w-full max-w-3xl gap-1 px-3 pb-2">
             {[
               { href: '/partner', label: 'Home' },
-              { href: '/partner/documents', label: 'My documents' },
+              { href: '/partner/refer', label: 'Refer' },
+              { href: '/partner/leads', label: 'My referrals' },
+              { href: '/partner/documents', label: 'Documents' },
             ].map((tab) => {
               const active = tab.href === '/partner' ? pathname === tab.href : pathname.startsWith(tab.href)
               return (

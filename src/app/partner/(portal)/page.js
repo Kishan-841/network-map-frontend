@@ -1,7 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { usePartnerAuthStore } from '@/stores/partner-auth-store'
 import { partnerTypeLabel } from '@/lib/partner-api-client'
+import { Button } from '@/components/ui/Button'
 
 /**
  * The approved partner's home. Referrals and lead figures land here in the
@@ -24,9 +26,17 @@ export default function PartnerHomePage() {
         </span>
         <p className="mt-3 font-bold">You are all set</p>
         <p className="mt-1 text-sm font-normal text-muted">
-          Referring customers arrives in the next step of this build. Your account is
-          verified and ready.
+          Find a customer&rsquo;s building, check we can serve it, and send us their
+          details.
         </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link href="/partner/refer">
+            <Button>Refer a customer</Button>
+          </Link>
+          <Link href="/partner/leads">
+            <Button variant="secondary">My referrals</Button>
+          </Link>
+        </div>
       </div>
     </>
   )

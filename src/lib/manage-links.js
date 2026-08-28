@@ -5,6 +5,7 @@ import {
   IconNavigate,
   IconBuildings,
   IconUser,
+  IconUsers,
   IconLogs,
 } from '@/components/ui/icons'
 
@@ -19,5 +20,12 @@ export const MANAGE_LINKS = [
   { href: '/admin/fiber', label: 'Fiber routes', sub: 'Network lines', icon: IconNavigate },
   { href: '/admin/building-types', label: 'Building types', sub: 'Form options', icon: IconBuildings },
   { href: '/admin/users', label: 'Users', sub: 'Team & roles', icon: IconUser, adminOnly: true },
+  {
+    href: '/admin/partner-approvals',
+    label: 'Partner approvals',
+    sub: 'Verify documents',
+    icon: IconUsers,
+    adminOnly: true,
+  },
   { href: '/admin/system-logs', label: 'System logs', sub: 'Audit trail', icon: IconLogs, adminOnly: true },
 ]
