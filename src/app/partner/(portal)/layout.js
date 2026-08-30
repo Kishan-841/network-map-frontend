@@ -2,10 +2,13 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { usePartnerAuthStore } from '@/stores/partner-auth-store'
 import { partnerApi } from '@/lib/partner-api-client'
-import { NodeMark, IconLogout } from '@/components/ui/icons'
+import {
+  PartnerSidebar,
+  PartnerBottomNav,
+  PartnerTopBar,
+} from '@/components/partner/PartnerNav'
 
 /**
  * The signed-in partner shell.
@@ -78,54 +81,30 @@ export default function PartnerPortalLayout({ children }) {
     )
   }
 
+  // Before approval there is nowhere else to go, so the nav would only offer
+  // dead ends — the onboarding screen stands on its own.
+  const approved = partner?.status === 'APPROVED'
+
+  if (!approved) {
+    return (
+      <div className="min-h-dvh bg-paper">
+        <PartnerTopBar />
+        <main className="mx-auto w-full max-w-2xl px-5 py-6">{children}</main>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-dvh bg-paper">
-      <header className="border-b border-line bg-card">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-5 py-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-btn bg-primary text-primary-content">
-            <NodeMark className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold leading-tight">{partner?.name}</p>
-            <p className="truncate text-xs font-normal text-muted">Partner portal</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              clearAuth()
-              router.replace('/partner/login')
-            }}
-            aria-label="Sign out"
-            className="flex h-9 w-9 items-center justify-center rounded-btn text-muted transition-colors hover:bg-bad-tint hover:text-bad"
-          >
-            <IconLogout className="h-4.5 w-4.5" strokeWidth={1.8} />
-          </button>
-        </div>
-        {partner?.status === 'APPROVED' && (
-          <nav className="mx-auto flex w-full max-w-3xl gap-1 px-3 pb-2">
-            {[
-              { href: '/partner', label: 'Home' },
-              { href: '/partner/refer', label: 'Refer' },
-              { href: '/partner/leads', label: 'My referrals' },
-              { href: '/partner/documents', label: 'Documents' },
-            ].map((tab) => {
-              const active = tab.href === '/partner' ? pathname === tab.href : pathname.startsWith(tab.href)
-              return (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  className={`rounded-btn px-3 py-1.5 text-sm font-medium transition-colors ${
-                    active ? 'bg-primary text-primary-content' : 'text-muted hover:bg-primary/5'
-                  }`}
-                >
-                  {tab.label}
-                </Link>
-              )
-            })}
-          </nav>
-        )}
-      </header>
-      <main className="mx-auto w-full max-w-3xl px-5 py-6">{children}</main>
+      <PartnerSidebar />
+      <PartnerTopBar />
+      <div className="lg:pl-[260px]">
+        {/* pb-28 clears the bottom bar on phones; lg has no bottom bar. */}
+        <main className="mx-auto w-full max-w-3xl px-5 pb-28 pt-5 lg:px-8 lg:pb-12 lg:pt-8">
+          {children}
+        </main>
+      </div>
+      <PartnerBottomNav />
     </div>
   )
 }
