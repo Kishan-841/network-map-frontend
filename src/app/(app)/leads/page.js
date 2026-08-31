@@ -67,6 +67,37 @@ function StatusPicker({ status, onPick, busy }) {
   )
 }
 
+const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
+
+/**
+ * What this lead earned the partner, sitting under its status.
+ *
+ * A converted lead with no earning is not a display gap — it is real money
+ * nobody has recorded, and the only way it gets fixed is if someone can see
+ * it. Leads converted before earnings existed all look like this, so the
+ * missing state is a button, not a dash.
+ */
+function EarningNote({ lead, onFix }) {
+  if (lead.status !== 'CONVERTED') return null
+  if (lead.earning) {
+    return (
+      <span className="mt-1 block text-xs font-normal tabular-nums text-muted">
+        {rupees(lead.earning.amount)}
+        {lead.earning.status === 'PAID' ? ' · paid' : ''}
+      </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onFix}
+      className="mt-1 block text-xs font-medium text-warn underline underline-offset-2 transition-opacity hover:opacity-70"
+    >
+      Add plan
+    </button>
+  )
+}
+
 function StatusBadge({ status }) {
   return (
     <span
@@ -131,7 +162,9 @@ export default function ReferralsPage() {
    * the table never shows a state the server rejected.
    */
   const updateStatus = useCallback(async (lead, next, plan) => {
-    if (next === lead.status) return
+    // A plan always goes through, even when the status is unchanged: that is
+    // how a lead already sitting in Converted gets its missing earning.
+    if (next === lead.status && !plan) return
     setError(null)
     setSaving(lead.id)
     setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: next } : l)))
@@ -228,16 +261,20 @@ export default function ReferralsPage() {
     {
       key: 'status',
       header: 'Status',
-      render: (lead) =>
-        canUpdate ? (
-          <StatusPicker
-            status={lead.status}
-            busy={saving === lead.id}
-            onPick={(next) => pickStatus(lead, next)}
-          />
-        ) : (
-          <StatusBadge status={lead.status} />
-        ),
+      render: (lead) => (
+        <div>
+          {canUpdate ? (
+            <StatusPicker
+              status={lead.status}
+              busy={saving === lead.id}
+              onPick={(next) => pickStatus(lead, next)}
+            />
+          ) : (
+            <StatusBadge status={lead.status} />
+          )}
+          <EarningNote lead={lead} onFix={canUpdate ? () => setConverting(lead) : undefined} />
+        </div>
+      ),
     },
     {
       key: 'createdAt',
@@ -257,15 +294,18 @@ export default function ReferralsPage() {
             <p className="truncate text-sm font-normal text-muted">{lead.customerEmail}</p>
           )}
         </div>
-        {canUpdate ? (
-          <StatusPicker
-            status={lead.status}
-            busy={saving === lead.id}
-            onPick={(next) => pickStatus(lead, next)}
-          />
-        ) : (
-          <StatusBadge status={lead.status} />
-        )}
+        <div className="text-right">
+          {canUpdate ? (
+            <StatusPicker
+              status={lead.status}
+              busy={saving === lead.id}
+              onPick={(next) => pickStatus(lead, next)}
+            />
+          ) : (
+            <StatusBadge status={lead.status} />
+          )}
+          <EarningNote lead={lead} onFix={canUpdate ? () => setConverting(lead) : undefined} />
+        </div>
       </div>
       <div className="mt-3 border-t border-line pt-3">
         <p className="truncate text-xs font-normal text-faint">
@@ -356,6 +396,12 @@ export default function ReferralsPage() {
           onCancel={() => setConverting(null)}
           onConfirm={async (plan) => {
             await updateStatus(converting, 'CONVERTED', plan)
+            // Pull the row back so the amount appears straight away — the
+            // status may not even have changed, only the earning behind it.
+            apiClient
+              .get('/leads')
+              .then((res) => setLeads(res.data.data))
+              .catch(() => {})
             setConverting(null)
           }}
         />
