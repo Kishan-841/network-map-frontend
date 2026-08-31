@@ -7,6 +7,7 @@ import { usePartnerAuthStore } from '@/stores/partner-auth-store'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Input'
 import { IconChevronDown, IconPlus } from '@/components/ui/icons'
+import { EarningsChart, lastMonths, monthNames } from '@/components/earnings/EarningsChart'
 
 const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
 
@@ -17,14 +18,7 @@ const PERIOD_LABEL = {
 }
 
 /** "2026-08" → "August 2026". Parsed as a date, not string-sliced. */
-const monthLabel = (key) => {
-  const [year, month] = key.split('-').map(Number)
-  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en-IN', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
+const monthLabel = (key) => monthNames(key).long
 
 /**
  * Whether we have paid a month. Deliberately two words the partner already
@@ -179,13 +173,26 @@ export default function PartnerEarningsPage() {
         </div>
       </div>
 
-      {statement && statement.months.length > 1 && (
+      {statement && (
+        <div className="mt-4">
+          <EarningsChart
+            months={statement.months}
+            selected={month || null}
+            onSelect={(key) => setMonth(key ?? '')}
+          />
+        </div>
+      )}
+
+      {/* The chart is the month picker, but not everyone taps a bar — these
+          say the same thing in a control that reads as one. */}
+      {statement && (
         <div className="mt-4 grid grid-cols-2 gap-3">
           <Select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
             <option value="">Every month</option>
-            {statement.months.map((m) => (
-              <option key={m.month} value={m.month}>
+            {lastMonths(statement.months).map((m) => (
+              <option key={m.month} value={m.month} disabled={!m.total}>
                 {monthLabel(m.month)}
+                {m.total ? '' : ' — nothing'}
               </option>
             ))}
           </Select>
