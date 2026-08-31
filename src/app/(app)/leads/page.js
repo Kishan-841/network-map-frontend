@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Input, Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
 import { IconUsers, IconChevronDown } from '@/components/ui/icons'
+import { ConvertLeadModal } from '@/components/leads/ConvertLeadModal'
 import {
   LEAD_STATUSES,
   leadStatusClass,
@@ -92,6 +93,10 @@ export default function ReferralsPage() {
   const [status, setStatus] = useState('')
   const [partnerId, setPartnerId] = useState('')
   const [saving, setSaving] = useState(null)
+  // The lead waiting on a plan before it can be converted, and the rate card
+  // the amount comes from.
+  const [converting, setConverting] = useState(null)
+  const [rates, setRates] = useState([])
   const canUpdate = CAN_UPDATE_STATUS.includes(role)
 
   useEffect(() => {
@@ -105,6 +110,19 @@ export default function ReferralsPage() {
     }
   }, [])
 
+  // The rate card, so the modal can price a conversion without a round trip
+  // per keystroke. Same source the calculator quotes from.
+  useEffect(() => {
+    let cancelled = false
+    apiClient
+      .get('/rate-card')
+      .then((res) => !cancelled && setRates(res.data.data.rates ?? []))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   /**
    * Move one lead along.
    *
@@ -112,20 +130,40 @@ export default function ReferralsPage() {
    * change is the common case; a refusal puts the old value straight back so
    * the table never shows a state the server rejected.
    */
-  const updateStatus = useCallback(async (lead, next) => {
+  const updateStatus = useCallback(async (lead, next, plan) => {
     if (next === lead.status) return
     setError(null)
     setSaving(lead.id)
     setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: next } : l)))
     try {
-      await apiClient.patch(`/leads/${lead.id}/status`, { status: next })
+      await apiClient.patch(`/leads/${lead.id}/status`, { status: next, ...(plan && { plan }) })
     } catch (err) {
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: lead.status } : l)))
-      setError(getApiErrorMessage(err, 'Could not update that lead'))
+      // Rethrown as well as shown: the convert modal needs to know it failed
+      // so it can stay open with the reason rather than closing on a no-op.
+      const message = getApiErrorMessage(err, 'Could not update that lead')
+      setError(message)
+      throw new Error(message)
     } finally {
       setSaving(null)
     }
   }, [])
+
+  /**
+   * Converting is the one status that cannot be applied straight away: it
+   * creates the partner's earning, and the amount depends on a plan nobody
+   * has recorded yet. Every other status goes through untouched.
+   */
+  const pickStatus = useCallback(
+    (lead, next) => {
+      if (next === 'CONVERTED' && lead.status !== 'CONVERTED') {
+        setConverting(lead)
+        return
+      }
+      updateStatus(lead, next).catch(() => {})
+    },
+    [updateStatus],
+  )
 
   // The list is capped at 200 server-side, so filtering in memory is honest
   // here — there is no second page hiding behind these controls.
@@ -195,7 +233,7 @@ export default function ReferralsPage() {
           <StatusPicker
             status={lead.status}
             busy={saving === lead.id}
-            onPick={(next) => updateStatus(lead, next)}
+            onPick={(next) => pickStatus(lead, next)}
           />
         ) : (
           <StatusBadge status={lead.status} />
@@ -223,7 +261,7 @@ export default function ReferralsPage() {
           <StatusPicker
             status={lead.status}
             busy={saving === lead.id}
-            onPick={(next) => updateStatus(lead, next)}
+            onPick={(next) => pickStatus(lead, next)}
           />
         ) : (
           <StatusBadge status={lead.status} />
@@ -309,6 +347,19 @@ export default function ReferralsPage() {
           </div>
         }
       />
+
+      {converting && (
+        <ConvertLeadModal
+          key={converting.id}
+          lead={converting}
+          rates={rates}
+          onCancel={() => setConverting(null)}
+          onConfirm={async (plan) => {
+            await updateStatus(converting, 'CONVERTED', plan)
+            setConverting(null)
+          }}
+        />
+      )}
     </main>
   )
 }
