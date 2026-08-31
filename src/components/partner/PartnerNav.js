@@ -4,13 +4,17 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { usePartnerAuthStore } from '@/stores/partner-auth-store'
 import { partnerTypeLabel } from '@/lib/partner-api-client'
+import { useTheme } from '@/hooks/useTheme'
 import {
   NodeMark,
   IconHome,
   IconPlus,
   IconUsers,
   IconDoc,
+  IconUser,
   IconLogout,
+  IconSun,
+  IconMoon,
 } from '@/components/ui/icons'
 
 /**
@@ -24,10 +28,36 @@ export const PARTNER_TABS = [
   { href: '/partner/refer', label: 'Refer', icon: IconPlus },
   { href: '/partner/leads', label: 'Referrals', icon: IconUsers },
   { href: '/partner/documents', label: 'Documents', icon: IconDoc },
+  { href: '/partner/profile', label: 'Profile', icon: IconUser },
 ]
 
 const isActive = (pathname, { href, exact }) =>
   exact ? pathname === href : pathname.startsWith(href)
+
+/**
+ * Quick light/dark flip. The full palette lives on the Profile tab; this is
+ * the one-tap version the staff rail also offers. `theme` is null until the
+ * hook mounts, so the icon renders neutrally for that first frame.
+ */
+function ThemeToggle({ className = '' }) {
+  const { theme, toggle } = useTheme()
+  const dark = theme === 'dark'
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={dark ? 'Switch to light' : 'Switch to dark'}
+      aria-label={dark ? 'Switch to light' : 'Switch to dark'}
+      className={className}
+    >
+      {dark ? (
+        <IconSun className="h-4.5 w-4.5" strokeWidth={1.8} />
+      ) : (
+        <IconMoon className="h-4.5 w-4.5" strokeWidth={1.8} />
+      )}
+    </button>
+  )
+}
 
 function initials(name = '') {
   return name
@@ -104,17 +134,22 @@ export function PartnerSidebar({ tabs = PARTNER_TABS }) {
             </span>
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            clearAuth()
-            router.replace('/partner/login')
-          }}
-          className="flex h-9 items-center justify-center gap-2 rounded-btn text-sm font-medium text-neutral-content/70 transition-colors duration-200 hover:bg-error/15 hover:text-error"
-        >
-          <IconLogout className="h-4.5 w-4.5" strokeWidth={1.8} />
-          Sign out
-        </button>
+        <div className="flex gap-2">
+          <ThemeToggle
+            className="flex h-9 w-9 items-center justify-center rounded-btn text-neutral-content/60 transition-colors duration-200 hover:bg-neutral-content/10 hover:text-neutral-content"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              clearAuth()
+              router.replace('/partner/login')
+            }}
+            className="flex h-9 flex-1 items-center justify-center gap-2 rounded-btn text-sm font-medium text-neutral-content/70 transition-colors duration-200 hover:bg-error/15 hover:text-error"
+          >
+            <IconLogout className="h-4.5 w-4.5" strokeWidth={1.8} />
+            Sign out
+          </button>
+        </div>
       </div>
     </aside>
   )
@@ -162,6 +197,7 @@ export function PartnerTopBar() {
           <p className="truncate text-sm font-bold leading-tight">{partner?.name}</p>
           <p className="truncate text-xs font-normal text-muted">Partner portal</p>
         </div>
+        <ThemeToggle className="flex h-9 w-9 items-center justify-center rounded-btn text-muted transition-colors hover:bg-primary/10 hover:text-primary" />
         <button
           type="button"
           onClick={() => {
