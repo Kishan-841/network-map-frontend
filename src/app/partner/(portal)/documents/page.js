@@ -11,7 +11,6 @@ import { IconDoc, IconOkCircle } from '@/components/ui/icons'
 const DOC_META = {
   AADHAAR: { label: 'Aadhaar card', hint: 'Front and back in one image, or a PDF' },
   PAN: { label: 'PAN card', hint: 'A clear photo of the card' },
-  GST: { label: 'GST certificate', hint: 'Your registration certificate' },
 }
 
 const STATUS_COPY = {

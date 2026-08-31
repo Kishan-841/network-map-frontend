@@ -14,7 +14,7 @@ const TYPE_LABEL = {
   RETAIL_SHOP: 'Retail shop',
   DSA: 'DSA',
 }
-const DOC_LABEL = { AADHAAR: 'Aadhaar card', PAN: 'PAN card', GST: 'GST certificate' }
+const DOC_LABEL = { AADHAAR: 'Aadhaar card', PAN: 'PAN card' }
 const isPdf = (url = '') => url.split('?')[0].toLowerCase().endsWith('.pdf')
 
 /** Documents arrive as short-lived signed URLs; they are not public links. */

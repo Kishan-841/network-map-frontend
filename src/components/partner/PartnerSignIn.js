@@ -32,7 +32,7 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
   const [known, setKnown] = useState(false)
   const [devCode, setDevCode] = useState(null)
   const [signupToken, setSignupToken] = useState(null)
-  const [form, setForm] = useState({ name: '', type: '', companyName: '', email: '', hasGst: false })
+  const [form, setForm] = useState({ name: '', type: '', companyName: '', email: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
@@ -97,7 +97,6 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
         type: form.type,
         companyName: form.companyName.trim() || undefined,
         email: form.email.trim() || undefined,
-        hasGst: form.hasGst,
         ...(inviteToken && { inviteToken }),
       })
       land(res.data.data)
@@ -273,16 +272,6 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
-              <label className="flex cursor-pointer items-center gap-3 rounded-btn border border-line px-3 py-2.5">
-                <input
-                  id="signup-gst"
-                  type="checkbox"
-                  className="checkbox checkbox-sm"
-                  checked={form.hasGst}
-                  onChange={(e) => setForm({ ...form, hasGst: e.target.checked })}
-                />
-                <span className="text-sm">I have a GST registration</span>
-              </label>
             </div>
 
             {error && (
