@@ -10,6 +10,7 @@ import {
   IconHome,
   IconPlus,
   IconUsers,
+  IconUserPlus,
   IconDoc,
   IconUser,
   IconCalculator,
@@ -33,6 +34,7 @@ export const PARTNER_TABS = [
   { href: '/partner/calculator', label: 'Calculator', icon: IconCalculator },
   { href: '/partner/refer', label: 'Add lead', icon: IconPlus },
   { href: '/partner/leads', label: 'My leads', icon: IconUsers },
+  { href: '/partner/introduce', label: 'Refer', icon: IconUserPlus },
   { href: '/partner/profile', label: 'Profile', icon: IconUser },
 ]
 
@@ -43,6 +45,9 @@ export const PARTNER_TABS = [
  */
 export const PENDING_TABS = [
   { href: '/partner/calculator', label: 'Calculator', icon: IconCalculator },
+  // §2: referring a partner works from minute one — it creates no obligation,
+  // so it does not wait on documents the way adding a lead does.
+  { href: '/partner/introduce', label: 'Refer', icon: IconUserPlus },
   { href: '/partner/documents', label: 'Documents', icon: IconDoc },
   { href: '/partner/profile', label: 'Profile', icon: IconUser },
 ]

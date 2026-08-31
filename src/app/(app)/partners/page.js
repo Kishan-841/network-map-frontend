@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { DataTable } from '@/components/ui/DataTable'
 import { IconPlus, IconUsers } from '@/components/ui/icons'
+import { IntroductionsPanel } from '@/components/partners/IntroductionsPanel'
 
 const STATUS_STYLE = {
   REGISTERED: 'bg-paper text-muted',
@@ -181,6 +182,8 @@ export default function PartnersPage() {
       {error && (
         <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
       )}
+
+      <IntroductionsPanel />
 
       {pendingInvites.length > 0 && (
         <section className="mb-4 rounded-card bg-card p-4 shadow-soft">
