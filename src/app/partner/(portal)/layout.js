@@ -8,6 +8,9 @@ import {
   PartnerSidebar,
   PartnerBottomNav,
   PartnerTopBar,
+  PARTNER_TABS,
+  PENDING_TABS,
+  PENDING_ALLOWED,
 } from '@/components/partner/PartnerNav'
 
 /** Screens that are a table, and should use the full width available. */
@@ -70,11 +73,13 @@ export default function PartnerPortalLayout({ children }) {
     }
   }, [hydrated, token, router, setPartner, clearAuth])
 
-  const onDocuments = pathname.startsWith('/partner/documents')
+  // A partner awaiting approval keeps the pitch tools and is pushed back only
+  // from the earning actions.
+  const allowedWhilePending = PENDING_ALLOWED.some((r) => pathname.startsWith(r))
   useEffect(() => {
     if (!ready || !partner) return
-    if (partner.status !== 'APPROVED' && !onDocuments) router.replace('/partner/documents')
-  }, [ready, partner, onDocuments, router])
+    if (partner.status !== 'APPROVED' && !allowedWhilePending) router.replace('/partner/documents')
+  }, [ready, partner, allowedWhilePending, router])
 
   if (!hydrated || !token || !ready) {
     return (
@@ -87,6 +92,7 @@ export default function PartnerPortalLayout({ children }) {
   // Before approval there is nowhere else to go, so the nav would only offer
   // dead ends — the onboarding screen stands on its own.
   const approved = partner?.status === 'APPROVED'
+  const tabs = approved ? PARTNER_TABS : PENDING_TABS
 
   /**
    * Content width is decided here rather than per page, so there is one place
@@ -95,18 +101,9 @@ export default function PartnerPortalLayout({ children }) {
    */
   const contentWidth = WIDE_ROUTES.some((r) => pathname.startsWith(r)) ? 'max-w-6xl' : 'max-w-3xl'
 
-  if (!approved) {
-    return (
-      <div className="min-h-dvh bg-paper">
-        <PartnerTopBar />
-        <main className="mx-auto w-full max-w-2xl px-5 py-6">{children}</main>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-dvh bg-paper">
-      <PartnerSidebar />
+      <PartnerSidebar tabs={tabs} />
       <PartnerTopBar />
       <div className="lg:pl-[260px]">
         {/* pb-28 clears the bottom bar on phones; lg has no bottom bar. */}
@@ -116,7 +113,7 @@ export default function PartnerPortalLayout({ children }) {
           {children}
         </main>
       </div>
-      <PartnerBottomNav />
+      <PartnerBottomNav tabs={tabs} />
     </div>
   )
 }

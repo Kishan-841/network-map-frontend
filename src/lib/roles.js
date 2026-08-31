@@ -63,7 +63,7 @@ const COVERAGE_ONLY = ['/dashboard', '/admin']
 const OFF_LIMITS_FOR_SUPERVISOR = ['/dashboard', '/admin', '/acquisition']
 // A partner manager works with people, not the registry: everything about
 // buildings, zones and the map is off limits.
-const PARTNER_MANAGER_ALLOWED = ['/partners', '/referrals', '/profile']
+const PARTNER_MANAGER_ALLOWED = ['/partners', '/referrals', '/calculator', '/profile']
 export const isForbiddenPath = (role, pathname) => {
   if (isAcquisition(role)) return COVERAGE_ONLY.some((p) => pathname.startsWith(p))
   if (isSupervisor(role)) return OFF_LIMITS_FOR_SUPERVISOR.some((p) => pathname.startsWith(p))

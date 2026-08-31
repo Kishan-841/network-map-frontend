@@ -7,6 +7,7 @@ export {
   User as IconUser,
   Users as IconUsers,
   UserPlus as IconUserPlus,
+  Calculator as IconCalculator,
   CircleCheck as IconOkCircle,
   Clock as IconClock,
   House as IconHome,

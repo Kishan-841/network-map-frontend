@@ -12,6 +12,7 @@ import {
   IconUsers,
   IconDoc,
   IconUser,
+  IconCalculator,
   IconLogout,
   IconSun,
   IconMoon,
@@ -23,13 +24,29 @@ import {
  * more often than from a desk, so the bottom bar is the primary design and
  * the sidebar is what fills the space a large screen offers.
  */
+/**
+ * The five things a partner came to do (partner-network.md §2). Documents and
+ * Profile live inside Profile, so the bar is not cluttered with settings.
+ */
 export const PARTNER_TABS = [
-  { href: '/partner', label: 'Home', icon: IconHome, exact: true },
-  { href: '/partner/refer', label: 'Refer', icon: IconPlus },
-  { href: '/partner/leads', label: 'Referrals', icon: IconUsers },
+  { href: '/partner', label: 'Earnings', icon: IconHome, exact: true },
+  { href: '/partner/calculator', label: 'Calculator', icon: IconCalculator },
+  { href: '/partner/refer', label: 'Add lead', icon: IconPlus },
+  { href: '/partner/leads', label: 'My leads', icon: IconUsers },
+  { href: '/partner/profile', label: 'Profile', icon: IconUser },
+]
+
+/**
+ * What a partner can do while their documents are still being checked
+ * (partner-network.md §8): the pitch tools work from minute one, and only the
+ * actions that create an obligation wait on approval.
+ */
+export const PENDING_TABS = [
+  { href: '/partner/calculator', label: 'Calculator', icon: IconCalculator },
   { href: '/partner/documents', label: 'Documents', icon: IconDoc },
   { href: '/partner/profile', label: 'Profile', icon: IconUser },
 ]
+export const PENDING_ALLOWED = PENDING_TABS.map((t) => t.href)
 
 const isActive = (pathname, { href, exact }) =>
   exact ? pathname === href : pathname.startsWith(href)

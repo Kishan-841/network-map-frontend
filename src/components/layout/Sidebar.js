@@ -17,6 +17,7 @@ import {
   IconUser,
   IconUsers,
   IconUserPlus,
+  IconCalculator,
   IconSun,
   IconMoon,
   IconCollapse,
@@ -40,6 +41,7 @@ const AGENT_NAV = [
 const PARTNER_MANAGER_NAV = [
   { href: '/partners', label: 'Partners', icon: IconUsers },
   { href: '/referrals', label: 'Referrals', icon: IconUserPlus },
+  { href: '/calculator', label: 'Calculator', icon: IconCalculator },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const SUPERVISOR_NAV = [

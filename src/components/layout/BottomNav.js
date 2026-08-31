@@ -9,6 +9,7 @@ import {
   IconUser,
   IconUsers,
   IconUserPlus,
+  IconCalculator,
 } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
 import { isAgent, isLead, isSupervisor, isPartnerManager } from '@/lib/roles'
@@ -29,6 +30,7 @@ const AGENT_NAV = [
 const PARTNER_MANAGER_NAV = [
   { href: '/partners', label: 'Partners', icon: IconUsers },
   { href: '/referrals', label: 'Referrals', icon: IconUserPlus },
+  { href: '/calculator', label: 'Calculator', icon: IconCalculator },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const SUPERVISOR_NAV = [
