@@ -1,32 +1,64 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { partnerApi, getPartnerApiError } from '@/lib/partner-api-client'
+import { getMapProvider } from '@/lib/map-providers'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { StepRail } from '@/components/partner/StepRail'
 import { IconSearch, IconOkCircle, IconArrowLeft } from '@/components/ui/icons'
 
 const SEARCH_DEBOUNCE_MS = 350
 const MIN_QUERY = 3
+const SPEEDS = [100, 200, 300, 400]
+const STEPS = ['Building', 'Customer']
 
 /**
- * Refer a customer.
+ * What we tell the partner about the building they picked.
  *
- * The building comes from OUR registry, not Google. The partner picks a
- * building we actually hold, so there is no coordinate matching to get wrong —
- * and the answer about whether we serve it is a fact about that exact row.
+ * Three states, not two: a building can be surveyed and viable but not yet
+ * lit, and "coming soon" is both true and a better thing for a partner to
+ * tell their neighbour than "no" (partner-network.md §4.3).
  */
-export default function ReferPage() {
+const SIGNAL = {
+  LIVE: {
+    dot: 'bg-ok',
+    tone: 'border-ok/30 bg-ok-tint',
+    title: 'We serve this building',
+    body: 'Your customer can be connected here.',
+  },
+  IN_REGISTRY: {
+    dot: 'bg-warn',
+    tone: 'border-warn/30 bg-warn-tint',
+    title: 'Coming soon here',
+    body: 'We have surveyed this building and are working on it. Send the lead — we will call them.',
+  },
+  NOT_FOUND: {
+    dot: 'bg-bad',
+    tone: 'border-bad/30 bg-bad-tint',
+    title: 'Not in our network yet',
+    body: 'Send the lead anyway. Interest here helps us decide where to build next.',
+  },
+}
+
+export default function AddLeadPage() {
+  const provider = useRef(null)
+  const sessionRef = useRef(null)
+
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
-  // { key, rows } — keyed to the query it answers, so "no results yet" is
-  // DERIVED rather than written back in an effect (react-hooks/set-state-in-effect).
   const [results, setResults] = useState(null)
-  const [selected, setSelected] = useState(null)
-  const [form, setForm] = useState({ customerName: '', customerMobile: '', customerEmail: '', note: '' })
+  const [place, setPlace] = useState(null)
+  const [signal, setSignal] = useState(null)
+  const [form, setForm] = useState({ customerName: '', customerMobile: '', requirementMbps: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [done, setDone] = useState(null)
+
+  useEffect(() => {
+    provider.current = getMapProvider()
+    sessionRef.current = crypto.randomUUID()
+  }, [])
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), SEARCH_DEBOUNCE_MS)
@@ -34,26 +66,57 @@ export default function ReferPage() {
   }, [query])
 
   useEffect(() => {
-    if (selected || debounced.length < MIN_QUERY) return
+    if (place || debounced.length < MIN_QUERY) return
     let cancelled = false
-    partnerApi
-      .get('/partner/buildings/search', { params: { q: debounced } })
-      .then((res) => !cancelled && setResults({ key: debounced, rows: res.data.data }))
-      .catch((err) => {
-        if (cancelled) return
-        setResults({ key: debounced, rows: [] })
-        setError(getPartnerApiError(err, 'Could not search buildings'))
-      })
+    provider.current
+      ?.autocomplete({ input: debounced, sessionToken: sessionRef.current })
+      .then((rows) => !cancelled && setResults({ key: debounced, rows: rows.slice(0, 6) }))
+      .catch(() => !cancelled && setResults({ key: debounced, rows: [] }))
     return () => {
       cancelled = true
     }
-  }, [debounced, selected])
+  }, [debounced, place])
 
-  // Only trust results that answer the query currently typed.
   const rows = results?.key === debounced ? results.rows : null
 
-  const validCustomer =
-    form.customerName.trim() && /^[6-9]\d{9}$/.test(form.customerMobile.trim())
+  async function choose(suggestion) {
+    setBusy(true)
+    setError(null)
+    setResults(null)
+    try {
+      const details = await provider.current.getPlaceDetails({
+        placeId: suggestion.placeId,
+        sessionToken: sessionRef.current,
+      })
+      // The session is spent; the next search starts a new one.
+      sessionRef.current = crypto.randomUUID()
+      const picked = {
+        placeId: details.placeId ?? suggestion.placeId,
+        placeName: details.name ?? suggestion.primaryText,
+        address: details.formattedAddress ?? suggestion.secondaryText,
+        latitude: details.latitude,
+        longitude: details.longitude,
+      }
+      setPlace(picked)
+      setQuery(picked.placeName)
+      const res = await partnerApi.post('/partner/building-signal', {
+        placeId: picked.placeId,
+        placeName: picked.placeName,
+        latitude: picked.latitude,
+        longitude: picked.longitude,
+      })
+      setSignal(res.data.data.match)
+    } catch (err) {
+      setError(getPartnerApiError(err, 'Could not check that building. Please try again.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const customerValid =
+    form.customerName.trim() &&
+    /^[6-9]\d{9}$/.test(form.customerMobile.trim()) &&
+    form.requirementMbps
 
   async function submit() {
     setBusy(true)
@@ -62,14 +125,12 @@ export default function ReferPage() {
       const res = await partnerApi.post('/partner/leads', {
         customerName: form.customerName.trim(),
         customerMobile: form.customerMobile.trim(),
-        customerEmail: form.customerEmail.trim() || undefined,
-        address: selected?.formattedAddress ?? undefined,
-        note: form.note.trim() || undefined,
-        buildingId: selected?.id,
+        requirementMbps: Number(form.requirementMbps),
+        ...place,
       })
       setDone(res.data.data)
     } catch (err) {
-      setError(getPartnerApiError(err, 'Could not send that referral'))
+      setError(getPartnerApiError(err, 'Could not send that lead. Please try again.'))
     } finally {
       setBusy(false)
     }
@@ -79,10 +140,12 @@ export default function ReferPage() {
     setQuery('')
     setDebounced('')
     setResults(null)
-    setSelected(null)
-    setForm({ customerName: '', customerMobile: '', customerEmail: '', note: '' })
+    setPlace(null)
+    setSignal(null)
+    setForm({ customerName: '', customerMobile: '', requirementMbps: '' })
     setDone(null)
     setError(null)
+    sessionRef.current = crypto.randomUUID()
   }
 
   if (done) {
@@ -91,171 +154,186 @@ export default function ReferPage() {
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-ok-tint text-ok">
           <IconOkCircle className="h-6 w-6" />
         </span>
-        <p className="mt-3 font-bold">
-          {done.status === 'DUPLICATE' ? 'We already have this one' : 'Referral sent'}
+        <p className="mt-3 text-lg font-bold">
+          {done.status === 'DUPLICATE' ? 'We already have this one' : 'Lead sent'}
         </p>
         <p className="mt-1 text-sm font-normal text-muted">
           {done.status === 'DUPLICATE'
-            ? 'This customer is already in our system, so it will not be counted twice. Thanks for letting us know.'
-            : `Thanks — our team will get in touch with ${done.customerName}.`}
+            ? 'Someone has already told us about this customer, so it will not be counted twice. Thanks anyway.'
+            : `Our team will call ${done.customerName}. You can follow it in My leads.`}
         </p>
         <Button className="mt-4" onClick={reset}>
-          Refer someone else
+          Add another lead
         </Button>
       </div>
     )
   }
 
+  const meta = signal ? SIGNAL[signal] : null
+
   return (
     <>
-      <h1 className="text-2xl font-bold tracking-tight">Refer a customer</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Add a lead</h1>
       <p className="mt-1 text-sm font-normal text-muted">
-        Find their building first — we will tell you whether we can serve it.
+        Someone who wants an internet connection.
       </p>
 
-      {/* ---- step 1: pick a building ---------------------------------- */}
-      {!selected && (
-        <div className="mt-4 rounded-card bg-card p-5 shadow-soft">
-          <div className="relative">
-            <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            <input
-              id="refer-search"
-              value={query}
-              placeholder="Search building or society name…"
-              onChange={(e) => {
-                setQuery(e.target.value)
-                setError(null)
-              }}
-              className="w-full rounded-btn border border-line bg-card py-3 pl-9 pr-3 text-sm outline-none focus:border-fiber"
-            />
-          </div>
+      <div className="mt-4">
+        <StepRail steps={STEPS} current={place ? 1 : 0} />
+      </div>
 
-          {debounced.length > 0 && debounced.length < MIN_QUERY && (
-            <p className="mt-3 text-sm font-normal text-muted">
-              Type at least {MIN_QUERY} characters.
-            </p>
-          )}
+      {/* ---- step 1: which building ---------------------------------- */}
+      <div className="mt-4 rounded-card bg-card p-5 shadow-soft">
+        {!place ? (
+          <>
+            <label htmlFor="refer-search" className="mb-1.5 block text-sm font-medium">
+              Which building do they live in?
+            </label>
+            <div className="relative">
+              <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
+              <input
+                id="refer-search"
+                value={query}
+                placeholder="Building or society name"
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  setError(null)
+                }}
+                className="h-14 w-full rounded-btn border-2 border-line bg-card pl-9 pr-3 text-base outline-none focus:border-primary"
+              />
+            </div>
 
-          {rows?.length === 0 && debounced.length >= MIN_QUERY && (
-            <p className="mt-3 text-sm font-normal text-muted">
-              No building matches “{debounced}”. Check the spelling, or try the society name.
-            </p>
-          )}
-
-          {rows?.length > 0 && (
-            <ul className="mt-3 flex flex-col overflow-hidden rounded-btn border border-line">
-              {rows.map((b) => (
-                <li key={b.id} className="border-b border-line last:border-b-0">
-                  <button
-                    type="button"
-                    onClick={() => setSelected(b)}
-                    className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-primary/5"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{b.buildingName}</span>
-                      <span className="block truncate text-xs font-normal text-muted">
-                        {b.formattedAddress}
-                      </span>
-                    </span>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-                        b.isServiceable ? 'bg-ok-tint text-ok' : 'bg-paper text-muted'
-                      }`}
+            {debounced.length > 0 && debounced.length < MIN_QUERY && (
+              <p className="mt-3 text-sm font-normal text-muted">
+                Keep typing — at least {MIN_QUERY} letters.
+              </p>
+            )}
+            {rows?.length === 0 && (
+              <p className="mt-3 text-sm font-normal text-muted">
+                Nothing found. Try the society name, or the road it is on.
+              </p>
+            )}
+            {rows?.length > 0 && (
+              <ul className="mt-3 flex flex-col overflow-hidden rounded-btn border border-line">
+                {rows.map((s) => (
+                  <li key={s.placeId} className="border-b border-line last:border-b-0">
+                    <button
+                      type="button"
+                      onClick={() => choose(s)}
+                      className="w-full px-3 py-3 text-left transition-colors hover:bg-primary/5"
                     >
-                      {b.isServiceable ? 'Available' : 'Not yet'}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {error && (
-            <p className="mt-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
-              {error}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* ---- step 2: the verdict, then the customer -------------------- */}
-      {selected && (
-        <>
-          <div className="mt-4 rounded-card bg-card p-5 shadow-soft">
+                      <span className="block truncate text-sm font-medium">{s.primaryText}</span>
+                      <span className="block truncate text-xs font-normal text-muted">
+                        {s.secondaryText}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
+          <>
             <button
               type="button"
               onClick={() => {
-                setSelected(null)
+                setPlace(null)
+                setSignal(null)
+                setQuery('')
                 setError(null)
               }}
-              className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-fiber"
+              className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-primary"
             >
               <IconArrowLeft className="h-4 w-4" />
-              Choose a different building
+              Pick a different building
             </button>
+            <p className="font-bold">{place.placeName}</p>
+            <p className="mt-0.5 text-sm font-normal text-muted">{place.address}</p>
 
-            <p className="font-bold">{selected.buildingName}</p>
-            <p className="mt-0.5 text-sm font-normal text-muted">{selected.formattedAddress}</p>
+            {meta && (
+              <div className={`mt-3 rounded-btn border px-4 py-3 ${meta.tone}`}>
+                <p className="flex items-center gap-2 text-sm font-bold">
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${meta.dot}`} />
+                  {meta.title}
+                </p>
+                <p className="mt-1 text-sm font-normal text-muted">{meta.body}</p>
+              </div>
+            )}
+            {busy && !meta && <p className="mt-3 text-sm font-normal text-muted">Checking…</p>}
+          </>
+        )}
+      </div>
 
-            <div className="mt-3">
-              <span
-                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                  selected.isServiceable ? 'bg-ok-tint text-ok' : 'bg-doc-tint text-doc'
-                }`}
-              >
-                {selected.isServiceable ? 'We can serve this building' : 'Not available here yet'}
+      {/* ---- step 2: who ---------------------------------------------- */}
+      {place && signal && (
+        <div className="mt-4 flex flex-col gap-3 rounded-card bg-card p-5 shadow-soft">
+          <p className="font-bold">Who wants the connection?</p>
+          <Input
+            id="lead-name"
+            label="Their name"
+            value={form.customerName}
+            onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+          />
+          <div>
+            <label htmlFor="lead-mobile" className="mb-1.5 block text-sm font-medium">
+              Their mobile number
+            </label>
+            <div className="flex items-stretch overflow-hidden rounded-btn border-2 border-line focus-within:border-primary">
+              <span className="flex shrink-0 items-center border-r border-line bg-paper px-3.5 text-base font-bold tabular-nums text-muted">
+                +91
               </span>
-              <p className="mt-2 text-sm font-normal text-muted">
-                {selected.isServiceable
-                  ? 'Go ahead and share the customer’s details.'
-                  : 'We know this building but it is not connected yet. We have noted your interest — it helps us decide where to build next.'}
-              </p>
+              <input
+                id="lead-mobile"
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="00000 00000"
+                value={form.customerMobile}
+                onChange={(e) =>
+                  setForm({ ...form, customerMobile: e.target.value.replace(/\D/g, '').slice(0, 10) })
+                }
+                className="h-14 w-full min-w-0 bg-card px-3.5 text-base font-bold tabular-nums outline-none"
+              />
             </div>
           </div>
 
-          {selected.isServiceable && (
-            <div className="mt-4 flex flex-col gap-3 rounded-card bg-card p-5 shadow-soft">
-              <p className="font-bold">Customer details</p>
-              <Input
-                id="lead-name"
-                label="Their name"
-                value={form.customerName}
-                onChange={(e) => setForm({ ...form, customerName: e.target.value })}
-              />
-              <Input
-                id="lead-mobile"
-                label="Mobile number"
-                inputMode="numeric"
-                maxLength={10}
-                value={form.customerMobile}
-                onChange={(e) =>
-                  setForm({ ...form, customerMobile: e.target.value.replace(/\D/g, '') })
-                }
-              />
-              <Input
-                id="lead-email"
-                label="Email (optional)"
-                inputMode="email"
-                value={form.customerEmail}
-                onChange={(e) => setForm({ ...form, customerEmail: e.target.value })}
-              />
-              <Input
-                id="lead-note"
-                label="Anything we should know? (optional)"
-                value={form.note}
-                onChange={(e) => setForm({ ...form, note: e.target.value })}
-              />
-              {error && (
-                <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
-                  {error}
-                </p>
-              )}
-              <Button fullWidth loading={busy} disabled={!validCustomer} onClick={submit}>
-                Send referral
-              </Button>
+          <div>
+            <p className="mb-1.5 text-sm font-medium">What speed do they want?</p>
+            {/* Buttons, not a dropdown — four choices are easier to tap than
+                to open, scroll and pick. */}
+            <div className="grid grid-cols-2 gap-2">
+              {SPEEDS.map((mbps) => {
+                const picked = Number(form.requirementMbps) === mbps
+                return (
+                  <button
+                    key={mbps}
+                    id={`speed-${mbps}`}
+                    type="button"
+                    aria-pressed={picked}
+                    onClick={() => setForm({ ...form, requirementMbps: mbps })}
+                    className={`h-14 rounded-btn border-2 text-base font-bold transition-colors ${
+                      picked
+                        ? 'border-primary bg-primary text-primary-content'
+                        : 'border-line bg-card hover:border-faint'
+                    }`}
+                  >
+                    {mbps} Mbps
+                  </button>
+                )
+              })}
             </div>
+          </div>
+
+          {error && (
+            <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
           )}
-        </>
+          <Button fullWidth loading={busy} disabled={!customerValid} onClick={submit}>
+            Send lead
+          </Button>
+        </div>
+      )}
+
+      {error && !place && (
+        <p className="mt-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
       )}
     </>
   )
