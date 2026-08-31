@@ -44,10 +44,15 @@ export function RevenueCalculator({ client, endpoint }) {
     }
   }, [client, endpoint])
 
-  const rateFor = (speed, period) =>
-    card?.rates.find((r) => r.speedMbps === speed && r.billingPeriod === period)?.amount ?? null
-
   const key = (speed, period) => `${speed}|${period}`
+
+  // One lookup built from the rates, rather than a find() per cell per render.
+  const rateByCell = useMemo(() => {
+    const map = new Map()
+    for (const r of card?.rates ?? []) map.set(key(r.speedMbps, r.billingPeriod), r.amount)
+    return map
+  }, [card])
+  const rateFor = (speed, period) => rateByCell.get(key(speed, period)) ?? null
 
   const { rowTotals, grandTotal, customerCount } = useMemo(() => {
     const rows = {}
@@ -57,7 +62,7 @@ export function RevenueCalculator({ client, endpoint }) {
       let row = 0
       for (const period of card?.periods ?? []) {
         const n = Number(counts[key(speed, period)] ?? 0)
-        const rate = rateFor(speed, period)
+        const rate = rateByCell.get(key(speed, period)) ?? null
         if (n > 0 && rate) {
           row += rate * n
           people += n
@@ -67,7 +72,7 @@ export function RevenueCalculator({ client, endpoint }) {
       total += row
     }
     return { rowTotals: rows, grandTotal: total, customerCount: people }
-  }, [card, counts])
+  }, [card, counts, rateByCell])
 
   if (error) return <p className="text-sm font-normal text-bad">{error}</p>
   if (!card) return <p className="text-sm font-normal text-muted">Loading…</p>
