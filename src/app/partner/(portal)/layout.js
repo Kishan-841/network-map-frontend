@@ -10,6 +10,9 @@ import {
   PartnerTopBar,
 } from '@/components/partner/PartnerNav'
 
+/** Screens that are a table, and should use the full width available. */
+const WIDE_ROUTES = ['/partner/leads']
+
 /**
  * The signed-in partner shell.
  *
@@ -85,6 +88,13 @@ export default function PartnerPortalLayout({ children }) {
   // dead ends — the onboarding screen stands on its own.
   const approved = partner?.status === 'APPROVED'
 
+  /**
+   * Content width is decided here rather than per page, so there is one place
+   * that knows how wide each screen should be. A table wants the room; a
+   * single column of form fields stretched to the same width reads badly.
+   */
+  const contentWidth = WIDE_ROUTES.some((r) => pathname.startsWith(r)) ? 'max-w-6xl' : 'max-w-3xl'
+
   if (!approved) {
     return (
       <div className="min-h-dvh bg-paper">
@@ -100,7 +110,9 @@ export default function PartnerPortalLayout({ children }) {
       <PartnerTopBar />
       <div className="lg:pl-[260px]">
         {/* pb-28 clears the bottom bar on phones; lg has no bottom bar. */}
-        <main className="mx-auto w-full max-w-3xl px-5 pb-28 pt-5 lg:px-8 lg:pb-12 lg:pt-8">
+        <main
+          className={`mx-auto w-full px-5 pb-28 pt-5 lg:px-8 lg:pb-12 lg:pt-8 ${contentWidth}`}
+        >
           {children}
         </main>
       </div>

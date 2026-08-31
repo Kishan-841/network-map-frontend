@@ -76,18 +76,19 @@ export default function PartnerLeadsPage() {
     {
       key: 'customer',
       header: 'Customer',
-      render: (lead) => (
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{lead.customerName}</p>
-          <p className="truncate text-xs font-normal text-muted">{lead.customerMobile}</p>
-        </div>
-      ),
+      render: (lead) => <span className="text-sm font-medium">{lead.customerName}</span>,
+    },
+    {
+      key: 'mobile',
+      header: 'Mobile',
+      render: (lead) => lead.customerMobile,
+      className: 'whitespace-nowrap tabular-nums text-muted',
     },
     {
       key: 'email',
       header: 'Email',
       render: (lead) => lead.customerEmail || '—',
-      className: 'max-w-[200px] truncate text-muted',
+      className: 'max-w-[220px] truncate text-muted',
     },
     {
       key: 'building',
