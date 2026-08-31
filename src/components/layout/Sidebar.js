@@ -40,7 +40,7 @@ const AGENT_NAV = [
 // Recruits partners; no building or map access at all.
 const PARTNER_MANAGER_NAV = [
   { href: '/partners', label: 'Partners', icon: IconUsers },
-  { href: '/referrals', label: 'Referrals', icon: IconUserPlus },
+  { href: '/leads', label: 'Leads', icon: IconUserPlus },
   { href: '/calculator', label: 'Calculator', icon: IconCalculator },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]

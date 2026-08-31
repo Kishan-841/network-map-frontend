@@ -6,36 +6,18 @@ import { partnerApi, getPartnerApiError } from '@/lib/partner-api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
-
-const STATUS_STYLE = {
-  NEW: 'bg-fiber-tint text-fiber',
-  CONTACTED: 'bg-doc-tint text-doc',
-  INTERESTED: 'bg-doc-tint text-doc',
-  CONVERTED: 'bg-ok-tint text-ok',
-  NOT_INTERESTED: 'bg-bad-tint text-bad',
-  UNREACHABLE: 'bg-bad-tint text-bad',
-  DUPLICATE: 'bg-paper text-muted',
-}
-// What the PARTNER should read — not our internal vocabulary. "NEW" means
-// nothing to them; "Sent" does.
-const STATUS_LABEL = {
-  NEW: 'Sent',
-  CONTACTED: 'We called them',
-  INTERESTED: 'Interested',
-  CONVERTED: 'Signed up',
-  NOT_INTERESTED: 'Not interested',
-  UNREACHABLE: 'Could not reach',
-  DUPLICATE: 'Already known',
-}
+import {
+  LEAD_STATUSES,
+  leadStatusClass,
+  PARTNER_LEAD_STATUS_LABEL as STATUS_LABEL,
+} from '@/lib/lead-status'
 
 const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' })
 
 function StatusBadge({ status }) {
   return (
     <span
-      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
-        STATUS_STYLE[status] ?? 'bg-paper text-muted'
-      }`}
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${leadStatusClass(status)}`}
     >
       {STATUS_LABEL[status] ?? status}
     </span>

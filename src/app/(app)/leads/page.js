@@ -1,31 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Input, Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
-import { IconUsers } from '@/components/ui/icons'
+import { IconUsers, IconChevronDown } from '@/components/ui/icons'
+import {
+  LEAD_STATUSES,
+  leadStatusClass,
+  STAFF_LEAD_STATUS_LABEL as STATUS_LABEL,
+} from '@/lib/lead-status'
 
-const STATUS_STYLE = {
-  NEW: 'bg-fiber-tint text-fiber',
-  CONTACTED: 'bg-doc-tint text-doc',
-  INTERESTED: 'bg-doc-tint text-doc',
-  CONVERTED: 'bg-ok-tint text-ok',
-  NOT_INTERESTED: 'bg-bad-tint text-bad',
-  UNREACHABLE: 'bg-bad-tint text-bad',
-  DUPLICATE: 'bg-paper text-muted',
-}
-const STATUS_LABEL = {
-  NEW: 'New',
-  CONTACTED: 'Contacted',
-  INTERESTED: 'Interested',
-  CONVERTED: 'Converted',
-  NOT_INTERESTED: 'Not interested',
-  UNREACHABLE: 'Unreachable',
-  DUPLICATE: 'Duplicate',
-}
 const PARTNER_TYPE = {
   AGENT: 'Agent',
   SOCIETY_REPRESENTATIVE: 'Society rep',
@@ -34,12 +21,55 @@ const PARTNER_TYPE = {
 }
 const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' })
 
+/**
+ * Everyone who can reach this page may move a lead along; the API decides
+ * WHICH leads (a partner manager only reaches their own partners'). Mirrored
+ * here so the control is never offered where the save would be refused.
+ */
+const CAN_UPDATE_STATUS = ['ADMIN', 'MANAGER', 'SUPERVISOR', 'PARTNER_MANAGER']
+
+/**
+ * A status badge you can change.
+ *
+ * It is a real <select> wearing the badge's clothes, not a custom menu: the
+ * keyboard, the screen reader and the phone's native picker all work for free,
+ * and a picker wheel is the right control on the phone this list is often read
+ * on. The chevron is the only hint that it is editable, which is enough
+ * alongside the hover ring.
+ */
+function StatusPicker({ status, onPick, busy }) {
+  const tint = leadStatusClass(status)
+  return (
+    <span
+      className={`relative inline-flex items-center rounded-full transition-opacity ${tint} ${
+        busy ? 'opacity-50' : ''
+      }`}
+    >
+      <select
+        value={status}
+        disabled={busy}
+        aria-label="Lead status"
+        onChange={(e) => onPick(e.target.value)}
+        className="cursor-pointer appearance-none rounded-full bg-transparent py-1 pl-2.5 pr-7 text-xs font-medium text-inherit outline-none ring-inset transition-shadow hover:ring-1 hover:ring-current/30 focus-visible:ring-2 focus-visible:ring-current/50 disabled:cursor-wait"
+      >
+        {LEAD_STATUSES.map((value) => (
+          <option key={value} value={value} className="bg-card text-ink">
+            {STATUS_LABEL[value]}
+          </option>
+        ))}
+      </select>
+      <IconChevronDown
+        className="pointer-events-none absolute right-2 h-3 w-3 opacity-70"
+        strokeWidth={2.4}
+      />
+    </span>
+  )
+}
+
 function StatusBadge({ status }) {
   return (
     <span
-      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
-        STATUS_STYLE[status] ?? 'bg-paper text-muted'
-      }`}
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${leadStatusClass(status)}`}
     >
       {STATUS_LABEL[status] ?? status}
     </span>
@@ -47,7 +77,7 @@ function StatusBadge({ status }) {
 }
 
 /**
- * Referrals sent in by partners.
+ * Leads sent in by partners.
  *
  * The API scopes this: a PARTNER_MANAGER sees only leads from partners they
  * recruited, an admin sees everyone's. Nothing here has to enforce that — but
@@ -61,6 +91,8 @@ export default function ReferralsPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [partnerId, setPartnerId] = useState('')
+  const [saving, setSaving] = useState(null)
+  const canUpdate = CAN_UPDATE_STATUS.includes(role)
 
   useEffect(() => {
     let cancelled = false
@@ -70,6 +102,28 @@ export default function ReferralsPage() {
       .catch((err) => !cancelled && setError(getApiErrorMessage(err, 'Could not load referrals')))
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  /**
+   * Move one lead along.
+   *
+   * Optimistic, because the row is the only feedback there is and a status
+   * change is the common case; a refusal puts the old value straight back so
+   * the table never shows a state the server rejected.
+   */
+  const updateStatus = useCallback(async (lead, next) => {
+    if (next === lead.status) return
+    setError(null)
+    setSaving(lead.id)
+    setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: next } : l)))
+    try {
+      await apiClient.patch(`/leads/${lead.id}/status`, { status: next })
+    } catch (err) {
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: lead.status } : l)))
+      setError(getApiErrorMessage(err, 'Could not update that lead'))
+    } finally {
+      setSaving(null)
     }
   }, [])
 
@@ -133,7 +187,20 @@ export default function ReferralsPage() {
       render: (lead) => lead.building?.buildingName ?? lead.address ?? '—',
       className: 'max-w-[180px] truncate text-muted',
     },
-    { key: 'status', header: 'Status', render: (lead) => <StatusBadge status={lead.status} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (lead) =>
+        canUpdate ? (
+          <StatusPicker
+            status={lead.status}
+            busy={saving === lead.id}
+            onPick={(next) => updateStatus(lead, next)}
+          />
+        ) : (
+          <StatusBadge status={lead.status} />
+        ),
+    },
     {
       key: 'createdAt',
       header: 'Received',
@@ -152,7 +219,15 @@ export default function ReferralsPage() {
             <p className="truncate text-sm font-normal text-muted">{lead.customerEmail}</p>
           )}
         </div>
-        <StatusBadge status={lead.status} />
+        {canUpdate ? (
+          <StatusPicker
+            status={lead.status}
+            busy={saving === lead.id}
+            onPick={(next) => updateStatus(lead, next)}
+          />
+        ) : (
+          <StatusBadge status={lead.status} />
+        )}
       </div>
       <div className="mt-3 border-t border-line pt-3">
         <p className="truncate text-xs font-normal text-faint">
@@ -171,11 +246,11 @@ export default function ReferralsPage() {
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
       <PageHeader
-        title="Referrals"
+        title="Leads"
         sub={
           role === 'PARTNER_MANAGER'
-            ? 'Customers referred by the partners you onboarded'
-            : 'Customers referred by partners'
+            ? 'Sent in by the partners you onboarded'
+            : 'Sent in by partners'
         }
       />
 
@@ -188,13 +263,13 @@ export default function ReferralsPage() {
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="sm:col-span-2">
           <Input
-            id="referrals-search"
+            id="leads-search"
             placeholder="Search customer, mobile, email or partner…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Select id="referrals-partner" value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
+        <Select id="leads-partner" value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
           <option value="">All partners</option>
           {partners.map((p) => (
             <option key={p.id} value={p.id}>
@@ -202,11 +277,11 @@ export default function ReferralsPage() {
             </option>
           ))}
         </Select>
-        <Select id="referrals-status" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <Select id="leads-status" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">All statuses</option>
-          {Object.entries(STATUS_LABEL).map(([value, label]) => (
+          {LEAD_STATUSES.map((value) => (
             <option key={value} value={value}>
-              {label}
+              {STATUS_LABEL[value]}
             </option>
           ))}
         </Select>
@@ -224,12 +299,12 @@ export default function ReferralsPage() {
               <IconUsers className="h-7 w-7" strokeWidth={1.8} />
             </span>
             <p className="mt-4 font-bold">
-              {leads?.length ? 'Nothing matches these filters' : 'No referrals yet'}
+              {leads?.length ? 'Nothing matches these filters' : 'No leads yet'}
             </p>
             <p className="mt-1 max-w-sm text-sm font-normal text-muted">
               {leads?.length
                 ? 'Try a different search, partner or status.'
-                : 'When your partners refer customers, they will appear here.'}
+                : 'When your partners send in customers, they will appear here.'}
             </p>
           </div>
         }
