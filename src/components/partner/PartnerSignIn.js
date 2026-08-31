@@ -6,7 +6,11 @@ import { partnerApi, getPartnerApiError, PARTNER_TYPES } from '@/lib/partner-api
 import { usePartnerAuthStore } from '@/stores/partner-auth-store'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
+import { OtpInput } from '@/components/partner/OtpInput'
+import { StepRail } from '@/components/partner/StepRail'
 import { NodeMark, IconArrowLeft } from '@/components/ui/icons'
+
+const STEPS = ['Number', 'Code', 'Details']
 
 const MOBILE = /^[6-9]\d{9}$/
 
@@ -73,9 +77,18 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
       setStep('code')
     })
 
-  const submitCode = () =>
+  /**
+   * `entered` is passed by the OTP field when the sixth digit lands. It must
+   * be used rather than `code` from state: the auto-submit fires in the same
+   * tick as the setState, so the closure still holds five digits and the
+   * request would go out one short.
+   */
+  const submitCode = (entered) =>
     run(async () => {
-      const res = await partnerApi.post('/partner-auth/otp/verify', { mobile, code })
+      const res = await partnerApi.post('/partner-auth/otp/verify', {
+        mobile,
+        code: entered ?? code,
+      })
       const data = res.data.data
       if (data.needsSignup) {
         setSignupToken(data.signupToken)
@@ -103,20 +116,29 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
     })
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
-      <div className="mb-8 flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-btn bg-primary text-primary-content">
-          <NodeMark className="h-7 w-7" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-lg font-bold leading-tight tracking-tight">Partner portal</p>
-          <p className="truncate text-sm font-normal text-muted">
-            {invitedBy ? `Invited by ${invitedBy}` : 'Refer customers, earn on every one'}
+    <main className="min-h-dvh bg-paper">
+      {/* A solid band anchors the page, so the card sits ON something rather
+          than floating in the middle of an empty screen. */}
+      <header className="bg-neutral px-5 pb-16 pt-10 text-neutral-content">
+        <div className="mx-auto w-full max-w-md">
+          <span className="flex h-12 w-12 items-center justify-center rounded-btn bg-primary text-primary-content">
+            <NodeMark className="h-7 w-7" />
+          </span>
+          <h1 className="mt-4 text-2xl font-bold leading-tight tracking-tight">
+            {invitedBy ? `${invitedBy} invited you` : 'Partner portal'}
+          </h1>
+          <p className="mt-1 text-sm font-normal text-neutral-content/70">
+            Send us customers from your area. Earn on every one that signs up.
           </p>
         </div>
-      </div>
+      </header>
 
-      <div className="rounded-card bg-card p-6 shadow-soft">
+      <div className="mx-auto -mt-10 w-full max-w-md px-5 pb-10">
+      <div className="rounded-card bg-card p-6 shadow-lift">
+        <div className="mb-5">
+          <StepRail steps={STEPS} current={step === 'mobile' ? 0 : step === 'code' ? 1 : 2} />
+        </div>
+
         {/* ---- step 1: the number ------------------------------------- */}
         {step === 'mobile' && (
           <>
@@ -124,16 +146,27 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
             <p className="mb-4 text-sm font-normal text-muted">
               We will send you a 6-digit code. No password needed.
             </p>
-            <Input
-              id="partner-mobile"
-              label="Mobile number"
-              inputMode="numeric"
-              maxLength={10}
-              placeholder="10-digit number"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              onKeyDown={(e) => e.key === 'Enter' && MOBILE.test(mobile) && sendCode()}
-            />
+            {/* The country code is fixed and shown, not typed — an Indian
+                number field without +91 reads as somebody else's form. */}
+            <label htmlFor="partner-mobile" className="mb-1.5 block text-sm font-medium">
+              Mobile number
+            </label>
+            <div className="flex items-stretch overflow-hidden rounded-btn border-2 border-line focus-within:border-primary">
+              <span className="flex shrink-0 items-center gap-1 border-r border-line bg-paper px-3.5 text-lg font-bold tabular-nums text-muted">
+                +91
+              </span>
+              <input
+                id="partner-mobile"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                maxLength={10}
+                placeholder="00000 00000"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                onKeyDown={(e) => e.key === 'Enter' && MOBILE.test(mobile) && sendCode()}
+                className="h-14 w-full min-w-0 bg-card px-3.5 text-lg font-bold tabular-nums tracking-wide outline-none"
+              />
+            </div>
             {error && (
               <p className="mt-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
                 {error}
@@ -179,28 +212,31 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
                 SHOW_OTP_IN_RESPONSE is on, and refuses to start with it on in
                 production. */}
             {devCode && (
-              <div className="mb-4 rounded-btn border border-dashed border-fiber/50 bg-fiber-tint px-4 py-3 text-center">
-                <p className="text-xs font-medium uppercase tracking-wide text-fiber">
-                  Testing — your code
-                </p>
-                <p
+              <button
+                type="button"
+                onClick={() => setCode(devCode)}
+                className="mb-4 block w-full rounded-btn border border-dashed border-primary/50 bg-primary/5 px-4 py-3 text-center transition-colors hover:bg-primary/10"
+              >
+                <span className="block text-xs font-medium uppercase tracking-wide text-primary">
+                  Testing — tap to fill
+                </span>
+                <span
                   id="dev-otp"
-                  className="mt-0.5 text-2xl font-bold tabular-nums tracking-[0.3em] text-fiber"
+                  className="mt-0.5 block text-2xl font-bold tabular-nums tracking-[0.3em] text-primary"
                 >
                   {devCode}
-                </p>
-              </div>
+                </span>
+              </button>
             )}
 
-            <Input
-              ref={codeRef}
-              id="partner-code"
-              label="6-digit code"
-              inputMode="numeric"
-              maxLength={6}
+            <OtpInput
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              onKeyDown={(e) => e.key === 'Enter' && code.length === 6 && submitCode()}
+              onChange={setCode}
+              onComplete={(entered) => {
+                // Six digits in means they are done typing — do not make them
+                // hunt for a button as well.
+                submitCode(entered)
+              }}
             />
 
             {notice && <p className="mt-3 text-sm font-normal text-muted">{notice}</p>}
@@ -215,7 +251,7 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
               fullWidth
               loading={busy}
               disabled={code.length !== 6}
-              onClick={submitCode}
+              onClick={() => submitCode()}
             >
               Continue
             </Button>
@@ -290,6 +326,7 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
             </Button>
           </>
         )}
+        </div>
       </div>
     </main>
   )
