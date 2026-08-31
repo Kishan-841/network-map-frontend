@@ -2,7 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { IconDashboard, IconMap, IconBuildings, IconUser, IconUsers } from '@/components/ui/icons'
+import {
+  IconDashboard,
+  IconMap,
+  IconBuildings,
+  IconUser,
+  IconUsers,
+  IconUserPlus,
+} from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
 import { isAgent, isLead, isSupervisor, isPartnerManager } from '@/lib/roles'
 
@@ -21,6 +28,7 @@ const AGENT_NAV = [
 // Recruits partners; no building or map access at all.
 const PARTNER_MANAGER_NAV = [
   { href: '/partners', label: 'Partners', icon: IconUsers },
+  { href: '/referrals', label: 'Referrals', icon: IconUserPlus },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const SUPERVISOR_NAV = [

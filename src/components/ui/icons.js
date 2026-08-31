@@ -6,6 +6,7 @@ export {
   Building2 as IconBuildings,
   User as IconUser,
   Users as IconUsers,
+  UserPlus as IconUserPlus,
   CircleCheck as IconOkCircle,
   Clock as IconClock,
   House as IconHome,
