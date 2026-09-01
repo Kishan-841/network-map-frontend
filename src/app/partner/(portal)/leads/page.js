@@ -35,7 +35,7 @@ export default function PartnerLeadsPage() {
     partnerApi
       .get('/partner/leads')
       .then((res) => !cancelled && setLeads(res.data.data))
-      .catch((err) => !cancelled && setError(getPartnerApiError(err, 'Could not load your referrals')))
+      .catch((err) => !cancelled && setError(getPartnerApiError(err, 'Could not load your leads')))
     return () => {
       cancelled = true
     }
@@ -48,7 +48,7 @@ export default function PartnerLeadsPage() {
       (lead) =>
         (!status || lead.status === status) &&
         (!q ||
-          [lead.customerName, lead.customerMobile, lead.customerEmail, lead.building?.buildingName]
+          [lead.customerName, lead.customerMobile, lead.building?.buildingName]
             .filter(Boolean)
             .some((field) => field.toLowerCase().includes(q))),
     )
@@ -65,12 +65,6 @@ export default function PartnerLeadsPage() {
       header: 'Mobile',
       render: (lead) => lead.customerMobile,
       className: 'whitespace-nowrap tabular-nums text-muted',
-    },
-    {
-      key: 'email',
-      header: 'Email',
-      render: (lead) => lead.customerEmail || '—',
-      className: 'max-w-[220px] truncate text-muted',
     },
     {
       key: 'building',
@@ -93,9 +87,6 @@ export default function PartnerLeadsPage() {
         <div className="min-w-0">
           <p className="truncate font-bold">{lead.customerName}</p>
           <p className="truncate text-sm font-normal text-muted">{lead.customerMobile}</p>
-          {lead.customerEmail && (
-            <p className="truncate text-sm font-normal text-muted">{lead.customerEmail}</p>
-          )}
         </div>
         <StatusBadge status={lead.status} />
       </div>
@@ -110,13 +101,13 @@ export default function PartnerLeadsPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold tracking-tight">My referrals</h1>
+      <h1 className="text-2xl font-bold tracking-tight">My leads</h1>
       <p className="mt-1 text-sm font-normal text-muted">
         {leads === null
           ? 'Loading…'
           : leads.length === 0
             ? 'Nothing yet.'
-            : `${leads.length} referral${leads.length === 1 ? '' : 's'} so far`}
+            : `${leads.length} customer${leads.length === 1 ? '' : 's'} sent in so far`}
       </p>
 
       {/* The controls only earn their space once there is a list to narrow. */}
@@ -125,7 +116,7 @@ export default function PartnerLeadsPage() {
           <div className="sm:col-span-2">
             <Input
               id="my-leads-search"
-              placeholder="Search customer, mobile, email or building…"
+              placeholder="Search customer, mobile or building…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
