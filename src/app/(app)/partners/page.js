@@ -134,6 +134,14 @@ export default function PartnersPage() {
       ),
     },
     {
+      key: 'mobile',
+      // The number a partner signs in with, so it identifies them where an
+      // email may not: email is optional on a partner and plenty have none.
+      header: 'Mobile',
+      render: (p) => (p.mobile ? `+91 ${p.mobile}` : '—'),
+      className: 'whitespace-nowrap tabular-nums text-muted',
+    },
+    {
       key: 'type',
       header: 'Type',
       render: (p) => (
@@ -228,7 +236,14 @@ export default function PartnersPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-bold">{p.name}</p>
-                <p className="truncate text-sm font-normal text-muted">{p.email}</p>
+                {p.mobile && (
+                  <p className="truncate text-sm font-normal tabular-nums text-muted">
+                    +91 {p.mobile}
+                  </p>
+                )}
+                {p.email && (
+                  <p className="truncate text-sm font-normal text-muted">{p.email}</p>
+                )}
               </div>
               <span
                 className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
