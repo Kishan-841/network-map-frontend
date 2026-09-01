@@ -140,7 +140,7 @@ export default function PartnerEarningsPage() {
             {statement ? statement.activated : '—'}
           </p>
           {statement && (
-            <p className="mt-0.5 text-xs font-normal text-muted">of {statement.added} sent in</p>
+            <p className="mt-0.5 text-xs font-normal text-muted">of {statement.added} added</p>
           )}
         </div>
         <div className="rounded-card bg-card p-5 shadow-soft">
@@ -179,10 +179,10 @@ export default function PartnerEarningsPage() {
                     Month
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-faint">
-                    Sent in
+                    Customer added
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-faint">
-                    Signed up
+                    Customer activated
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-faint">
                     Earned

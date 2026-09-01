@@ -3,7 +3,7 @@
 import { lastMonths, monthNames } from '@/components/earnings/EarningsChart'
 
 /**
- * Customers sent in against customers who signed up, month by month.
+ * Customers added against customers activated, month by month.
  *
  * Paired bars rather than stacked: activated is a SUBSET of added, and
  * stacking two overlapping quantities draws a total that does not exist.
@@ -31,18 +31,18 @@ export function CustomersChart({ months }) {
             <div
               key={m.month}
               className="flex h-full flex-1 flex-col justify-end gap-1.5"
-              title={`${long}: ${added} sent in, ${activated} signed up`}
+              title={`${long}: ${added} added, ${activated} activated`}
             >
               <span className="flex w-full flex-1 items-end justify-center gap-1">
                 <span
                   className="w-1/2 rounded-t-[3px] bg-fiber"
                   style={{ height: `${height(added)}%` }}
-                  aria-label={`${long}: ${added} sent in`}
+                  aria-label={`${long}: ${added} customers added`}
                 />
                 <span
                   className="w-1/2 rounded-t-[3px] bg-ok"
                   style={{ height: `${height(activated)}%` }}
-                  aria-label={`${long}: ${activated} signed up`}
+                  aria-label={`${long}: ${activated} customers activated`}
                 />
               </span>
               <span className="text-center text-[11px] font-medium text-faint">{short}</span>
@@ -54,11 +54,11 @@ export function CustomersChart({ months }) {
       <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-line/60 pt-3">
         <span className="flex items-center gap-1.5 text-xs font-normal text-muted">
           <span className="h-2.5 w-2.5 rounded-[2px] bg-fiber" />
-          Sent in
+          Added
         </span>
         <span className="flex items-center gap-1.5 text-xs font-normal text-muted">
           <span className="h-2.5 w-2.5 rounded-[2px] bg-ok" />
-          Signed up
+          Activated
         </span>
       </div>
     </div>
