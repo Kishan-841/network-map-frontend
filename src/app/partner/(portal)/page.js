@@ -5,10 +5,9 @@ import Link from 'next/link'
 import { partnerApi, getPartnerApiError } from '@/lib/partner-api-client'
 import { usePartnerAuthStore } from '@/stores/partner-auth-store'
 import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Input'
 import { IconChevronDown, IconPlus } from '@/components/ui/icons'
 import { EarningsChart, lastMonths, monthNames } from '@/components/earnings/EarningsChart'
-import { LeadProgress } from '@/components/earnings/LeadProgress'
+import { CustomersChart } from '@/components/earnings/CustomersChart'
 
 const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
 
@@ -22,95 +21,68 @@ const PERIOD_LABEL = {
 const monthLabel = (key) => monthNames(key).long
 
 /**
- * Whether we have paid a month. Deliberately two words the partner already
- * uses, not a status code: "Awaiting payment" says who is waiting on whom.
- */
-function PaidPill({ status }) {
-  const paid = status === 'PAID'
-  return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
-        paid ? 'bg-ok-tint text-ok' : 'bg-warn-tint text-warn'
-      }`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${paid ? 'bg-ok' : 'bg-warn'}`} />
-      {paid ? 'Paid' : 'Awaiting payment'}
-    </span>
-  )
-}
-
-/**
- * One month, openable to show which customers made it up.
+ * A month, and — when opened — the customers who made it up.
  *
- * The summary is what a partner checks; the breakdown is what they argue
- * with, so it is one tap away rather than on a separate screen.
+ * The breakdown lives inside the row rather than on a second list further
+ * down the page: two month lists on one screen is the same information twice,
+ * and the reader has to work out whether they disagree.
  */
-function MonthRow({ month }) {
-  const [open, setOpen] = useState(false)
+function MonthRows({ month, open, onToggle }) {
+  const cell = 'px-4 py-3 text-right tabular-nums'
   return (
-    <div className="border-b border-line/70 last:border-b-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-paper/60"
+    <>
+      <tr
+        className={`border-b border-line/60 transition-colors hover:bg-paper/60 ${
+          open ? 'bg-paper/60' : ''
+        }`}
       >
-        <IconChevronDown
-          className={`mt-0.5 h-4 w-4 shrink-0 text-faint transition-transform ${open ? 'rotate-180' : ''}`}
-          strokeWidth={2}
-        />
-        {/* The month and its total share the top line; the pill drops beneath
-            rather than competing for width with them. A phone cannot fit all
-            three side by side without truncating the month name, and the
-            month name is the one thing that must never be cut. */}
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline justify-between gap-3">
-            <span className="truncate text-sm font-medium">{monthLabel(month.month)}</span>
-            <span className="shrink-0 text-base font-bold tabular-nums">
-              {rupees(month.total)}
-            </span>
-          </span>
-          <span className="mt-1.5 flex items-center gap-2">
-            <PaidPill status={month.status} />
-            <span className="text-xs font-normal text-muted">
-              {month.count} {month.count === 1 ? 'customer' : 'customers'}
-            </span>
-          </span>
-        </span>
-      </button>
+        <td className="whitespace-nowrap px-4 py-3">
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            disabled={!month.lines.length}
+            className="flex items-center gap-2 font-medium disabled:cursor-default"
+          >
+            <IconChevronDown
+              className={`h-3.5 w-3.5 shrink-0 text-faint transition-transform ${
+                open ? 'rotate-180' : ''
+              } ${month.lines.length ? '' : 'invisible'}`}
+              strokeWidth={2.2}
+            />
+            {monthLabel(month.month)}
+          </button>
+        </td>
+        <td className={`${cell} text-muted`}>{month.added}</td>
+        <td className={cell}>{month.activated}</td>
+        <td className={`${cell} font-medium`}>{rupees(month.total)}</td>
+        <td className={`${cell} text-ok`}>{month.paid ? rupees(month.paid) : '—'}</td>
+      </tr>
 
-      {open && (
-        <ul className="bg-paper/40 px-4 pb-3">
-          {month.lines.map((line) => (
-            <li
-              key={line.id}
-              className="flex items-center gap-3 border-t border-line/50 py-2.5 first:border-t-0"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm">{line.customerName ?? 'Customer'}</span>
-                <span className="block text-xs font-normal text-muted">
-                  {line.speedMbps} Mbps · {PERIOD_LABEL[line.billingPeriod] ?? line.billingPeriod}
-                </span>
+      {open &&
+        month.lines.map((line) => (
+          <tr key={line.id} className="border-b border-line/60 bg-paper/30 text-xs">
+            <td className="py-2 pl-11 pr-4">
+              <span className="block truncate font-medium">{line.customerName ?? 'Customer'}</span>
+              <span className="block text-muted">
+                {line.speedMbps} Mbps · {PERIOD_LABEL[line.billingPeriod] ?? line.billingPeriod}
               </span>
-              {/* Only when this line disagrees with the month — repeating
-                  "Awaiting" under an "Awaiting payment" header is noise. */}
-              {line.status !== month.status && (
-                <span
-                  className={`shrink-0 text-xs font-normal ${
-                    line.status === 'PAID' ? 'text-ok' : 'text-warn'
-                  }`}
-                >
-                  {line.status === 'PAID' ? 'Paid' : 'Awaiting'}
-                </span>
+            </td>
+            <td />
+            <td className="px-4 py-2 text-right">
+              {line.status === 'PAID' ? (
+                <span className="text-ok">Paid</span>
+              ) : (
+                <span className="text-warn">Awaiting</span>
               )}
-              <span className="shrink-0 text-sm font-medium tabular-nums">
-                {rupees(line.amount)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+            </td>
+            <td className="px-4 py-2 text-right tabular-nums">{rupees(line.amount)}</td>
+            <td className="px-4 py-2 text-right tabular-nums text-ok">
+              {line.status === 'PAID' ? rupees(line.amount) : '—'}
+            </td>
+          </tr>
+        ))}
+    </>
   )
 }
 
@@ -124,8 +96,7 @@ export default function PartnerEarningsPage() {
   const [statement, setStatement] = useState(null)
   const [error, setError] = useState(null)
   const [month, setMonth] = useState('')
-  const [paid, setPaid] = useState('')
-  const [leads, setLeads] = useState(null)
+  const [openMonth, setOpenMonth] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -138,23 +109,10 @@ export default function PartnerEarningsPage() {
     }
   }, [])
 
-  // Their leads, for the progress card. A failure here must not take the
-  // earnings down with it — the money is the point of this page.
-  useEffect(() => {
-    let cancelled = false
-    partnerApi
-      .get('/partner/leads')
-      .then((res) => !cancelled && setLeads(res.data.data))
-      .catch(() => !cancelled && setLeads([]))
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   const months = useMemo(() => {
     const all = statement?.months ?? []
-    return all.filter((m) => (!month || m.month === month) && (!paid || m.status === paid))
-  }, [statement, month, paid])
+    return all.filter((m) => !month || m.month === month)
+  }, [statement, month])
 
   const firstName = partner?.name?.split(' ')[0]
 
@@ -171,84 +129,116 @@ export default function PartnerEarningsPage() {
         </p>
       )}
 
-      {/* The two numbers that matter, largest first: what is coming, and what
-          has been earned in total. */}
-      <div className="mt-6 grid grid-cols-2 gap-3">
+      {/* The three numbers the partner came for: how many signed up, what
+          that earned, and how much has actually arrived. */}
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <div className="rounded-card bg-card p-5 shadow-soft">
-          <p className="text-xs font-medium uppercase tracking-wide text-faint">Awaiting payment</p>
-          <p className="mt-1.5 text-2xl font-bold tabular-nums text-warn">
-            {statement ? rupees(statement.outstanding) : '—'}
+          <p className="text-xs font-medium uppercase tracking-wide text-faint">
+            Customers activated
           </p>
+          <p className="mt-1.5 text-2xl font-bold tabular-nums">
+            {statement ? statement.activated : '—'}
+          </p>
+          {statement && (
+            <p className="mt-0.5 text-xs font-normal text-muted">of {statement.added} sent in</p>
+          )}
         </div>
         <div className="rounded-card bg-card p-5 shadow-soft">
-          <p className="text-xs font-medium uppercase tracking-wide text-faint">Earned in all</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-faint">Total earnings</p>
           <p className="mt-1.5 text-2xl font-bold tabular-nums">
             {statement ? rupees(statement.total) : '—'}
           </p>
+          {statement && (
+            <p className="mt-0.5 text-xs font-normal text-warn">
+              {rupees(statement.outstanding)} awaiting
+            </p>
+          )}
+        </div>
+        <div className="col-span-2 rounded-card bg-card p-5 shadow-soft lg:col-span-1">
+          <p className="text-xs font-medium uppercase tracking-wide text-faint">Paid to you</p>
+          <p className="mt-1.5 text-2xl font-bold tabular-nums text-ok">
+            {statement ? rupees(statement.paid) : '—'}
+          </p>
+          {statement && statement.total > 0 && (
+            <p className="mt-0.5 text-xs font-normal text-muted">
+              {Math.round((statement.paid / statement.total) * 100)}% of what you have earned
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Two columns once there is room: the money on the left, where the
-          customers have got to on the right. Below lg they stack. */}
-      {statement && (
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+      {/* Month by month, as a table: the numbers side by side are easier to
+          compare than the same numbers spread across cards. */}
+      {statement && statement.months.length > 0 && (
+        <div className="mt-4 overflow-hidden rounded-card bg-card shadow-soft">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left">
+                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-faint">
+                    Month
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-faint">
+                    Sent in
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-faint">
+                    Signed up
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-faint">
+                    Earned
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-faint">
+                    Paid
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {months.map((m) => (
+                  <MonthRows
+                    key={m.month}
+                    month={m}
+                    open={openMonth === m.month}
+                    onToggle={() =>
+                      setOpenMonth((current) => (current === m.month ? null : m.month))
+                    }
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {statement && statement.months.length === 0 && (
+        <div className="mt-4 rounded-card bg-card px-6 py-12 text-center shadow-soft">
+          <p className="font-bold">Nothing yet</p>
+          <p className="mx-auto mt-1 max-w-xs text-sm font-normal text-muted">
+            You earn when a customer you sent in signs up. Send us your first one and it will show
+            up here.
+          </p>
+          <Link href="/partner/refer" className="mt-5 inline-block">
+            <Button>
+              <IconPlus className="h-4 w-4" strokeWidth={2} />
+              Add a lead
+            </Button>
+          </Link>
+        </div>
+      )}
+
+      {/* Two columns once there is room. Below lg they stack. */}
+      {statement && statement.months.length > 0 && (
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div>
             <EarningsChart
               months={statement.months}
               selected={month || null}
               onSelect={(key) => setMonth(key ?? '')}
             />
           </div>
-          <LeadProgress leads={leads} />
+          <CustomersChart months={statement.months} />
         </div>
       )}
 
-      {/* The chart is the month picker, but not everyone taps a bar — these
-          say the same thing in a control that reads as one. */}
-      {statement && (
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <Select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
-            <option value="">Every month</option>
-            {lastMonths(statement.months).map((m) => (
-              <option key={m.month} value={m.month} disabled={!m.total}>
-                {monthLabel(m.month)}
-                {m.total ? '' : ' — nothing'}
-              </option>
-            ))}
-          </Select>
-          <Select value={paid} onChange={(e) => setPaid(e.target.value)} aria-label="Payment">
-            <option value="">Paid and unpaid</option>
-            <option value="AWAITING_PAYMENT">Awaiting payment</option>
-            <option value="PAID">Paid</option>
-          </Select>
-        </div>
-      )}
-
-      <div className="mt-4 overflow-hidden rounded-card bg-card shadow-soft">
-        {statement === null && !error ? (
-          <p className="px-4 py-10 text-center text-sm font-normal text-muted">Loading…</p>
-        ) : months.length ? (
-          months.map((m) => <MonthRow key={m.month} month={m} />)
-        ) : statement?.months.length ? (
-          <p className="px-4 py-10 text-center text-sm font-normal text-muted">
-            Nothing in that month.
-          </p>
-        ) : (
-          <div className="px-6 py-12 text-center">
-            <p className="font-bold">No earnings yet</p>
-            <p className="mx-auto mt-1 max-w-xs text-sm font-normal text-muted">
-              You earn when a customer you sent in signs up. Send us your first one and it will show
-              up here.
-            </p>
-            <Link href="/partner/refer" className="mt-5 inline-block">
-              <Button>
-                <IconPlus className="h-4 w-4" strokeWidth={2} />
-                Add a lead
-              </Button>
-            </Link>
-          </div>
-        )}
-      </div>
     </>
   )
 }
