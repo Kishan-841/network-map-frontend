@@ -92,16 +92,19 @@ export default function IntroducePartnerPage() {
         </div>
       )}
 
-      <form onSubmit={submit} className="mt-6 rounded-card bg-card p-5 shadow-soft">
+      <form
+        onSubmit={submit}
+        className="mt-6 flex flex-col gap-5 rounded-card bg-card p-5 shadow-soft"
+      >
         <Input
           id="ref-name"
-          label="Their name"
+          label="Name"
           value={form.name}
           onChange={set('name')}
           autoComplete="off"
         />
 
-        <Field label="What they do" htmlFor="ref-type">
+        <Field label="Type" htmlFor="ref-type">
           <div className="flex flex-wrap gap-2" id="ref-type">
             {TYPES.map((value) => (
               <button
@@ -120,7 +123,7 @@ export default function IntroducePartnerPage() {
           </div>
         </Field>
 
-        <Field label="Their mobile number" htmlFor="ref-mobile">
+        <Field label="Mobile number" htmlFor="ref-mobile">
           <div className="flex items-stretch">
             <span className="flex items-center rounded-l-btn border border-r-0 border-line bg-paper px-3 text-sm font-medium text-muted">
               +91
@@ -139,7 +142,7 @@ export default function IntroducePartnerPage() {
 
         <Input
           id="ref-email"
-          label="Their email (optional)"
+          label="Email (optional)"
           type="email"
           value={form.email}
           onChange={set('email')}
@@ -147,7 +150,7 @@ export default function IntroducePartnerPage() {
         />
 
         {error && (
-          <p className="mb-4 rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">
+          <p className="rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">
             {error}
           </p>
         )}
