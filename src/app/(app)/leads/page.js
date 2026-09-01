@@ -6,8 +6,8 @@ import { useAuthStore } from '@/stores/auth-store'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Input, Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
-import { IconUsers, IconChevronDown } from '@/components/ui/icons'
-import { ConvertLeadModal } from '@/components/leads/ConvertLeadModal'
+import { IconUsers, IconEdit } from '@/components/ui/icons'
+import { EditLeadModal } from '@/components/leads/EditLeadModal'
 import {
   LEAD_STATUSES,
   leadStatusClass,
@@ -28,44 +28,6 @@ const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'sh
  * here so the control is never offered where the save would be refused.
  */
 const CAN_UPDATE_STATUS = ['ADMIN', 'MANAGER', 'SUPERVISOR', 'PARTNER_MANAGER']
-
-/**
- * A status badge you can change.
- *
- * It is a real <select> wearing the badge's clothes, not a custom menu: the
- * keyboard, the screen reader and the phone's native picker all work for free,
- * and a picker wheel is the right control on the phone this list is often read
- * on. The chevron is the only hint that it is editable, which is enough
- * alongside the hover ring.
- */
-function StatusPicker({ status, onPick, busy }) {
-  const tint = leadStatusClass(status)
-  return (
-    <span
-      className={`relative inline-flex items-center rounded-full transition-opacity ${tint} ${
-        busy ? 'opacity-50' : ''
-      }`}
-    >
-      <select
-        value={status}
-        disabled={busy}
-        aria-label="Lead status"
-        onChange={(e) => onPick(e.target.value)}
-        className="cursor-pointer appearance-none rounded-full bg-transparent py-1 pl-2.5 pr-7 text-xs font-medium text-inherit outline-none ring-inset transition-shadow hover:ring-1 hover:ring-current/30 focus-visible:ring-2 focus-visible:ring-current/50 disabled:cursor-wait"
-      >
-        {LEAD_STATUSES.map((value) => (
-          <option key={value} value={value} className="bg-card text-ink">
-            {STATUS_LABEL[value]}
-          </option>
-        ))}
-      </select>
-      <IconChevronDown
-        className="pointer-events-none absolute right-2 h-3 w-3 opacity-70"
-        strokeWidth={2.4}
-      />
-    </span>
-  )
-}
 
 const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
 
@@ -124,9 +86,9 @@ export default function ReferralsPage() {
   const [status, setStatus] = useState('')
   const [partnerId, setPartnerId] = useState('')
   const [saving, setSaving] = useState(null)
-  // The lead waiting on a plan before it can be converted, and the rate card
-  // the amount comes from.
-  const [converting, setConverting] = useState(null)
+  // The lead open in the edit panel, and the rate card a conversion prices
+  // itself from.
+  const [editing, setEditing] = useState(null)
   const [rates, setRates] = useState([])
   const canUpdate = CAN_UPDATE_STATUS.includes(role)
 
@@ -161,19 +123,27 @@ export default function ReferralsPage() {
    * change is the common case; a refusal puts the old value straight back so
    * the table never shows a state the server rejected.
    */
-  const updateStatus = useCallback(async (lead, next, plan) => {
-    // A plan always goes through, even when the status is unchanged: that is
-    // how a lead already sitting in Converted gets its missing earning.
-    if (next === lead.status && !plan) return
+  /**
+   * Save what the edit panel collected.
+   *
+   * Not optimistic: the panel stays open on failure with the reason, and a
+   * conversion has to be told whether the earning was actually created before
+   * the row can claim it was.
+   */
+  const saveLead = useCallback(async (lead, { status, note, plan }) => {
     setError(null)
     setSaving(lead.id)
-    setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: next } : l)))
     try {
-      await apiClient.patch(`/leads/${lead.id}/status`, { status: next, ...(plan && { plan }) })
+      await apiClient.patch(`/leads/${lead.id}/status`, {
+        status,
+        ...(note && { note }),
+        ...(plan && { plan }),
+      })
+      // Refetch rather than patch in place: converting also creates the
+      // earning the row shows, which is not in this response.
+      const res = await apiClient.get('/leads')
+      setLeads(res.data.data)
     } catch (err) {
-      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: lead.status } : l)))
-      // Rethrown as well as shown: the convert modal needs to know it failed
-      // so it can stay open with the reason rather than closing on a no-op.
       const message = getApiErrorMessage(err, 'Could not update that lead')
       setError(message)
       throw new Error(message)
@@ -181,22 +151,6 @@ export default function ReferralsPage() {
       setSaving(null)
     }
   }, [])
-
-  /**
-   * Converting is the one status that cannot be applied straight away: it
-   * creates the partner's earning, and the amount depends on a plan nobody
-   * has recorded yet. Every other status goes through untouched.
-   */
-  const pickStatus = useCallback(
-    (lead, next) => {
-      if (next === 'CONVERTED' && lead.status !== 'CONVERTED') {
-        setConverting(lead)
-        return
-      }
-      updateStatus(lead, next).catch(() => {})
-    },
-    [updateStatus],
-  )
 
   // The list is capped at 200 server-side, so filtering in memory is honest
   // here — there is no second page hiding behind these controls.
@@ -263,16 +217,8 @@ export default function ReferralsPage() {
       header: 'Status',
       render: (lead) => (
         <div>
-          {canUpdate ? (
-            <StatusPicker
-              status={lead.status}
-              busy={saving === lead.id}
-              onPick={(next) => pickStatus(lead, next)}
-            />
-          ) : (
-            <StatusBadge status={lead.status} />
-          )}
-          <EarningNote lead={lead} onFix={canUpdate ? () => setConverting(lead) : undefined} />
+          <StatusBadge status={lead.status} />
+          <EarningNote lead={lead} onFix={canUpdate ? () => setEditing(lead) : undefined} />
         </div>
       ),
     },
@@ -281,6 +227,24 @@ export default function ReferralsPage() {
       header: 'Received',
       render: (lead) => dateFormat.format(new Date(lead.createdAt)),
       className: 'tabular-nums text-muted',
+    },
+    {
+      key: 'actions',
+      header: 'Action',
+      render: (lead) =>
+        canUpdate ? (
+          <button
+            type="button"
+            onClick={() => setEditing(lead)}
+            disabled={saving === lead.id}
+            aria-label={`Update ${lead.customerName}`}
+            title="Update this lead"
+            className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+          >
+            <IconEdit className="h-4 w-4" strokeWidth={1.9} />
+          </button>
+        ) : null,
+      className: 'w-px',
     },
   ]
 
@@ -294,17 +258,22 @@ export default function ReferralsPage() {
             <p className="truncate text-sm font-normal text-muted">{lead.customerEmail}</p>
           )}
         </div>
-        <div className="text-right">
-          {canUpdate ? (
-            <StatusPicker
-              status={lead.status}
-              busy={saving === lead.id}
-              onPick={(next) => pickStatus(lead, next)}
-            />
-          ) : (
+        <div className="flex shrink-0 items-start gap-2">
+          <div className="text-right">
             <StatusBadge status={lead.status} />
+            <EarningNote lead={lead} onFix={canUpdate ? () => setEditing(lead) : undefined} />
+          </div>
+          {canUpdate && (
+            <button
+              type="button"
+              onClick={() => setEditing(lead)}
+              disabled={saving === lead.id}
+              aria-label={`Update ${lead.customerName}`}
+              className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+            >
+              <IconEdit className="h-4 w-4" strokeWidth={1.9} />
+            </button>
           )}
-          <EarningNote lead={lead} onFix={canUpdate ? () => setConverting(lead) : undefined} />
         </div>
       </div>
       <div className="mt-3 border-t border-line pt-3">
@@ -388,24 +357,19 @@ export default function ReferralsPage() {
         }
       />
 
-      {converting && (
-        <ConvertLeadModal
-          key={converting.id}
-          lead={converting}
+      {editing && (
+        <EditLeadModal
+          key={editing.id}
+          lead={editing}
           rates={rates}
-          onCancel={() => setConverting(null)}
-          onConfirm={async (plan) => {
-            await updateStatus(converting, 'CONVERTED', plan)
-            // Pull the row back so the amount appears straight away — the
-            // status may not even have changed, only the earning behind it.
-            apiClient
-              .get('/leads')
-              .then((res) => setLeads(res.data.data))
-              .catch(() => {})
-            setConverting(null)
+          onCancel={() => setEditing(null)}
+          onSave={async (changes) => {
+            await saveLead(editing, changes)
+            setEditing(null)
           }}
         />
       )}
+
     </main>
   )
 }
