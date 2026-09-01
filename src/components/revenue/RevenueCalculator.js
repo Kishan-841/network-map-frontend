@@ -85,7 +85,9 @@ export function RevenueCalculator({ client, endpoint }) {
         <table className="w-full min-w-[520px] border-separate border-spacing-0">
           <thead>
             <tr>
-              <th className="px-5 pb-3 pt-5 text-left text-xs font-medium uppercase tracking-wide text-faint">
+              {/* Rules mark the three zones: what plan, what you enter, what
+                  it comes to. */}
+              <th className="border-r border-line px-5 pb-3 pt-5 text-left text-xs font-medium uppercase tracking-wide text-faint">
                 Speed
               </th>
               {card.periods.map((period) => (
@@ -106,7 +108,7 @@ export function RevenueCalculator({ client, endpoint }) {
           <tbody>
             {card.speeds.map((speed) => (
               <tr key={speed} className="group">
-                <td className="border-t border-line px-5 py-3.5">
+                <td className="border-r border-t border-line px-5 py-3.5">
                   <span className="whitespace-nowrap text-base font-bold">{speed}</span>
                   <span className="ml-1 text-xs font-normal text-muted">Mbps</span>
                 </td>
@@ -142,12 +144,15 @@ export function RevenueCalculator({ client, endpoint }) {
                   )
                 })}
                 <td className="border-l border-t border-line bg-paper/50 px-5 py-3.5 text-right align-middle">
+                  {/* ₹0 rather than a dash: a dash is a different width and a
+                      different shape, so it breaks the column it sits in.
+                      Kept faint, so an empty row still recedes. */}
                   <span
                     className={`whitespace-nowrap text-base tabular-nums ${
                       rowTotals[speed] ? 'font-bold' : 'font-normal text-faint'
                     }`}
                   >
-                    {rowTotals[speed] ? rupees(rowTotals[speed]) : '—'}
+                    {rupees(rowTotals[speed] ?? 0)}
                   </span>
                 </td>
               </tr>
