@@ -31,6 +31,20 @@ const COVERAGE_NAV = [
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+/**
+ * An admin does everything a partner manager does, so the partner tabs sit in
+ * the admin's own nav rather than only in a role that cannot see the registry.
+ * The calculator lives in Manage instead — an admin quotes rates far less
+ * often than they look at partners and leads, and six is what the bar holds.
+ */
+const ADMIN_NAV = [
+  { href: '/dashboard', label: 'Dashboard', icon: IconDashboard },
+  { href: '/map', label: 'Map', icon: IconMap },
+  { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/partners', label: 'Partners', icon: IconUsers },
+  { href: '/leads', label: 'Leads', icon: IconUserPlus },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
 const AGENT_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'My buildings', icon: IconBuildings },
@@ -80,18 +94,24 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
+  // Named to match BottomNav, which selects the role directly. The two files
+  // pick the same nav from the same role and have twice now drifted on how
+  // they spell it.
+  const role = user?.role
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const { sidebarCollapsed: collapsed, toggleSidebar } = useUiStore()
   const { theme, toggle: toggleTheme } = useTheme()
-  const NAV_ITEMS = isAgent(user?.role)
+  const NAV_ITEMS = isAgent(role)
     ? AGENT_NAV
-    : isLead(user?.role)
+    : isLead(role)
       ? LEAD_NAV
-      : isSupervisor(user?.role)
+      : isSupervisor(role)
         ? SUPERVISOR_NAV
-        : isPartnerManager(user?.role)
+        : isPartnerManager(role)
           ? PARTNER_MANAGER_NAV
-          : COVERAGE_NAV
+          : role === 'ADMIN'
+            ? ADMIN_NAV
+            : COVERAGE_NAV
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '80px' : '280px')

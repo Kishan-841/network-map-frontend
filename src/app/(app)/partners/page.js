@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
+import { useAuthStore } from '@/stores/auth-store'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -73,6 +74,7 @@ function InviteModal({ invite, onClose }) {
 }
 
 export default function PartnersPage() {
+  const role = useAuthStore((s) => s.user?.role)
   const [partners, setPartners] = useState(null)
   const [invites, setInvites] = useState([])
   const [newInvite, setNewInvite] = useState(null)
@@ -170,7 +172,13 @@ export default function PartnersPage() {
     <main className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
       <PageHeader
         title="Partners"
-        sub="Referral partners you have onboarded"
+        // An admin sees every partner, whoever recruited them; a partner
+        // manager sees only their own. The heading has to say which.
+        sub={
+          role === 'PARTNER_MANAGER'
+            ? 'Referral partners you have onboarded'
+            : 'Every referral partner, whoever onboarded them'
+        }
         action={
           <Button loading={busy} onClick={createInvite}>
             <IconPlus className="h-4.5 w-4.5" />

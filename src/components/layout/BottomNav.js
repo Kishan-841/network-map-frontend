@@ -20,6 +20,15 @@ const COVERAGE_NAV = [
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+// Mirrors the sidebar: an admin does everything a partner manager does.
+const ADMIN_NAV = [
+  { href: '/dashboard', label: 'Home', icon: IconDashboard },
+  { href: '/map', label: 'Map', icon: IconMap },
+  { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/partners', label: 'Partners', icon: IconUsers },
+  { href: '/leads', label: 'Leads', icon: IconUserPlus },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
 // The acquisition team never sees the map or the coverage registry.
 const AGENT_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
@@ -59,7 +68,9 @@ export function BottomNav() {
         ? SUPERVISOR_NAV
         : isPartnerManager(role)
           ? PARTNER_MANAGER_NAV
-          : COVERAGE_NAV
+          : role === 'ADMIN'
+            ? ADMIN_NAV
+            : COVERAGE_NAV
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">

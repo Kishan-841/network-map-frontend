@@ -29,6 +29,14 @@ export const isPartnerManager = (role) => role === 'PARTNER_MANAGER'
  */
 export const canManageBuildings = (role) => ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)
 
+/**
+ * May work the partner network — recruit partners, see their leads, quote the
+ * rate card. An admin does everything a partner manager does; the difference
+ * is that a partner manager does ONLY this, and sees only their own partners.
+ * Mirrors the API, which scopes every partner query by `role !== 'ADMIN'`.
+ */
+export const canManagePartners = (role) => ['ADMIN', 'PARTNER_MANAGER'].includes(role)
+
 export const DESIGNATIONS = [
   { value: 'CHAIRMAN', label: 'Chairman' },
   { value: 'SECRETARY', label: 'Secretary' },
