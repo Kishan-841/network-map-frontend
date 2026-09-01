@@ -29,6 +29,8 @@ const TYPE_LABEL = {
   RETAIL_SHOP: 'Retail shop',
   DSA: 'DSA',
 }
+const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
+
 const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' })
 
 /**
@@ -153,6 +155,30 @@ export default function PartnersPage() {
       ),
     },
     {
+      key: 'added',
+      header: 'Added',
+      render: (p) => p.customersAdded ?? 0,
+      className: 'text-right tabular-nums text-muted',
+    },
+    {
+      key: 'activated',
+      header: 'Activated',
+      render: (p) => p.customersActivated ?? 0,
+      className: 'text-right tabular-nums',
+    },
+    {
+      key: 'earnings',
+      // Always an amount, never blank: a money column that empties out for an
+      // unproductive partner reads as missing data rather than as zero.
+      header: 'Earnings',
+      render: (p) => (
+        <span className={p.totalEarnings ? 'font-medium' : 'text-faint'}>
+          {rupees(p.totalEarnings)}
+        </span>
+      ),
+      className: 'whitespace-nowrap text-right tabular-nums',
+    },
+    {
       key: 'status',
       header: 'Status',
       render: (p) => (
@@ -254,6 +280,20 @@ export default function PartnersPage() {
               {TYPE_LABEL[p.type] ?? p.type}
               {p.companyName ? ` · ${p.companyName}` : ''}
             </p>
+            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
+              <div>
+                <p className="text-sm font-bold tabular-nums">{p.customersAdded ?? 0}</p>
+                <p className="text-[11px] font-normal text-faint">Added</p>
+              </div>
+              <div>
+                <p className="text-sm font-bold tabular-nums">{p.customersActivated ?? 0}</p>
+                <p className="text-[11px] font-normal text-faint">Activated</p>
+              </div>
+              <div>
+                <p className="text-sm font-bold tabular-nums">{rupees(p.totalEarnings)}</p>
+                <p className="text-[11px] font-normal text-faint">Earned</p>
+              </div>
+            </div>
           </div>
         )}
         emptyState={
