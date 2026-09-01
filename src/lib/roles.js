@@ -80,7 +80,9 @@ const PARTNER_MANAGER_ALLOWED = ['/partners', '/leads', '/calculator', '/profile
  * it needs a reason rather than a senior-sounding role — a manager or
  * supervisor oversees the building registry, not other people's customers.
  */
-const PARTNER_NETWORK = ['/partners', '/leads']
+// The calculator is included because it IS the commission structure — what
+// every partner is paid — not just a convenience tool.
+const PARTNER_NETWORK = ['/partners', '/leads', '/calculator']
 export const isForbiddenPath = (role, pathname) => {
   // Checked before the per-role rules below, so a new role cannot reach the
   // partner network just by not appearing in any of them.
