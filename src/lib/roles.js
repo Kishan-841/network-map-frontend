@@ -72,7 +72,19 @@ const OFF_LIMITS_FOR_SUPERVISOR = ['/dashboard', '/admin', '/acquisition']
 // A partner manager works with people, not the registry: everything about
 // buildings, zones and the map is off limits.
 const PARTNER_MANAGER_ALLOWED = ['/partners', '/leads', '/calculator', '/profile']
+/**
+ * The partner network. Only the admin and the partner managers, mirroring the
+ * API, which refuses everyone else with a 403.
+ *
+ * A lead carries a member of the public's name and mobile number, so reaching
+ * it needs a reason rather than a senior-sounding role — a manager or
+ * supervisor oversees the building registry, not other people's customers.
+ */
+const PARTNER_NETWORK = ['/partners', '/leads']
 export const isForbiddenPath = (role, pathname) => {
+  // Checked before the per-role rules below, so a new role cannot reach the
+  // partner network just by not appearing in any of them.
+  if (PARTNER_NETWORK.some((p) => pathname.startsWith(p)) && !canManagePartners(role)) return true
   if (isAcquisition(role)) return COVERAGE_ONLY.some((p) => pathname.startsWith(p))
   if (isSupervisor(role)) return OFF_LIMITS_FOR_SUPERVISOR.some((p) => pathname.startsWith(p))
   // Allow-list rather than deny-list: a new staff route must not silently
