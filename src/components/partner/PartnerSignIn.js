@@ -10,7 +10,16 @@ import { OtpInput } from '@/components/partner/OtpInput'
 import { StepRail } from '@/components/partner/StepRail'
 import { NodeMark, IconArrowLeft } from '@/components/ui/icons'
 
-const STEPS = ['Number', 'Code', 'Details']
+/**
+ * Signing in is two steps; signing up is three.
+ *
+ * A partner signs up once and signs in forever after, so promising a
+ * returning partner a "Details" step they will never see is the common case
+ * got wrong. We only learn which path this is when the number is submitted,
+ * so until then the rail promises the two steps everybody does.
+ */
+const LOGIN_STEPS = ['Number', 'Code']
+const SIGNUP_STEPS = ['Number', 'Code', 'Details']
 
 const MOBILE = /^[6-9]\d{9}$/
 
@@ -33,7 +42,9 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
   const [step, setStep] = useState('mobile') // mobile | code | details
   const [mobile, setMobile] = useState('')
   const [code, setCode] = useState('')
-  const [known, setKnown] = useState(false)
+  // null until the number is submitted — distinct from false, which means we
+  // asked and this number is new to us.
+  const [known, setKnown] = useState(null)
   const [devCode, setDevCode] = useState(null)
   const [signupToken, setSignupToken] = useState(null)
   const [form, setForm] = useState({ name: '', type: '', companyName: '', email: '' })
@@ -45,6 +56,10 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
   useEffect(() => {
     if (step === 'code') codeRef.current?.focus()
   }, [step])
+
+  // An invite is only ever handed to someone who does not have an account, so
+  // that path is a signup from the first screen and can say so.
+  const signingUp = Boolean(inviteToken) || known === false
 
   const land = ({ token, partner }) => {
     setAuth({ token, partner })
@@ -136,7 +151,10 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
       <div className="mx-auto -mt-10 w-full max-w-md px-5 pb-10">
       <div className="rounded-card bg-card p-6 shadow-lift">
         <div className="mb-5">
-          <StepRail steps={STEPS} current={step === 'mobile' ? 0 : step === 'code' ? 1 : 2} />
+          <StepRail
+            steps={signingUp ? SIGNUP_STEPS : LOGIN_STEPS}
+            current={step === 'mobile' ? 0 : step === 'code' ? 1 : 2}
+          />
         </div>
 
         {/* ---- step 1: the number ------------------------------------- */}
