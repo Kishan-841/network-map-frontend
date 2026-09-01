@@ -112,6 +112,28 @@ export default function PartnerDocumentsPage() {
     }
   }
 
+  /**
+   * TESTING ONLY — approve without uploading anything.
+   *
+   * Shown only when the SERVER says the shortcut is on (`bypassAvailable`),
+   * never inferred in the browser: the flag is a server fact, and `env.js`
+   * refuses to boot with it set in production, so this button cannot exist
+   * there however the page is built.
+   */
+  async function bypass() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await partnerApi.post('/partner/documents/bypass')
+      setPartner({ ...partner, status: res.data.data.status })
+      setTick((t) => t + 1)
+    } catch (err) {
+      setError(getPartnerApiError(err, 'Could not skip approval'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function submit() {
     setBusy(true)
     setError(null)
@@ -185,6 +207,29 @@ export default function PartnerDocumentsPage() {
           >
             {complete ? 'Submit for approval' : 'Upload all documents to continue'}
           </Button>
+
+          {/* Deliberately styled as scaffolding rather than a feature: dashed,
+              muted, and labelled for what it is, so nobody mistakes it for
+              part of the product. */}
+          {data.bypassAvailable && (
+            <div className="mt-6 rounded-card border border-dashed border-warn/50 bg-warn-tint/40 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-warn">
+                Testing only
+              </p>
+              <p className="mt-1.5 text-sm font-normal text-muted">
+                Approve this account without uploading anything, so testing does not put real
+                identity documents in the bucket.
+              </p>
+              <button
+                type="button"
+                onClick={bypass}
+                disabled={busy}
+                className="mt-3 w-full rounded-btn border border-warn/60 px-4 py-2.5 text-sm font-medium text-warn transition-colors hover:bg-warn/10 disabled:opacity-50"
+              >
+                Skip documents and approve me
+              </button>
+            </div>
+          )}
         </>
       )}
     </>
