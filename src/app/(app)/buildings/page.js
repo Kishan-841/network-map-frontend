@@ -13,7 +13,14 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
 import { Fab } from '@/components/ui/Fab'
-import { IconPlus, IconSearch, IconBuildings, IconUpload } from '@/components/ui/icons'
+import {
+  IconPlus,
+  IconSearch,
+  IconBuildings,
+  IconUpload,
+  IconDownload,
+} from '@/components/ui/icons'
+import { exportBuildings } from '@/lib/export-buildings'
 import { BulkLiveBar } from '@/components/buildings/BulkLiveBar'
 import { ImportBuildingsModal } from '@/components/buildings/ImportBuildingsModal'
 import { useZones, invalidateZones } from '@/hooks/useZones'
@@ -231,6 +238,7 @@ function BuildingsList() {
   }, [search])
 
   const [importOpen, setImportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
   // One source of truth for the active filter: the list requests it and the
   // bulk update replays the very same object server-side.
   const activeFilter = useMemo(
@@ -354,6 +362,32 @@ function BuildingsList() {
         }
         action={
           <div className="hidden items-center gap-2 lg:flex">
+            {role === 'ADMIN' && !acquisition && (
+              <button
+                onClick={async () => {
+                  setExporting(true)
+                  try {
+                    // The filter the list is showing, so the file matches the
+                    // screen. Page and size are left out — they are the screen.
+                    const { rows, truncated } = await exportBuildings(activeFilter)
+                    setToast(
+                      truncated
+                        ? `Exported the first ${rows.toLocaleString('en-IN')} buildings — narrow the filter for the rest`
+                        : `Exported ${rows.toLocaleString('en-IN')} building${rows === 1 ? '' : 's'}`,
+                    )
+                  } catch (error) {
+                    setToast(error.message)
+                  } finally {
+                    setExporting(false)
+                  }
+                }}
+                disabled={exporting}
+                className="inline-flex h-12 items-center gap-2 rounded-btn border border-line bg-card px-4 text-sm font-medium transition-colors hover:border-fiber/50 disabled:opacity-50"
+              >
+                <IconDownload className="h-4.5 w-4.5" />
+                {exporting ? 'Exporting…' : 'Export Excel'}
+              </button>
+            )}
             {role === 'ADMIN' && !acquisition && (
               <button
                 onClick={() => setImportOpen(true)}
