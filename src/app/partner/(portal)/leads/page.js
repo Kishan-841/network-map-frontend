@@ -122,7 +122,7 @@ export default function PartnerLeadsPage() {
             />
           </div>
           <Select id="my-leads-status" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">All statuses</option>
+            <option value="">All status</option>
             {Object.entries(STATUS_LABEL).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}

@@ -325,7 +325,7 @@ export default function ReferralsPage() {
           ))}
         </Select>
         <Select id="leads-status" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
+          <option value="">All status</option>
           {LEAD_STATUSES.map((value) => (
             <option key={value} value={value}>
               {STATUS_LABEL[value]}

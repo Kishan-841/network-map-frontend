@@ -113,10 +113,11 @@ export default function AddLeadPage() {
     }
   }
 
+  // Speed is optional: a partner standing with a customer usually has a name
+  // and a number before any plan has been discussed, and refusing the lead
+  // over a missing speed loses the whole lead.
   const customerValid =
-    form.customerName.trim() &&
-    /^[6-9]\d{9}$/.test(form.customerMobile.trim()) &&
-    form.requirementMbps
+    form.customerName.trim() && /^[6-9]\d{9}$/.test(form.customerMobile.trim())
 
   async function submit() {
     setBusy(true)
@@ -125,7 +126,7 @@ export default function AddLeadPage() {
       const res = await partnerApi.post('/partner/leads', {
         customerName: form.customerName.trim(),
         customerMobile: form.customerMobile.trim(),
-        requirementMbps: Number(form.requirementMbps),
+        ...(form.requirementMbps && { requirementMbps: Number(form.requirementMbps) }),
         ...place,
       })
       setDone(res.data.data)
@@ -183,7 +184,8 @@ export default function AddLeadPage() {
       </div>
 
       {/* ---- step 1: which building ---------------------------------- */}
-      <div className="mt-4 rounded-card bg-card p-5 shadow-soft">
+      {/* relative: the coverage dot sits in this card's top corner. */}
+      <div className="relative mt-4 rounded-card bg-card p-5 shadow-soft">
         {!place ? (
           <>
             <label htmlFor="refer-search" className="mb-1.5 block text-sm font-medium">
@@ -250,14 +252,17 @@ export default function AddLeadPage() {
             <p className="font-bold">{place.placeName}</p>
             <p className="mt-0.5 text-sm font-normal text-muted">{place.address}</p>
 
+            {/* The verdict is a dot in the corner rather than a paragraph.
+                The words are kept for a screen reader and on hover: a colour
+                alone carries nothing to someone who cannot separate green
+                from red, and these three sit close under protanopia. */}
             {meta && (
-              <div className={`mt-3 rounded-btn border px-4 py-3 ${meta.tone}`}>
-                <p className="flex items-center gap-2 text-sm font-bold">
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${meta.dot}`} />
-                  {meta.title}
-                </p>
-                <p className="mt-1 text-sm font-normal text-muted">{meta.body}</p>
-              </div>
+              <span
+                title={meta.title}
+                className={`absolute right-4 top-4 flex h-3 w-3 items-center justify-center rounded-full ${meta.dot}`}
+              >
+                <span className="sr-only">{meta.title}</span>
+              </span>
             )}
             {busy && !meta && <p className="mt-3 text-sm font-normal text-muted">Checking…</p>}
           </>
@@ -270,7 +275,7 @@ export default function AddLeadPage() {
           <p className="font-bold">Who wants the connection?</p>
           <Input
             id="lead-name"
-            label="Their name"
+            label="Name"
             value={form.customerName}
             onChange={(e) => setForm({ ...form, customerName: e.target.value })}
           />
@@ -297,7 +302,9 @@ export default function AddLeadPage() {
           </div>
 
           <div>
-            <p className="mb-1.5 text-sm font-medium">What speed do they want?</p>
+            <p className="mb-1.5 text-sm font-medium">
+              Speed <span className="font-normal text-faint">(optional)</span>
+            </p>
             {/* Buttons, not a dropdown — four choices are easier to tap than
                 to open, scroll and pick. */}
             <div className="grid grid-cols-2 gap-2">
