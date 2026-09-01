@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -30,6 +31,24 @@ const TYPE_LABEL = {
   DSA: 'DSA',
 }
 const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
+
+/**
+ * A figure that opens the rows behind it.
+ *
+ * Only a real count links — a zero has nothing to show, and a link that
+ * lands on an empty list is worse than no link at all.
+ */
+function CountLink({ value, href, className = '' }) {
+  if (!value) return <span className="text-faint">0</span>
+  return (
+    <Link
+      href={href}
+      className={`underline-offset-2 transition-colors hover:text-primary hover:underline ${className}`}
+    >
+      {value}
+    </Link>
+  )
+}
 
 const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' })
 
@@ -157,13 +176,20 @@ export default function PartnersPage() {
     {
       key: 'added',
       header: 'Added',
-      render: (p) => p.customersAdded ?? 0,
+      render: (p) => (
+        <CountLink value={p.customersAdded} href={`/leads?partnerId=${p.id}`} />
+      ),
       className: 'text-right tabular-nums text-muted',
     },
     {
       key: 'activated',
       header: 'Activated',
-      render: (p) => p.customersActivated ?? 0,
+      render: (p) => (
+        <CountLink
+          value={p.customersActivated}
+          href={`/leads?partnerId=${p.id}&status=CONVERTED`}
+        />
+      ),
       className: 'text-right tabular-nums',
     },
     {
@@ -282,11 +308,18 @@ export default function PartnersPage() {
             </p>
             <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
               <div>
-                <p className="text-sm font-bold tabular-nums">{p.customersAdded ?? 0}</p>
+                <p className="text-sm font-bold tabular-nums">
+                  <CountLink value={p.customersAdded} href={`/leads?partnerId=${p.id}`} />
+                </p>
                 <p className="text-[11px] font-normal text-faint">Added</p>
               </div>
               <div>
-                <p className="text-sm font-bold tabular-nums">{p.customersActivated ?? 0}</p>
+                <p className="text-sm font-bold tabular-nums">
+                  <CountLink
+                    value={p.customersActivated}
+                    href={`/leads?partnerId=${p.id}&status=CONVERTED`}
+                  />
+                </p>
                 <p className="text-[11px] font-normal text-faint">Activated</p>
               </div>
               <div>

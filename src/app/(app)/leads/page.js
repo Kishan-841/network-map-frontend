@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -78,13 +79,17 @@ function StatusBadge({ status }) {
  * the heading says whose list it is, so nobody mistakes a scoped view for the
  * whole picture.
  */
-export default function ReferralsPage() {
+function LeadsTable() {
   const role = useAuthStore((s) => s.user?.role)
   const [leads, setLeads] = useState(null)
   const [error, setError] = useState(null)
+  // Seeded from the URL so a figure elsewhere can link straight to the leads
+  // behind it. Read once as the initial value — after that the selects own it,
+  // and re-reading would fight the user every time they change a filter.
+  const params = useSearchParams()
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
-  const [partnerId, setPartnerId] = useState('')
+  const [status, setStatus] = useState(() => params.get('status') ?? '')
+  const [partnerId, setPartnerId] = useState(() => params.get('partnerId') ?? '')
   const [saving, setSaving] = useState(null)
   // The lead open in the edit panel, and the rate card a conversion prices
   // itself from.
@@ -371,5 +376,14 @@ export default function ReferralsPage() {
       )}
 
     </main>
+  )
+}
+
+// useSearchParams must sit inside a Suspense boundary in the App Router.
+export default function LeadsPage() {
+  return (
+    <Suspense fallback={null}>
+      <LeadsTable />
+    </Suspense>
   )
 }

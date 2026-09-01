@@ -27,6 +27,16 @@ const monthLabel = (key) => monthNames(key).long
  * down the page: two month lists on one screen is the same information twice,
  * and the reader has to work out whether they disagree.
  */
+/** A count that opens the leads behind it; a zero stays plain. */
+function CountLink({ value, href }) {
+  if (!value) return <span className="text-faint">0</span>
+  return (
+    <Link href={href} className="underline-offset-2 hover:text-primary hover:underline">
+      {value}
+    </Link>
+  )
+}
+
 function MonthRows({ month, open, onToggle }) {
   const cell = 'px-4 py-3 text-right tabular-nums'
   return (
@@ -53,8 +63,12 @@ function MonthRows({ month, open, onToggle }) {
             {monthLabel(month.month)}
           </button>
         </td>
-        <td className={`${cell} text-muted`}>{month.added}</td>
-        <td className={cell}>{month.activated}</td>
+        <td className={`${cell} text-muted`}>
+          <CountLink value={month.added} href="/partner/leads" />
+        </td>
+        <td className={cell}>
+          <CountLink value={month.activated} href="/partner/leads?status=CONVERTED" />
+        </td>
         <td className={`${cell} font-medium`}>{rupees(month.total)}</td>
         <td className={`${cell} text-ok`}>{month.paid ? rupees(month.paid) : '—'}</td>
       </tr>
@@ -137,10 +151,19 @@ export default function PartnerEarningsPage() {
             Customers activated
           </p>
           <p className="mt-1.5 text-2xl font-bold tabular-nums">
-            {statement ? statement.activated : '—'}
+            {statement ? (
+              <CountLink value={statement.activated} href="/partner/leads?status=CONVERTED" />
+            ) : (
+              '—'
+            )}
           </p>
           {statement && (
-            <p className="mt-0.5 text-xs font-normal text-muted">of {statement.added} added</p>
+            <p className="mt-0.5 text-xs font-normal text-muted">
+              of{' '}
+              <Link href="/partner/leads" className="underline-offset-2 hover:text-primary hover:underline">
+                {statement.added} added
+              </Link>
+            </p>
           )}
         </div>
         <div className="rounded-card bg-card p-5 shadow-soft">

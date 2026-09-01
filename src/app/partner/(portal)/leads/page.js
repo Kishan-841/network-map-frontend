@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { partnerApi, getPartnerApiError } from '@/lib/partner-api-client'
 import { Button } from '@/components/ui/Button'
@@ -24,11 +25,13 @@ function StatusBadge({ status }) {
   )
 }
 
-export default function PartnerLeadsPage() {
+function PartnerLeadsTable() {
   const [leads, setLeads] = useState(null)
   const [error, setError] = useState(null)
+  // Seeded from the URL so the Earnings tab can link to a subset of these.
+  const params = useSearchParams()
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState(() => params.get('status') ?? '')
 
   useEffect(() => {
     let cancelled = false
@@ -159,5 +162,14 @@ export default function PartnerLeadsPage() {
         />
       </div>
     </>
+  )
+}
+
+// useSearchParams must sit inside a Suspense boundary in the App Router.
+export default function PartnerLeadsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PartnerLeadsTable />
+    </Suspense>
   )
 }
