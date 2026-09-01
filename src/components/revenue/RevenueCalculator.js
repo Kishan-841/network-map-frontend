@@ -77,36 +77,44 @@ export function RevenueCalculator({ client, endpoint }) {
   if (error) return <p className="text-sm font-normal text-bad">{error}</p>
   if (!card) return <p className="text-sm font-normal text-muted">Loading…</p>
 
+  const cleared = grandTotal === 0
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto rounded-card bg-card p-4 shadow-soft">
-        <table className="w-full min-w-[420px] border-separate border-spacing-0">
+    <div className="overflow-hidden rounded-card bg-card shadow-soft">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] border-separate border-spacing-0">
           <thead>
             <tr>
-              <th className="pb-3 pr-3 text-left text-xs font-medium uppercase tracking-wide text-faint">
+              <th className="px-5 pb-3 pt-5 text-left text-xs font-medium uppercase tracking-wide text-faint">
                 Speed
               </th>
               {card.periods.map((period) => (
-                <th key={period} className="px-2 pb-3 text-center">
-                  <span className="block text-sm font-medium">{PERIOD_LABEL[period]}</span>
-                  <span className="block text-xs font-normal text-muted">{PERIOD_HINT[period]}</span>
+                <th key={period} className="px-2 pb-3 pt-5 text-center">
+                  <span className="block text-sm font-bold">{PERIOD_LABEL[period]}</span>
+                  <span className="block text-xs font-normal text-faint">
+                    {PERIOD_HINT[period]}
+                  </span>
                 </th>
               ))}
-              <th className="pb-3 pl-3 text-right text-xs font-medium uppercase tracking-wide text-faint">
+              {/* The rule marks where typing ends and results begin — the
+                  same split the eye is already making. */}
+              <th className="whitespace-nowrap border-l border-line bg-paper/50 px-5 pb-3 pt-5 text-right text-xs font-medium uppercase tracking-wide text-faint">
                 You earn
               </th>
             </tr>
           </thead>
           <tbody>
             {card.speeds.map((speed) => (
-              <tr key={speed}>
-                <td className="border-t border-line py-3 pr-3">
-                  <span className="whitespace-nowrap text-sm font-bold">{speed} Mbps</span>
+              <tr key={speed} className="group">
+                <td className="border-t border-line px-5 py-3.5">
+                  <span className="whitespace-nowrap text-base font-bold">{speed}</span>
+                  <span className="ml-1 text-xs font-normal text-muted">Mbps</span>
                 </td>
                 {card.periods.map((period) => {
                   const rate = rateFor(speed, period)
+                  const filled = Number(counts[key(speed, period)] ?? 0) > 0
                   return (
-                    <td key={period} className="border-t border-line px-2 py-3">
+                    <td key={period} className="border-t border-line px-2 py-3.5">
                       <input
                         id={`cell-${speed}-${period}`}
                         aria-label={`${speed} Mbps, ${PERIOD_LABEL[period]}: number of customers`}
@@ -119,17 +127,26 @@ export function RevenueCalculator({ client, endpoint }) {
                           const digits = e.target.value.replace(/\D/g, '').slice(0, 4)
                           setCounts((prev) => ({ ...prev, [key(speed, period)]: digits }))
                         }}
-                        className="h-11 w-full min-w-[56px] rounded-btn border border-line bg-card text-center text-base tabular-nums outline-none focus:border-fiber disabled:opacity-40"
+                        // A cell with a number in it carries weight; an empty
+                        // one stays quiet, so the filled ones are findable.
+                        className={`h-11 w-full min-w-[64px] rounded-btn border text-center text-base tabular-nums outline-none transition-colors focus:border-fiber focus:ring-2 focus:ring-fiber/15 disabled:opacity-40 ${
+                          filled
+                            ? 'border-fiber/40 bg-fiber-tint font-bold text-ink'
+                            : 'border-line bg-card'
+                        }`}
                       />
-                      {/* The unit rate, so the total is never a black box. */}
-                      <span className="mt-1 block text-center text-[11px] font-normal text-faint">
+                      <span className="mt-1.5 block text-center text-[11px] font-normal text-faint">
                         {rate ? `${rupees(rate)} each` : '—'}
                       </span>
                     </td>
                   )
                 })}
-                <td className="border-t border-line py-3 pl-3 text-right">
-                  <span className="whitespace-nowrap text-sm font-bold tabular-nums">
+                <td className="border-l border-t border-line bg-paper/50 px-5 py-3.5 text-right align-middle">
+                  <span
+                    className={`whitespace-nowrap text-base tabular-nums ${
+                      rowTotals[speed] ? 'font-bold' : 'font-normal text-faint'
+                    }`}
+                  >
                     {rowTotals[speed] ? rupees(rowTotals[speed]) : '—'}
                   </span>
                 </td>
@@ -139,29 +156,41 @@ export function RevenueCalculator({ client, endpoint }) {
         </table>
       </div>
 
-      <div className="rounded-card bg-card p-5 shadow-soft">
-        <div className="flex items-end justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-faint">You could earn</p>
-            <p className="mt-1 text-3xl font-bold tabular-nums">{rupees(grandTotal)}</p>
+      {/* The result. Two figures of equal weight, because "how many people"
+          and "how much money" are one sentence — the divider is what joins
+          them rather than what separates them. It turns horizontal on a
+          phone, where side by side would squeeze both. */}
+      <div className="border-t-2 border-line bg-paper/40">
+        <div className="flex flex-col divide-y divide-line sm:flex-row sm:divide-x sm:divide-y-0">
+          <div className="px-5 py-5 sm:w-[38%] sm:shrink-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-faint">Customers</p>
+            <p className="mt-1 text-4xl font-bold tabular-nums leading-none">{customerCount}</p>
           </div>
-          <p className="shrink-0 text-sm font-normal text-muted">
-            {customerCount} customer{customerCount === 1 ? '' : 's'}
-          </p>
+          <div className="min-w-0 flex-1 px-5 py-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-faint">
+              You could earn
+            </p>
+            <p className="mt-1 truncate text-4xl font-bold tabular-nums leading-none text-fiber">
+              {rupees(grandTotal)}
+            </p>
+          </div>
         </div>
-        <p className="mt-3 border-t border-line pt-3 text-xs font-normal text-muted">
-          An estimate based on today&rsquo;s rates. What you actually earn depends on how many
-          customers sign up.
-        </p>
-        {grandTotal > 0 && (
-          <button
-            type="button"
-            onClick={() => setCounts({})}
-            className="mt-3 text-sm font-medium text-muted underline-offset-2 hover:text-ink hover:underline"
-          >
-            Start again
-          </button>
-        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3.5">
+          <p className="text-xs font-normal text-muted">
+            An estimate at today&rsquo;s rates. What you actually earn depends on how many
+            customers sign up.
+          </p>
+          {!cleared && (
+            <button
+              type="button"
+              onClick={() => setCounts({})}
+              className="shrink-0 text-sm font-medium text-muted underline-offset-2 transition-colors hover:text-ink hover:underline"
+            >
+              Start again
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
