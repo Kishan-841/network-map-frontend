@@ -14,7 +14,10 @@ import {
 } from '@/components/partner/PartnerNav'
 
 /** Screens that are a table, and should use the full width available. */
+// Prefix matches. The earnings dashboard is listed separately because
+// '/partner' as a prefix would widen every page in the portal.
 const WIDE_ROUTES = ['/partner/leads']
+const WIDE_EXACT = ['/partner']
 
 /**
  * The signed-in partner shell.
@@ -99,7 +102,9 @@ export default function PartnerPortalLayout({ children }) {
    * that knows how wide each screen should be. A table wants the room; a
    * single column of form fields stretched to the same width reads badly.
    */
-  const contentWidth = WIDE_ROUTES.some((r) => pathname.startsWith(r)) ? 'max-w-6xl' : 'max-w-3xl'
+  const wide =
+    WIDE_EXACT.includes(pathname) || WIDE_ROUTES.some((r) => pathname.startsWith(r))
+  const contentWidth = wide ? 'max-w-6xl' : 'max-w-3xl'
 
   return (
     <div className="min-h-dvh bg-paper">

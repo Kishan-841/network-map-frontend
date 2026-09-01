@@ -38,6 +38,23 @@ export const LEAD_STATUS_STYLE = {
 
 export const leadStatusClass = (status) => LEAD_STATUS_STYLE[status] ?? 'bg-paper text-muted'
 
+/**
+ * The same meanings as solid fills, for bars and dots where a 14% tint would
+ * be too faint to read. Kept beside the tints so the two can never disagree
+ * about what a status looks like.
+ */
+export const LEAD_STATUS_FILL = {
+  NEW: 'bg-fiber',
+  CONTACTED: 'bg-scan',
+  INTERESTED: 'bg-warn',
+  CONVERTED: 'bg-ok',
+  NOT_INTERESTED: 'bg-bad',
+  UNREACHABLE: 'bg-muted',
+  DUPLICATE: 'bg-faint',
+}
+
+export const leadStatusFill = (status) => LEAD_STATUS_FILL[status] ?? 'bg-muted'
+
 /** Our own vocabulary, for the staff table. */
 export const STAFF_LEAD_STATUS_LABEL = {
   NEW: 'New',

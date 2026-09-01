@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Input'
 import { IconChevronDown, IconPlus } from '@/components/ui/icons'
 import { EarningsChart, lastMonths, monthNames } from '@/components/earnings/EarningsChart'
+import { LeadProgress } from '@/components/earnings/LeadProgress'
 
 const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
 
@@ -124,6 +125,7 @@ export default function PartnerEarningsPage() {
   const [error, setError] = useState(null)
   const [month, setMonth] = useState('')
   const [paid, setPaid] = useState('')
+  const [leads, setLeads] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -131,6 +133,19 @@ export default function PartnerEarningsPage() {
       .get('/partner/earnings')
       .then((res) => !cancelled && setStatement(res.data.data))
       .catch((err) => !cancelled && setError(getPartnerApiError(err, 'Could not load your earnings')))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Their leads, for the progress card. A failure here must not take the
+  // earnings down with it — the money is the point of this page.
+  useEffect(() => {
+    let cancelled = false
+    partnerApi
+      .get('/partner/leads')
+      .then((res) => !cancelled && setLeads(res.data.data))
+      .catch(() => !cancelled && setLeads([]))
     return () => {
       cancelled = true
     }
@@ -173,13 +188,18 @@ export default function PartnerEarningsPage() {
         </div>
       </div>
 
+      {/* Two columns once there is room: the money on the left, where the
+          customers have got to on the right. Below lg they stack. */}
       {statement && (
-        <div className="mt-4">
-          <EarningsChart
-            months={statement.months}
-            selected={month || null}
-            onSelect={(key) => setMonth(key ?? '')}
-          />
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <EarningsChart
+              months={statement.months}
+              selected={month || null}
+              onSelect={(key) => setMonth(key ?? '')}
+            />
+          </div>
+          <LeadProgress leads={leads} />
         </div>
       )}
 
