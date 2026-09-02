@@ -11,9 +11,10 @@ import {
   IconUserPlus,
   IconShare,
   IconCalculator,
+  IconRupee,
 } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
-import { isAgent, isLead, isSupervisor, isPartnerManager } from '@/lib/roles'
+import { isAgent, isLead, isSupervisor, isPartnerManager, isAccounts } from '@/lib/roles'
 
 const COVERAGE_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
@@ -45,6 +46,11 @@ const PARTNER_MANAGER_NAV = [
   { href: '/calculator', label: 'Calculator', icon: IconCalculator },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+/** Finance: one job, one tab. */
+const ACCOUNTS_NAV = [
+  { href: '/payouts', label: 'Payouts', icon: IconRupee },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
 const SUPERVISOR_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
@@ -69,11 +75,13 @@ export function BottomNav() {
       ? LEAD_NAV
       : isSupervisor(role)
         ? SUPERVISOR_NAV
-        : isPartnerManager(role)
-          ? PARTNER_MANAGER_NAV
-          : role === 'ADMIN'
-            ? ADMIN_NAV
-            : COVERAGE_NAV
+        : isAccounts(role)
+          ? ACCOUNTS_NAV
+          : isPartnerManager(role)
+            ? PARTNER_MANAGER_NAV
+            : role === 'ADMIN'
+              ? ADMIN_NAV
+              : COVERAGE_NAV
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">

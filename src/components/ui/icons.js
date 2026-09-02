@@ -38,6 +38,7 @@ export {
   Eye as IconEye,
   ChevronDown as IconChevronDown,
   Share2 as IconShare,
+  IndianRupee as IconRupee,
 } from 'lucide-react'
 
 /** Brand glyph: three network nodes joined by fiber links. */

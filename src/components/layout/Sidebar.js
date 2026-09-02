@@ -8,7 +8,14 @@ import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
 import { MANAGE_LINKS } from '@/lib/manage-links'
-import { isAgent, isLead, isSupervisor, isPartnerManager, ROLE_LABELS } from '@/lib/roles'
+import {
+  isAgent,
+  isLead,
+  isSupervisor,
+  isPartnerManager,
+  isAccounts,
+  ROLE_LABELS,
+} from '@/lib/roles'
 import {
   NodeMark,
   IconDashboard,
@@ -19,6 +26,7 @@ import {
   IconUserPlus,
   IconShare,
   IconCalculator,
+  IconRupee,
   IconSun,
   IconMoon,
   IconCollapse,
@@ -59,6 +67,11 @@ const PARTNER_MANAGER_NAV = [
   { href: '/referrals', label: 'Referrals', icon: IconShare },
   { href: '/leads', label: 'Leads', icon: IconUserPlus },
   { href: '/calculator', label: 'Calculator', icon: IconCalculator },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+/** Finance: one job, one tab. */
+const ACCOUNTS_NAV = [
+  { href: '/payouts', label: 'Payouts', icon: IconRupee },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const SUPERVISOR_NAV = [
@@ -110,11 +123,13 @@ export function Sidebar() {
       ? LEAD_NAV
       : isSupervisor(role)
         ? SUPERVISOR_NAV
-        : isPartnerManager(role)
-          ? PARTNER_MANAGER_NAV
-          : role === 'ADMIN'
-            ? ADMIN_NAV
-            : COVERAGE_NAV
+        : isAccounts(role)
+          ? ACCOUNTS_NAV
+          : isPartnerManager(role)
+            ? PARTNER_MANAGER_NAV
+            : role === 'ADMIN'
+              ? ADMIN_NAV
+              : COVERAGE_NAV
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '80px' : '280px')

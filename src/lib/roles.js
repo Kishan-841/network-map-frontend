@@ -10,6 +10,7 @@ export const ROLE_LABELS = {
   ACQUISITION_LEAD: 'Acquisition lead',
   SUPERVISOR: 'Supervisor',
   PARTNER_MANAGER: 'Partner manager',
+  ACCOUNTS: 'Accounts',
 }
 
 export const isAgent = (role) => role === 'ACQUISITION_AGENT'
@@ -22,6 +23,11 @@ export const isCoverage = (role) => ['ADMIN', 'MANAGER', 'SURVEYOR'].includes(ro
 export const isSupervisor = (role) => role === 'SUPERVISOR'
 /** Recruits external referral partners; never touches the building registry. */
 export const isPartnerManager = (role) => role === 'PARTNER_MANAGER'
+/**
+ * Finance. Records that a partner has been paid and nothing else — no
+ * registry, no map, and none of the customers' details behind the earnings.
+ */
+export const isAccounts = (role) => role === 'ACCOUNTS'
 /**
  * May create and edit building CONTENT, whoever logged it. Distinct from
  * administration (users, zones, operators, logs), which stays with ADMIN.
@@ -62,7 +68,9 @@ export const homePathFor = (role) =>
         ? '/map'
         : isPartnerManager(role)
           ? '/partners'
-          : '/dashboard'
+          : isAccounts(role)
+            ? '/payouts'
+            : '/dashboard'
 
 /** Route prefixes each role must never reach. */
 const COVERAGE_ONLY = ['/dashboard', '/admin']
@@ -83,10 +91,15 @@ const PARTNER_MANAGER_ALLOWED = ['/partners', '/referrals', '/leads', '/calculat
 // The calculator is included because it IS the commission structure — what
 // every partner is paid — not just a convenience tool.
 const PARTNER_NETWORK = ['/partners', '/referrals', '/leads', '/calculator']
+/** Accounts reaches payouts and their own profile. Nothing else. */
+const ACCOUNTS_ALLOWED = ['/payouts', '/profile']
 export const isForbiddenPath = (role, pathname) => {
   // Checked before the per-role rules below, so a new role cannot reach the
   // partner network just by not appearing in any of them.
   if (PARTNER_NETWORK.some((p) => pathname.startsWith(p)) && !canManagePartners(role)) return true
+  // Allow-list, like the partner manager: a new staff route must not become
+  // reachable by finance just because nobody remembered to exclude it.
+  if (isAccounts(role)) return !ACCOUNTS_ALLOWED.some((p) => pathname.startsWith(p))
   if (isAcquisition(role)) return COVERAGE_ONLY.some((p) => pathname.startsWith(p))
   if (isSupervisor(role)) return OFF_LIMITS_FOR_SUPERVISOR.some((p) => pathname.startsWith(p))
   // Allow-list rather than deny-list: a new staff route must not silently

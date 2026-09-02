@@ -8,6 +8,7 @@ import {
   IconUsers,
   IconLogs,
   IconCalculator,
+  IconRupee,
 } from '@/components/ui/icons'
 
 /**
@@ -26,6 +27,13 @@ export const MANAGE_LINKS = [
     label: 'Partner approvals',
     sub: 'Verify documents',
     icon: IconUsers,
+    adminOnly: true,
+  },
+  {
+    href: '/payouts',
+    label: 'Payouts',
+    sub: 'Pay partners what they earned',
+    icon: IconRupee,
     adminOnly: true,
   },
   {
