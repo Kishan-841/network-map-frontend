@@ -9,6 +9,7 @@ import {
   IconLogs,
   IconCalculator,
   IconRupee,
+  IconDashboard,
 } from '@/components/ui/icons'
 
 /**
@@ -27,6 +28,13 @@ export const MANAGE_LINKS = [
     label: 'Partner approvals',
     sub: 'Verify documents',
     icon: IconUsers,
+    adminOnly: true,
+  },
+  {
+    href: '/partner-dashboard',
+    label: 'Partner overview',
+    sub: 'Network at a glance',
+    icon: IconDashboard,
     adminOnly: true,
   },
   {

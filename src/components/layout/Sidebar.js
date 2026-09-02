@@ -63,6 +63,7 @@ const AGENT_NAV = [
 // Oversight role: everything the map and registry offer, no administration.
 // Recruits partners; no building or map access at all.
 const PARTNER_MANAGER_NAV = [
+  { href: '/partner-dashboard', label: 'Overview', icon: IconDashboard, exact: true },
   { href: '/partners', label: 'Partners', icon: IconUsers },
   { href: '/referrals', label: 'Referrals', icon: IconShare },
   { href: '/leads', label: 'Leads', icon: IconUserPlus },

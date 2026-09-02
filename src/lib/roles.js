@@ -67,7 +67,7 @@ export const homePathFor = (role) =>
         isSupervisor(role)
         ? '/map'
         : isPartnerManager(role)
-          ? '/partners'
+          ? '/partner-dashboard'
           : isAccounts(role)
             ? '/payouts'
             : '/dashboard'
@@ -79,7 +79,14 @@ const COVERAGE_ONLY = ['/dashboard', '/admin']
 const OFF_LIMITS_FOR_SUPERVISOR = ['/dashboard', '/admin', '/acquisition']
 // A partner manager works with people, not the registry: everything about
 // buildings, zones and the map is off limits.
-const PARTNER_MANAGER_ALLOWED = ['/partners', '/referrals', '/leads', '/calculator', '/profile']
+const PARTNER_MANAGER_ALLOWED = [
+  '/partner-dashboard',
+  '/partners',
+  '/referrals',
+  '/leads',
+  '/calculator',
+  '/profile',
+]
 /**
  * The partner network. Only the admin and the partner managers, mirroring the
  * API, which refuses everyone else with a 403.
@@ -90,7 +97,7 @@ const PARTNER_MANAGER_ALLOWED = ['/partners', '/referrals', '/leads', '/calculat
  */
 // The calculator is included because it IS the commission structure — what
 // every partner is paid — not just a convenience tool.
-const PARTNER_NETWORK = ['/partners', '/referrals', '/leads', '/calculator']
+const PARTNER_NETWORK = ['/partner-dashboard', '/partners', '/referrals', '/leads', '/calculator']
 /** Accounts reaches payouts and their own profile. Nothing else. */
 const ACCOUNTS_ALLOWED = ['/payouts', '/profile']
 export const isForbiddenPath = (role, pathname) => {
