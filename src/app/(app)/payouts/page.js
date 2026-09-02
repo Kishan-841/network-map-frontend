@@ -5,6 +5,9 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { DataTable } from '@/components/ui/DataTable'
 import { IconOkCircle } from '@/components/ui/icons'
+import { RecordPaymentModal, METHODS } from '@/components/payouts/RecordPaymentModal'
+
+const methodLabel = (m) => METHODS.find((x) => x.value === m)?.label ?? m
 
 const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
 
@@ -43,8 +46,13 @@ export default function PayoutsPage() {
         .then((res) => {
           const { owed, settled, total } = res.data.data
           // A payout row is one partner-month, so that pair IS its identity.
-          const withId = (rows) => rows.map((r) => ({ ...r, id: `${r.partnerId}|${r.month}` }))
-          setData({ total, owed: withId(owed), settled: withId(settled ?? []) })
+          // Owed rows are grouped, so the partner-month pair IS their identity.
+          // Payments already have their own id.
+          setData({
+            total,
+            owed: owed.map((r) => ({ ...r, id: `${r.partnerId}|${r.month}` })),
+            settled: settled ?? [],
+          })
         })
         .catch((err) => setError(getApiErrorMessage(err, 'Could not load payouts'))),
     [],
@@ -54,27 +62,28 @@ export default function PayoutsPage() {
     load()
   }, [load])
 
-  const markPaid = async (row) => {
+  /**
+   * Save the entry, then refresh. Rethrown as well as shown so the form can
+   * stay open with the reason rather than closing on a failure.
+   */
+  const record = async (entry) => {
     setError(null)
     setNotice(null)
-    setPaying(row.id)
     try {
-      const res = await apiClient.post('/payouts/mark-paid', {
-        partnerId: row.partnerId,
-        month: row.month,
-      })
-      const { count, alreadySettled } = res.data.data
+      const res = await apiClient.post('/payouts/mark-paid', entry)
+      const { count, shortfall } = res.data.data
       setNotice(
-        alreadySettled
-          ? `${row.partnerName} — ${monthLabel(row.month)} was already settled. Nothing changed.`
-          : `Recorded ${rupees(row.amount)} paid to ${row.partnerName} for ${monthLabel(row.month)} ` +
-            `(${count} earning${count === 1 ? '' : 's'}).`,
+        `Recorded ${rupees(entry.amountPaid)} to ${paying.partnerName} for ` +
+          `${monthLabel(entry.month)} by ${methodLabel(entry.method)}` +
+          `${entry.reference ? ` — ${entry.reference}` : ''}. ` +
+          `${count} earning${count === 1 ? '' : 's'} settled` +
+          `${shortfall > 0 ? `, ${rupees(shortfall)} still short` : ''}.`,
       )
       await load()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not record that payment'))
-    } finally {
-      setPaying(null)
+      const message = getApiErrorMessage(err, 'Could not record that payment')
+      setError(message)
+      throw new Error(message)
     }
   }
 
@@ -112,19 +121,15 @@ export default function PayoutsPage() {
     {
       key: 'action',
       header: 'Action',
-      render: (r) => {
-        const busy = paying === r.id
-        return (
-          <button
-            type="button"
-            onClick={() => markPaid(r)}
-            disabled={Boolean(paying)}
-            className="whitespace-nowrap rounded-btn border border-line px-3 py-1.5 text-xs font-medium transition-colors hover:border-ok/60 hover:text-ok disabled:opacity-40"
-          >
-            {busy ? 'Recording…' : 'Mark paid'}
-          </button>
-        )
-      },
+      render: (r) => (
+        <button
+          type="button"
+          onClick={() => setPaying(r)}
+          className="whitespace-nowrap rounded-btn border border-line px-3 py-1.5 text-xs font-medium transition-colors hover:border-ok/60 hover:text-ok"
+        >
+          Record payment
+        </button>
+      ),
       className: 'w-px',
     },
   ]
@@ -133,27 +138,51 @@ export default function PayoutsPage() {
     {
       key: 'partner',
       header: 'Partner',
-      render: (r) => r.partnerName,
-      className: 'text-sm font-medium',
+      render: (r) => (
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{r.partner?.name}</p>
+          <p className="truncate text-xs font-normal text-muted">{monthLabel(r.month)}</p>
+        </div>
+      ),
     },
-    { key: 'month', header: 'Month', render: (r) => monthLabel(r.month), className: 'whitespace-nowrap' },
     {
       key: 'amount',
       header: 'Paid',
-      render: (r) => rupees(r.amount),
-      className: 'whitespace-nowrap text-right font-medium tabular-nums',
-    },
-    {
-      key: 'paidAt',
-      header: 'Recorded',
-      // Who and when, so a payment can always be traced to a person.
       render: (r) => (
         <div className="min-w-0">
-          <p className="truncate text-sm">{r.paidAt ? paidOn.format(new Date(r.paidAt)) : '—'}</p>
-          <p className="truncate text-xs font-normal text-muted">by {r.paidByName ?? 'unknown'}</p>
+          <p className="font-bold tabular-nums">{rupees(r.amountPaid)}</p>
+          {/* Only when it differs — a matching figure needs no comment. */}
+          {r.amountOwed !== r.amountPaid && (
+            <p className="text-xs font-normal text-warn">of {rupees(r.amountOwed)} owed</p>
+          )}
         </div>
       ),
       className: 'whitespace-nowrap text-right',
+    },
+    {
+      key: 'method',
+      header: 'How',
+      render: (r) => (
+        <div className="min-w-0">
+          <p className="truncate text-sm">{methodLabel(r.method)}</p>
+          {r.reference && (
+            <p className="truncate font-mono text-xs font-normal text-muted">{r.reference}</p>
+          )}
+        </div>
+      ),
+      className: 'max-w-[200px]',
+    },
+    {
+      key: 'paidOn',
+      header: 'Paid on',
+      render: (r) => (r.paidOn ? paidOn.format(new Date(r.paidOn)) : '—'),
+      className: 'whitespace-nowrap tabular-nums text-muted',
+    },
+    {
+      key: 'recordedBy',
+      header: 'Entered by',
+      render: (r) => r.recordedBy?.name ?? 'unknown',
+      className: 'text-muted',
     },
   ]
 
@@ -205,11 +234,10 @@ export default function PayoutsPage() {
             </div>
             <button
               type="button"
-              onClick={() => markPaid(r)}
-              disabled={Boolean(paying)}
-              className="mt-3 w-full rounded-btn border border-line py-2 text-sm font-medium transition-colors hover:border-ok/60 hover:text-ok disabled:opacity-40"
+              onClick={() => setPaying(r)}
+              className="mt-3 w-full rounded-btn border border-line py-2 text-sm font-medium transition-colors hover:border-ok/60 hover:text-ok"
             >
-              {paying === r.id ? 'Recording…' : 'Mark paid'}
+              Record payment
             </button>
           </div>
         )}
@@ -237,17 +265,34 @@ export default function PayoutsPage() {
               <div className="rounded-card bg-card p-4 shadow-soft">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{r.partnerName}</p>
+                    <p className="truncate font-medium">{r.partner?.name}</p>
                     <p className="truncate text-xs font-normal text-muted">
-                      {monthLabel(r.month)} · by {r.paidByName ?? 'unknown'}
+                      {monthLabel(r.month)} · {methodLabel(r.method)}
+                      {r.reference ? ` · ${r.reference}` : ''}
+                    </p>
+                    <p className="truncate text-xs font-normal text-faint">
+                      {r.paidOn ? paidOn.format(new Date(r.paidOn)) : '—'} · entered by{' '}
+                      {r.recordedBy?.name ?? 'unknown'}
                     </p>
                   </div>
-                  <p className="shrink-0 font-bold tabular-nums text-ok">{rupees(r.amount)}</p>
+                  <p className="shrink-0 font-bold tabular-nums text-ok">
+                    {rupees(r.amountPaid)}
+                  </p>
                 </div>
               </div>
             )}
           />
         </>
+      )}
+
+      {paying && (
+        <RecordPaymentModal
+          key={paying.id}
+          row={paying}
+          submit={record}
+          onClose={() => setPaying(null)}
+          onRecorded={() => setPaying(null)}
+        />
       )}
     </main>
   )
