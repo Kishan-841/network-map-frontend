@@ -7,8 +7,9 @@ import { useAuthStore } from '@/stores/auth-store'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Input, Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
-import { IconUsers, IconEdit } from '@/components/ui/icons'
+import { IconUsers, IconEdit, IconPhone } from '@/components/ui/icons'
 import { EditLeadModal } from '@/components/leads/EditLeadModal'
+import { CallLeadModal } from '@/components/leads/CallLeadModal'
 import {
   LEAD_STATUSES,
   leadStatusClass,
@@ -31,6 +32,45 @@ const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'sh
 const CAN_UPDATE_STATUS = ['ADMIN', 'MANAGER', 'SUPERVISOR', 'PARTNER_MANAGER']
 
 const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
+
+const callbackFormat = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+})
+
+/**
+ * A clock that ticks once a minute.
+ *
+ * "Overdue" is not a property of the data — it is the data compared to now,
+ * and now moves while the page is open. Reading the clock during render would
+ * be impure and would never update; this makes the passage of time an input
+ * the component actually reacts to.
+ */
+function useMinute() {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+  return now
+}
+
+/**
+ * When this lead asked to be called back.
+ *
+ * Overdue is amber rather than red: a callback five minutes late is a nudge,
+ * not a failure, and colouring every slipped callback as an error trains
+ * people to ignore the colour.
+ */
+function CallbackDue({ at, now }) {
+  if (!at) return null
+  const when = new Date(at)
+  const overdue = when.getTime() < now
+  return (
+    <p className={`truncate text-xs font-medium ${overdue ? 'text-warn' : 'text-muted'}`}>
+      {overdue ? 'Call back due' : 'Call back'} {callbackFormat.format(when)}
+    </p>
+  )
+}
 
 /**
  * What this lead earned the partner, sitting under its status.
@@ -94,6 +134,8 @@ function LeadsTable() {
   // The lead open in the edit panel, and the rate card a conversion prices
   // itself from.
   const [editing, setEditing] = useState(null)
+  const [calling, setCalling] = useState(null)
+  const now = useMinute()
   const [rates, setRates] = useState([])
   const canUpdate = CAN_UPDATE_STATUS.includes(role)
 
@@ -189,6 +231,7 @@ function LeadsTable() {
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{lead.customerName}</p>
           <p className="truncate text-xs font-normal text-muted">{lead.customerMobile}</p>
+          <CallbackDue at={lead.nextCallAt} now={now} />
         </div>
       ),
     },
@@ -238,16 +281,27 @@ function LeadsTable() {
       header: 'Action',
       render: (lead) =>
         canUpdate ? (
-          <button
-            type="button"
-            onClick={() => setEditing(lead)}
-            disabled={saving === lead.id}
-            aria-label={`Update ${lead.customerName}`}
-            title="Update this lead"
-            className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
-          >
-            <IconEdit className="h-4 w-4" strokeWidth={1.9} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCalling(lead)}
+              aria-label={`Call ${lead.customerName}`}
+              title="Call this lead"
+              className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-ok/10 hover:text-ok"
+            >
+              <IconPhone className="h-4 w-4" strokeWidth={1.9} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(lead)}
+              disabled={saving === lead.id}
+              aria-label={`Update ${lead.customerName}`}
+              title="Update this lead"
+              className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+            >
+              <IconEdit className="h-4 w-4" strokeWidth={1.9} />
+            </button>
+          </div>
         ) : null,
       className: 'w-px',
     },
@@ -269,15 +323,25 @@ function LeadsTable() {
             <EarningNote lead={lead} onFix={canUpdate ? () => setEditing(lead) : undefined} />
           </div>
           {canUpdate && (
-            <button
-              type="button"
-              onClick={() => setEditing(lead)}
-              disabled={saving === lead.id}
-              aria-label={`Update ${lead.customerName}`}
-              className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
-            >
-              <IconEdit className="h-4 w-4" strokeWidth={1.9} />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setCalling(lead)}
+                aria-label={`Call ${lead.customerName}`}
+                className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-ok/10 hover:text-ok"
+              >
+                <IconPhone className="h-4 w-4" strokeWidth={1.9} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(lead)}
+                disabled={saving === lead.id}
+                aria-label={`Update ${lead.customerName}`}
+                className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+              >
+                <IconEdit className="h-4 w-4" strokeWidth={1.9} />
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -361,6 +425,21 @@ function LeadsTable() {
           </div>
         }
       />
+
+      {calling && (
+        <CallLeadModal
+          key={calling.id}
+          lead={calling}
+          submit={(call) => apiClient.post(`/leads/${calling.id}/calls`, call)}
+          onClose={() => setCalling(null)}
+          onLogged={async () => {
+            setCalling(null)
+            // The outcome moves the lead, so re-read rather than guess.
+            const res = await apiClient.get('/leads')
+            setLeads(res.data.data)
+          }}
+        />
+      )}
 
       {editing && (
         <EditLeadModal
