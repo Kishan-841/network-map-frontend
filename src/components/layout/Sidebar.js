@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
-import { MANAGE_LINKS } from '@/lib/manage-links'
+import { NAV_GROUPS } from '@/lib/manage-links'
 import {
   isAgent,
   isLead,
@@ -27,6 +27,7 @@ import {
   IconShare,
   IconCalculator,
   IconRupee,
+  IconChevronDown,
   IconSun,
   IconMoon,
   IconCollapse,
@@ -50,10 +51,6 @@ const ADMIN_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
-  { href: '/partners', label: 'Partners', icon: IconUsers },
-  { href: '/referrals', label: 'Referrals', icon: IconShare },
-  { href: '/leads', label: 'Leads', icon: IconUserPlus },
-  { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const AGENT_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
@@ -88,6 +85,59 @@ const LEAD_NAV = [
   { href: '/acquisition/users', label: 'Users', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+
+/**
+ * One collapsible group in the admin sidebar.
+ *
+ * Opens itself when the current page is inside it, so you can always see
+ * where you are without hunting — and a group you opened by hand stays open
+ * until you close it.
+ */
+function NavGroup({ label, items, pathname, collapsed, renderLink }) {
+  const holdsCurrent = items.some((item) =>
+    item.exact ? pathname === item.href : pathname.startsWith(item.href),
+  )
+  const [open, setOpen] = useState(holdsCurrent)
+  const wasHolding = useRef(holdsCurrent)
+
+  // Navigating INTO the group opens it; navigating away leaves it as the
+  // reader left it.
+  useEffect(() => {
+    if (holdsCurrent && !wasHolding.current) setOpen(true)
+    wasHolding.current = holdsCurrent
+  }, [holdsCurrent])
+
+  // Collapsed rail has no room for headings — show the icons, always.
+  if (collapsed) {
+    return (
+      <>
+        <div className="mx-auto my-3 h-px w-8 bg-neutral-content/15" />
+        <div className="flex flex-col gap-1">{items.map((item) => renderLink(item))}</div>
+      </>
+    )
+  }
+
+  return (
+    <div className="pt-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-1.5 rounded-btn px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-wider text-neutral-content/40 transition-colors hover:text-neutral-content/70"
+      >
+        <IconChevronDown
+          className={`h-3 w-3 shrink-0 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+          strokeWidth={2.5}
+        />
+        {label}
+        {!open && holdsCurrent && (
+          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
+        )}
+      </button>
+      {open && <div className="mt-1 flex flex-col gap-1">{items.map((item) => renderLink(item))}</div>}
+    </div>
+  )
+}
 
 function initials(name = '') {
   return name
@@ -219,20 +269,19 @@ export function Sidebar() {
           {NAV_ITEMS.map((item) => navLink(item))}
         </div>
 
-        {/* Manage: the dashboard's admin grid, mirrored for big screens.
-            Sidebar entry is ADMIN-only (user decision). */}
-        {user?.role === 'ADMIN' && (
-          <>
-            {collapsed ? (
-              <div className="mx-auto my-3 h-px w-8 bg-neutral-content/15" />
-            ) : (
-              <p className="px-3.5 pb-1 pt-5 text-[11px] font-medium uppercase tracking-wider text-neutral-content/40">
-                Manage
-              </p>
-            )}
-            <div className="flex flex-col gap-1">{MANAGE_LINKS.map((item) => navLink(item))}</div>
-          </>
-        )}
+        {/* Grouped, and ADMIN-only. Eighteen links as one flat list is a
+            wall nobody reads. */}
+        {role === 'ADMIN' &&
+          NAV_GROUPS.map((group) => (
+            <NavGroup
+              key={group.label}
+              label={group.label}
+              items={group.items}
+              pathname={pathname}
+              collapsed={collapsed}
+              renderLink={navLink}
+            />
+          ))}
       </nav>
 
       {/* Bottom: user + theme toggle + logout */}
