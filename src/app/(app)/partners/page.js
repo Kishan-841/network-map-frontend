@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { DataTable } from '@/components/ui/DataTable'
 import { IconPlus, IconUsers } from '@/components/ui/icons'
+import { AddPartnerModal } from '@/components/partners/AddPartnerModal'
 
 const STATUS_STYLE = {
   REGISTERED: 'bg-paper text-muted',
@@ -95,6 +96,8 @@ function InviteModal({ invite, onClose }) {
 
 export default function PartnersPage() {
   const role = useAuthStore((s) => s.user?.role)
+  const [adding, setAdding] = useState(false)
+  const [notice, setNotice] = useState(null)
   const [partners, setPartners] = useState(null)
   const [invites, setInvites] = useState([])
   const [newInvite, setNewInvite] = useState(null)
@@ -239,15 +242,48 @@ export default function PartnersPage() {
             : 'Every referral partner, whoever onboarded them'
         }
         action={
-          <Button loading={busy} onClick={createInvite}>
-            <IconPlus className="h-4.5 w-4.5" />
-            Invite a partner
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Two ways in: send a link, or add someone you already know. */}
+            <Button variant="secondary" onClick={() => setAdding(true)}>
+              <IconPlus className="h-4.5 w-4.5" />
+              Add partner
+            </Button>
+            <Button loading={busy} onClick={createInvite}>
+              Invite a partner
+            </Button>
+          </div>
         }
       />
 
       {error && (
         <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
+      )}
+
+      {notice && (
+        <div className="mb-3 flex items-start justify-between gap-3 rounded-btn bg-ok-tint px-4 py-3">
+          <p className="text-sm font-normal text-ok">{notice}</p>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="shrink-0 text-sm font-medium text-ok/70 hover:text-ok"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {adding && (
+        <AddPartnerModal
+          onClose={() => setAdding(false)}
+          onCreated={(partner) => {
+            setAdding(false)
+            setNotice(
+              `${partner.name} is added. They can sign in now with +91 ${partner.mobile} — ` +
+                'we will text them a code.',
+            )
+            setTick((t) => t + 1)
+          }}
+        />
       )}
 
       {pendingInvites.length > 0 && (
