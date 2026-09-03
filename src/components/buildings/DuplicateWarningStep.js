@@ -16,7 +16,7 @@ export function DuplicateWarningStep({ candidates, onContinue, onBack }) {
           <p className="font-bold text-warn">Possible existing building</p>
           <p className="mt-1 text-sm font-normal text-warn/90">
             {hasExactMatch
-              ? 'This exact place is already registered.'
+              ? 'This exact place is already registered. You can still add it under a different zone — you will pick the zone next.'
               : `Found ${candidates.length} building(s) nearby. Check before creating a duplicate.`}
           </p>
         </div>
@@ -65,11 +65,13 @@ export function DuplicateWarningStep({ candidates, onContinue, onBack }) {
         </button>
       ))}
 
-      {!hasExactMatch && (
-        <Button variant="secondary" fullWidth onClick={onContinue}>
-          This is a different building — continue
-        </Button>
-      )}
+      {/* Always offered. The same building can legitimately sit under two
+          zones — two operators serve it — and the zone is chosen on the NEXT
+          step, so nothing here can tell whether this is a real duplicate.
+          The server refuses only a clash within the zone actually chosen. */}
+      <Button variant="secondary" fullWidth onClick={onContinue}>
+        {hasExactMatch ? 'Add it under another zone — continue' : 'This is a different building — continue'}
+      </Button>
       <Button variant="ghost" fullWidth onClick={onBack}>
         Go back
       </Button>
