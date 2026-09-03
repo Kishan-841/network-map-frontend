@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { usePartnerAuthStore } from '@/stores/partner-auth-store'
 import { partnerTypeLabel } from '@/lib/partner-api-client'
 import { useTheme } from '@/hooks/useTheme'
+import { MoreSheet, splitNav } from '@/components/layout/MoreSheet'
 import {
   NodeMark,
   IconHome,
@@ -17,6 +19,7 @@ import {
   IconLogout,
   IconSun,
   IconMoon,
+  IconMore,
 } from '@/components/ui/icons'
 
 /**
@@ -29,11 +32,13 @@ import {
  * The five things a partner came to do (partner-network.md §2). Documents and
  * Profile live inside Profile, so the bar is not cluttered with settings.
  */
+// Ordered deliberately: the first four are what a thumb reaches without
+// opening More — the money, adding a customer, and checking on them.
 export const PARTNER_TABS = [
   { href: '/partner', label: 'Earnings', icon: IconHome, exact: true },
-  { href: '/partner/calculator', label: 'Calculator', icon: IconCalculator },
   { href: '/partner/refer', label: 'Add lead', icon: IconPlus },
   { href: '/partner/leads', label: 'My leads', icon: IconUsers },
+  { href: '/partner/calculator', label: 'Calculator', icon: IconCalculator },
   { href: '/partner/introduce', label: 'Refer', icon: IconUserPlus },
   { href: '/partner/profile', label: 'Profile', icon: IconUser },
 ]
@@ -180,28 +185,58 @@ export function PartnerSidebar({ tabs = PARTNER_TABS }) {
 /** Phone: a fixed bottom bar. Hidden at lg, where the rail takes over. */
 export function PartnerBottomNav({ tabs = PARTNER_TABS }) {
   const pathname = usePathname()
+  const [moreOpen, setMoreOpen] = useState(false)
+  const { visible, overflow } = splitNav(tabs)
+  const inOverflow = overflow.some((tab) => isActive(pathname, tab))
+
+  const cls = (active) =>
+    `flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-200 ${
+      active ? 'text-primary' : 'text-muted'
+    }`
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
-      <div className="mx-auto flex h-18 max-w-lg">
-        {tabs.map((tab) => {
-          const active = isActive(pathname, tab)
-          const Icon = tab.icon
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              aria-current={active ? 'page' : undefined}
-              className={`flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-200 ${
-                active ? 'text-primary' : 'text-muted'
-              }`}
+    <>
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
+        <div className="mx-auto flex h-18 max-w-lg">
+          {visible.map((tab) => {
+            const active = isActive(pathname, tab)
+            const Icon = tab.icon
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                aria-current={active ? 'page' : undefined}
+                className={cls(active)}
+              >
+                <Icon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
+                {tab.label}
+              </Link>
+            )
+          })}
+
+          {overflow.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              aria-expanded={moreOpen}
+              className={cls(inOverflow)}
             >
-              <Icon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
-              {tab.label}
-            </Link>
-          )
-        })}
-      </div>
-    </nav>
+              <IconMore className="h-5 w-5" strokeWidth={inOverflow ? 2.2 : 1.8} />
+              More
+            </button>
+          )}
+        </div>
+      </nav>
+
+      {moreOpen && (
+        <MoreSheet
+          items={overflow}
+          pathname={pathname}
+          isActive={(tab, path) => isActive(path, tab)}
+          onClose={() => setMoreOpen(false)}
+        />
+      )}
+    </>
   )
 }
 

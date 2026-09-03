@@ -40,6 +40,7 @@ export {
   Share2 as IconShare,
   IndianRupee as IconRupee,
   Phone as IconPhone,
+  Ellipsis as IconMore,
 } from 'lucide-react'
 
 /** Brand glyph: three network nodes joined by fiber links. */

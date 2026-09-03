@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import {
   IconDashboard,
@@ -12,9 +13,11 @@ import {
   IconShare,
   IconCalculator,
   IconRupee,
+  IconMore,
 } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
 import { isAgent, isLead, isSupervisor, isPartnerManager, isAccounts } from '@/lib/roles'
+import { MoreSheet, splitNav } from '@/components/layout/MoreSheet'
 
 const COVERAGE_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
@@ -23,13 +26,15 @@ const COVERAGE_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // Mirrors the sidebar: an admin does everything a partner manager does.
+// Ordered deliberately: the first four are what a thumb reaches without
+// opening More, so the registry work an admin does daily comes first.
 const ADMIN_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/partners', label: 'Partners', icon: IconUsers },
-  { href: '/referrals', label: 'Referrals', icon: IconShare },
   { href: '/leads', label: 'Leads', icon: IconUserPlus },
+  { href: '/referrals', label: 'Referrals', icon: IconShare },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // The acquisition team never sees the map or the coverage registry.
@@ -84,31 +89,60 @@ export function BottomNav() {
               ? ADMIN_NAV
               : COVERAGE_NAV
 
+  const [moreOpen, setMoreOpen] = useState(false)
+  const { visible, overflow } = splitNav(NAV_ITEMS)
+  const isActive = (item, path) => (item.exact ? path === item.href : path.startsWith(item.href))
+  // "More" lights up when the page you are on lives inside it, so the bar
+  // never looks like nothing is selected.
+  const inOverflow = overflow.some((item) => isActive(item, pathname))
+
+  const tab = (active) =>
+    `flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-200 ${
+      active ? 'text-primary' : 'text-muted'
+    }`
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
-      <div className="mx-auto flex h-18 max-w-lg">
-        {NAV_ITEMS.map(({ href, label, icon: NavIcon, exact }) => {
-          const active = exact ? pathname === href : pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={active ? 'page' : undefined}
-              className={`flex flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors duration-200 ${
-                active ? 'font-medium text-fiber' : 'font-normal text-faint'
-              }`}
+    <>
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-card/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
+        <div className="mx-auto flex h-18 max-w-lg">
+          {visible.map((item) => {
+            const active = isActive(item, pathname)
+            const NavIcon = item.icon
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? 'page' : undefined}
+                className={tab(active)}
+              >
+                <NavIcon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
+                {item.label}
+              </Link>
+            )
+          })}
+
+          {overflow.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              aria-expanded={moreOpen}
+              className={tab(inOverflow)}
             >
-              <NavIcon
-                className={`h-5.5 w-5.5 transition-transform duration-300 ${
-                  active ? 'scale-105' : ''
-                }`}
-                strokeWidth={active ? 2 : 1.8}
-              />
-              {label}
-            </Link>
-          )
-        })}
-      </div>
-    </nav>
+              <IconMore className="h-5 w-5" strokeWidth={inOverflow ? 2.2 : 1.8} />
+              More
+            </button>
+          )}
+        </div>
+      </nav>
+
+      {moreOpen && (
+        <MoreSheet
+          items={overflow}
+          pathname={pathname}
+          isActive={isActive}
+          onClose={() => setMoreOpen(false)}
+        />
+      )}
+    </>
   )
 }
