@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { emptyDraft, reduce, deriveSegments, draftErrors, toPayloadPoints, fromApiPoints, isPinned } from '../draft.js'
+import { pathMeters } from '../geo.js'
 
 describe('reduce', () => {
   it('add appends points with increasing keys', () => {
@@ -46,6 +47,54 @@ describe('reduce', () => {
     expect(d.points[0]).toMatchObject({ latitude: 5, longitude: 6 })
   })
 
+  it('move of a BUILDING point is ignored (pinned)', () => {
+    let d = emptyDraft()
+    d = reduce(d, { type: 'add', point: { latitude: 1, longitude: 2, pointType: 'BUILDING', ref: { buildingId: 'b1', name: 'Bldg A' } } })
+    const key = d.points[0].key
+    expect(isPinned(d.points[0])).toBe(true)
+    d = reduce(d, { type: 'move', key, latitude: 99, longitude: 99 })
+    expect(d.points[0]).toMatchObject({ latitude: 1, longitude: 2 })
+  })
+
+  it('move of a saved CLOSURE point is ignored (pinned)', () => {
+    let d = emptyDraft()
+    d = reduce(d, {
+      type: 'add',
+      point: { latitude: 1, longitude: 2, pointType: 'CLOSURE', ref: { closureId: 'c1', code: 'CL-0001', splitter: null } },
+    })
+    const key = d.points[0].key
+    expect(isPinned(d.points[0])).toBe(true)
+    d = reduce(d, { type: 'move', key, latitude: 99, longitude: 99 })
+    expect(d.points[0]).toMatchObject({ latitude: 1, longitude: 2 })
+  })
+
+  it('insert adds a point at the given index, shifting later keys but not renaming them', () => {
+    let d = emptyDraft()
+    d = reduce(d, { type: 'add', point: { latitude: 1, longitude: 1 } })
+    d = reduce(d, { type: 'add', point: { latitude: 2, longitude: 2 } })
+    d = reduce(d, { type: 'add', point: { latitude: 3, longitude: 3 } })
+    d = reduce(d, { type: 'insert', index: 1, point: { latitude: 1, longitude: 1 } })
+    expect(d.points.map((p) => p.key)).toEqual(['p1', 'p4', 'p2', 'p3'])
+    expect(d.points[1]).toMatchObject({ key: 'p4', latitude: 1, longitude: 1 })
+  })
+
+  it('setType to POP with coordinates moves the vertex and sets the ref', () => {
+    let d = emptyDraft()
+    d = reduce(d, { type: 'add', point: { latitude: 0, longitude: 0 } })
+    const key = d.points[0].key
+    d = reduce(d, { type: 'setType', key, pointType: 'POP', ref: { popId: 'pop1', name: 'Keshav' }, latitude: 18.6, longitude: 73.9 })
+    expect(d.points[0]).toMatchObject({ type: 'POP', latitude: 18.6, longitude: 73.9, ref: { popId: 'pop1', name: 'Keshav' } })
+  })
+
+  it('setType back to WAYPOINT with no ref clears the ref and keeps coordinates', () => {
+    let d = emptyDraft()
+    d = reduce(d, { type: 'add', point: { latitude: 0, longitude: 0 } })
+    const key = d.points[0].key
+    d = reduce(d, { type: 'setType', key, pointType: 'POP', ref: { popId: 'pop1', name: 'Keshav' }, latitude: 18.6, longitude: 73.9 })
+    d = reduce(d, { type: 'setType', key, pointType: 'WAYPOINT' })
+    expect(d.points[0]).toMatchObject({ type: 'WAYPOINT', latitude: 18.6, longitude: 73.9, ref: null })
+  })
+
   it('clear resets to an empty draft', () => {
     let d = emptyDraft()
     d = reduce(d, { type: 'add', point: { latitude: 1, longitude: 2 } })
@@ -89,6 +138,7 @@ describe('deriveSegments', () => {
     expect(segs).toHaveLength(1)
     expect(segs[0]).toMatchObject({ fromIndex: 0, toIndex: 3, fromLabel: 'Pop A', toLabel: 'CL-1' })
     expect(segs[0].mapMeters).toBeGreaterThan(0)
+    expect(segs[0].mapMeters).toBe(pathMeters(d.points.slice(segs[0].fromIndex, segs[0].toIndex + 1)))
   })
 
   it('produces one segment per consecutive pair of typed points', () => {
