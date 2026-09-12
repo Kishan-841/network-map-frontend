@@ -15,7 +15,7 @@ export default function SplitterStartDialog({ closure, splitters, onPick, onClos
       onClose={onClose}
       title={`Start from ${closure.code}`}
       footer={
-        <Button variant="secondary" fullWidth onClick={onClose}>
+        <Button type="button" variant="secondary" fullWidth onClick={onClose}>
           Cancel
         </Button>
       }

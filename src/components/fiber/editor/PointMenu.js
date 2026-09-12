@@ -7,6 +7,7 @@ import { IconPin, IconBuildings, IconHome, IconCrosshair, IconTrash, IconChevron
 import { POINT_COLORS } from '@/lib/fiber/constants'
 
 const CARD_WIDTH = 220
+const CARD_MAX_HEIGHT = 320
 
 /** Colour dot matching a point's marker colour — precedes every type item. */
 function Dot({ type }) {
@@ -98,13 +99,16 @@ export default function PointMenu({ point, at, bounds, pops, nearbyBuildings, on
   }
 
   const left = bounds ? Math.max(8, Math.min(at.x, bounds.width - (CARD_WIDTH + 12))) : at.x
+  const top = bounds?.height
+    ? Math.max(8, Math.min(at.y, bounds.height - CARD_MAX_HEIGHT - 8))
+    : at.y
 
   return (
     <div
       ref={rootRef}
       role="menu"
-      style={{ left, top: at.y, width: CARD_WIDTH }}
-      className="absolute z-30 flex flex-col gap-0.5 rounded-card border border-line bg-card p-1.5 shadow-lift"
+      style={{ left, top, width: CARD_WIDTH }}
+      className="absolute z-30 flex max-h-[320px] flex-col gap-0.5 overflow-y-auto rounded-card border border-line bg-card p-1.5 shadow-lift"
     >
       <Row active={point.type === 'WAYPOINT'} onClick={chooseWaypoint}>
         <Dot type="WAYPOINT" />
@@ -144,7 +148,13 @@ export default function PointMenu({ point, at, bounds, pops, nearbyBuildings, on
                   if (e.key === 'Enter') addNewPop()
                 }}
               />
-              <Button variant="primary" fullWidth disabled={!newPopName.trim()} onClick={addNewPop}>
+              <Button
+                type="button"
+                variant="primary"
+                fullWidth
+                disabled={!newPopName.trim()}
+                onClick={addNewPop}
+              >
                 Add
               </Button>
             </div>
