@@ -61,8 +61,13 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
     const shown = (fibers ?? []).filter((fiber) => fiber.id !== exclude)
 
     // ---- polylines: one per segment, plus the dangling waypoint runs --------
-    const hoverable = Boolean(onFiberClickRef.current || onFiberHoverRef.current)
+    // Interactivity is a question of whether the caller wants events, nothing
+    // else: a dim context line is still hoverable if a hover handler was given.
+    const interactive = Boolean(onFiberClickRef.current || onFiberHoverRef.current)
+    // The refs take the arrays BEFORE they are filled — they are mutated in
+    // place, so a throw mid-build still leaves the cleanup a complete list.
     const polylines = []
+    polylinesRef.current = polylines
     shown.forEach((fiber) => {
       polylineRanges(fiber).forEach((range) => {
         const line = new google.maps.Polyline({
@@ -72,18 +77,16 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
           strokeOpacity: dim ? 0.55 : 0.9,
           strokeWeight: dim ? 2.5 : 4,
           zIndex: 5,
-          clickable: !dim && hoverable,
+          clickable: interactive,
         })
-        if (!dim) {
-          if (onFiberClickRef.current) {
-            line.addListener('click', (event) => onFiberClickRef.current?.(fiber, event.domEvent))
-          }
-          if (onFiberHoverRef.current) {
-            const hover = (event) => onFiberHoverRef.current?.(fiber, event.domEvent)
-            line.addListener('mouseover', hover)
-            line.addListener('mousemove', hover)
-            line.addListener('mouseout', () => onFiberHoverRef.current?.(null))
-          }
+        if (onFiberClickRef.current) {
+          line.addListener('click', (event) => onFiberClickRef.current?.(fiber, event.domEvent))
+        }
+        if (onFiberHoverRef.current) {
+          const hover = (event) => onFiberHoverRef.current?.(fiber, event.domEvent)
+          line.addListener('mouseover', hover)
+          line.addListener('mousemove', hover)
+          line.addListener('mouseout', () => onFiberHoverRef.current?.(null))
         }
         polylines.push(line)
         if (range.isCut) {
@@ -96,7 +99,9 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
     const { entities, waypoints } = collectMarkers(shown)
     const clickablePoints = Boolean(onPointClickRef.current)
     const markers = []
+    markersRef.current = markers
     const clusterable = [] // closures/splitters only — POPs and buildings never cluster
+    clusterableRef.current = clusterable
 
     entities.forEach(({ kind, point, fibers: owners }) => {
       const text = markerText(kind, point)
@@ -135,10 +140,6 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
       })
     })
 
-    polylinesRef.current = polylines
-    markersRef.current = markers
-    clusterableRef.current = clusterable
-
     // ---- zoom rules --------------------------------------------------------
     clustererRef.current = cluster && clusterable.length ? new MarkerClusterer({ map, markers: [], renderer: clusterRenderer }) : null
     clusteredRef.current = null
@@ -168,7 +169,11 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
 
     return () => {
       google.maps.event.removeListener(zoomListener)
+      // clearMarkers only empties the list; the clusterer is an OverlayView
+      // holding an `idle` listener on the map, and only setMap(null) (→
+      // onRemove) gives that back. Without it every rebuild leaks one.
       clustererRef.current?.clearMarkers()
+      clustererRef.current?.setMap(null)
       clustererRef.current = null
       clusteredRef.current = null
       markersRef.current.forEach(({ marker }) => {
