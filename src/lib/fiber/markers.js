@@ -13,9 +13,11 @@ const KIND_SHAPES = {
     `<circle cx="9" cy="9" r="6" fill="${color}" stroke="#ffffff" stroke-width="2"/><circle cx="9" cy="9" r="2" fill="#ffffff"/>`,
   SPLITTER: (color) => `<polygon points="9,1 17,9 9,17 1,9" fill="${color}" stroke="#ffffff" stroke-width="2"/>`,
   WAYPOINT: (color) => `<circle cx="9" cy="9" r="4" fill="${color}" fill-opacity="0.9" stroke="#ffffff" stroke-width="1.5"/>`,
+  BUILDING: (color) =>
+    `<circle cx="9" cy="9" r="6" fill="${color}" stroke="#ffffff" stroke-width="2"/><rect x="6.5" y="6" width="5" height="6" rx="0.6" fill="#ffffff"/>`,
 }
 
-const VALID_KINDS = new Set(['POP', 'CLOSURE', 'SPLITTER', 'WAYPOINT', 'SNAP_RING'])
+const VALID_KINDS = new Set(['POP', 'CLOSURE', 'SPLITTER', 'WAYPOINT', 'BUILDING', 'SNAP_RING'])
 
 const iconCache = new Map()
 

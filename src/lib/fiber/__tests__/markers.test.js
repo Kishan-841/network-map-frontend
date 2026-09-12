@@ -13,9 +13,14 @@ describe('typedMarkerIcon', () => {
     const closure = typedMarkerIcon('CLOSURE')
     const splitter = typedMarkerIcon('SPLITTER')
     const waypoint = typedMarkerIcon('WAYPOINT')
+    const building = typedMarkerIcon('BUILDING')
     const snapRing = typedMarkerIcon('SNAP_RING')
-    const urls = [pop.url, closure.url, splitter.url, waypoint.url, snapRing.url]
+    const urls = [pop.url, closure.url, splitter.url, waypoint.url, building.url, snapRing.url]
     expect(new Set(urls).size).toBe(urls.length)
+  })
+
+  it('draws BUILDING in its own colour', () => {
+    expect(typedMarkerIcon('BUILDING').url).toContain('%2322c55e')
   })
 
   it('produces a data URI SVG', () => {

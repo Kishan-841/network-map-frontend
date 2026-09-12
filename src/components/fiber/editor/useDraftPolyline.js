@@ -24,20 +24,18 @@ export function latLngToPixel(projectionOverlay, latLng) {
   return projection.fromLatLngToContainerPixel(latLng)
 }
 
-// markers.js only draws these kinds; anything else (BUILDING) borrows the
-// waypoint dot but keeps its label and stays visible at every zoom.
-const ICON_KINDS = new Set(['POP', 'CLOSURE', 'SPLITTER', 'WAYPOINT'])
-const iconKind = (p) => {
-  const kind = p.type === 'CLOSURE' && p.ref?.splitter ? 'SPLITTER' : p.type
-  return ICON_KINDS.has(kind) ? kind : 'WAYPOINT'
-}
+// A closure that carries a splitter draws as a splitter; every other point
+// draws as its own type (markers.js throws on a kind it cannot draw).
+const iconKind = (p) => (p.type === 'CLOSURE' && p.ref?.splitter ? 'SPLITTER' : p.type)
 const labelText = (p) => {
   if (p.type === 'WAYPOINT') return ''
   return p.ref?.name ?? p.ref?.code ?? (p.ref?.newClosure ? 'New' : (p.ref?.newPop?.name ?? ''))
 }
 // Rebuild trigger: anything that changes the SHAPE of the point list (order,
-// identity, icon, label) — never the coordinates alone.
-const signatureOf = (points) => points.map((p) => `${p.key}:${iconKind(p)}:${labelText(p)}`).join('|')
+// identity, type, icon, label) — never the coordinates alone. The raw type is
+// in the key as well as the icon kind: two different types can share an icon
+// but still differ in the zoom rules (only a real WAYPOINT hides below z15).
+const signatureOf = (points) => points.map((p) => `${p.key}:${p.type}:${iconKind(p)}:${labelText(p)}`).join('|')
 
 const mapsIcon = (icon) => ({
   url: icon.url,
@@ -76,13 +74,24 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
   const dispatchRef = useRef(dispatch)
   const drawingRef = useRef(drawing)
   const coreCountRef = useRef(coreCount)
+  const snapRingRef = useRef(snapRing)
 
   useEffect(() => {
     draftRef.current = draft
     dispatchRef.current = dispatch
     drawingRef.current = drawing
     coreCountRef.current = coreCount
+    snapRingRef.current = snapRing
   })
+
+  // ---- snap ring follows the hovered target -------------------------------
+  // Stable for the same reason as syncDraft: the create effect replays it.
+  const applySnapRing = useCallback((target) => {
+    const ring = ringRef.current
+    if (!ring) return
+    if (target) ring.setPosition({ lat: target.latitude, lng: target.longitude })
+    ring.setVisible(Boolean(target))
+  }, [])
 
   // ---- draft → map ---------------------------------------------------------
   // Stable so the create effect can run it once the overlays exist (the draft
@@ -270,8 +279,10 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
     container.addEventListener('mousemove', onMove)
     container.addEventListener('mouseleave', onLeave)
 
-    // The draft can already hold points (an edited route) before `ready` flips.
+    // The draft — and a hovered snap target — can already exist before `ready`
+    // flips, and neither prop changes identity afterwards to trigger its effect.
     syncDraft(draftRef.current.points)
+    applySnapRing(snapRingRef.current)
 
     return () => {
       container.removeEventListener('mousemove', onMove)
@@ -293,7 +304,7 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
       projectionRef.current = null
       mapRef.current = null
     }
-  }, [map, ready, syncDraft])
+  }, [map, ready, syncDraft, applySnapRing])
 
   useEffect(() => {
     syncDraft(draft.points)
@@ -311,17 +322,9 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
     if (!drawing) rubberRef.current?.setPath([])
   }, [drawing])
 
-  // ---- snap ring follows the hovered target -------------------------------
   useEffect(() => {
-    const ring = ringRef.current
-    if (!ring) return
-    if (snapRing) {
-      ring.setPosition({ lat: snapRing.latitude, lng: snapRing.longitude })
-      ring.setVisible(true)
-    } else {
-      ring.setVisible(false)
-    }
-  }, [snapRing])
+    applySnapRing(snapRing)
+  }, [snapRing, applySnapRing])
 
   // Stable identity: usePointGesture puts this in an effect dependency array.
   const hitTest = useCallback((pixel) => {
