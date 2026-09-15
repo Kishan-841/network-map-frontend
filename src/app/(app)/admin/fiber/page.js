@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { IconEdit, IconTrash, IconPlus, IconEye } from '@/components/ui/icons'
 import { fiberTypeColor } from '@/lib/constants'
+import { FIBER_STATUS } from '@/lib/fiber/constants'
 
 // Client-only: Google Maps JS touches window.
-const GoogleFiberEditor = dynamic(() => import('@/components/map/google/GoogleFiberEditor'), {
+const FiberEditor = dynamic(() => import('@/components/fiber/editor/FiberEditor'), {
   ssr: false,
 })
 
@@ -24,7 +25,7 @@ export default function AdminFiberPage() {
   const fetchRoutes = useCallback(
     () =>
       apiClient
-        .get('/fiber-routes')
+        .get('/fibers')
         .then((res) => setRoutes(res.data.data))
         // Empty list (not a permanent "Loading…") when the fetch fails.
         .catch(() => setRoutes([])),
@@ -36,10 +37,10 @@ export default function AdminFiberPage() {
   }, [fetchRoutes])
 
   async function handleDelete(route) {
-    if (!window.confirm(`Delete fiber route "${route.name}"?`)) return
+    if (!window.confirm(`Delete fiber "${route.name}"?`)) return
     setListError(null)
     try {
-      await apiClient.delete(`/fiber-routes/${route.id}`)
+      await apiClient.delete(`/fibers/${route.id}`)
       fetchRoutes()
     } catch (err) {
       setListError(getApiErrorMessage(err))
@@ -47,9 +48,9 @@ export default function AdminFiberPage() {
   }
 
   const segmentCount = (route) => route.segments?.length ?? 0
-  const pointCount = (route) =>
-    (route.segments ?? []).reduce((sum, segment) => sum + (segment.points?.length ?? 0), 0)
-  const typeList = (route) => [...new Set((route.segments ?? []).map((s) => s.fiberType))]
+  const pointCount = (route) => route.points?.length ?? 0
+  // The colour of a fiber is its core count — one chip, phase-1 palette.
+  const typeList = (route) => [`${route.coreCount} core`]
 
   return (
     <main className="mx-auto max-w-2xl">
@@ -99,11 +100,10 @@ export default function AdminFiberPage() {
             <div className="min-w-0 flex-1">
               <p className="truncate font-bold">{route.name}</p>
               <p className="text-sm font-normal text-muted">
-                {segmentCount(route)} line{segmentCount(route) === 1 ? '' : 's'} ·{' '}
-                {pointCount(route)} points · {typeList(route).join(' + ')}
-                {route.placement && ` · ${route.placement}`}
-                {route.fiberId && ` · ${route.fiberId}`}
-                {route.operator?.name && ` · ${route.operator.name}`}
+                {route.coreCount} core · {FIBER_STATUS[route.status]?.label ?? route.status} ·{' '}
+                {route.totals?.closureCount ?? 0} closure
+                {route.totals?.closureCount === 1 ? '' : 's'}
+                {route.olt?.name && ` · ${route.olt.name}`}
               </p>
             </div>
             <button
@@ -166,13 +166,13 @@ export default function AdminFiberPage() {
 
             <div className="rounded-card bg-paper px-4 py-1">
               {[
-                ['Fiber ID', viewRoute.fiberId || '—'],
+                ['Status', FIBER_STATUS[viewRoute.status]?.label ?? viewRoute.status ?? '—'],
                 ['Placement', viewRoute.placement || '—'],
                 [
                   'Lines',
                   `${segmentCount(viewRoute)} line${segmentCount(viewRoute) === 1 ? '' : 's'} · ${pointCount(viewRoute)} points`,
                 ],
-                ['Remark', viewRoute.remark || '—'],
+                ['Notes', viewRoute.notes || '—'],
               ].map(([label, value], i) => (
                 <div
                   key={label}
@@ -212,8 +212,8 @@ export default function AdminFiberPage() {
       </Modal>
 
       {editorRoute !== undefined && (
-        <GoogleFiberEditor
-          initialRoute={editorRoute ?? undefined}
+        <FiberEditor
+          initialFiber={editorRoute ?? undefined}
           onClose={() => setEditorRoute(undefined)}
           onSaved={() => {
             setEditorRoute(undefined)
