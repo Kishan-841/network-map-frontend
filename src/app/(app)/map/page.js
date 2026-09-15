@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { useBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { filterMarkers } from '@/lib/building-filters'
 import { useZones } from '@/hooks/useZones'
-import { useFiberRoutes } from '@/hooks/useFiberRoutes'
+import { useFibers } from '@/hooks/useFibers'
 import { useAuthStore } from '@/stores/auth-store'
-import { isAcquisition } from '@/lib/roles'
+import { canManageFiber, isAcquisition } from '@/lib/roles'
 import { AcquisitionMap } from '@/components/map/AcquisitionMap'
 import { FilterSheet } from '@/components/map/FilterSheet'
 import { SelectedBuildingCard } from '@/components/map/SelectedBuildingCard'
@@ -16,6 +17,13 @@ import { Fab } from '@/components/ui/Fab'
 import { IconSearch } from '@/components/ui/icons'
 
 const BuildingsMap = dynamic(() => import('@/components/map/BuildingsMap'), { ssr: false })
+// Client-only, and only ever mounted once something on the map is clicked.
+const FiberDetailPanel = dynamic(() => import('@/components/fiber/FiberDetailPanel'), { ssr: false })
+const ClosurePopup = dynamic(() => import('@/components/fiber/ClosurePopup'), { ssr: false })
+
+// The fiber overlay rebuilds whenever this array changes identity — one stable
+// empty array for "hidden" keeps a toggled-off layer from rebuilding forever.
+const NO_FIBERS = []
 
 export default function MapPage() {
   const role = useAuthStore((s) => s.user?.role)
@@ -26,6 +34,9 @@ export default function MapPage() {
 }
 
 function CoverageMapPage() {
+  const router = useRouter()
+  const role = useAuthStore((s) => s.user?.role)
+  const readOnlyFiber = !canManageFiber(role)
   const [filters, setFilters] = useState({})
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -43,14 +54,25 @@ function CoverageMapPage() {
   const [liveShown, setLiveShown] = useState(true)
   const [notLiveShown, setNotLiveShown] = useState(true)
   // Fiber layer is lazy: nothing is fetched until first toggled on. The
-  // operator filter scopes it — routes without an operator always show.
+  // operator filter scopes it — fibers without an operator always show.
   const [fiberShown, setFiberShown] = useState(false)
-  const { routes: fiberRoutes } = useFiberRoutes(fiberShown)
-  const visibleFiberRoutes = useMemo(() => {
-    if (!fiberShown) return []
-    if (!filters.operatorId) return fiberRoutes
-    return fiberRoutes.filter((route) => route.operatorId === filters.operatorId)
-  }, [fiberShown, fiberRoutes, filters.operatorId])
+  const { fibers } = useFibers(fiberShown)
+  const visibleFibers = useMemo(() => {
+    if (!fiberShown) return NO_FIBERS
+    const shown = filters.operatorId
+      ? fibers.filter((fiber) => fiber.operatorId === filters.operatorId)
+      : fibers
+    // `fibers` is a fresh [] on every render until the fetch lands — map any
+    // empty result onto the stable array so the overlay never rebuilds.
+    return shown.length > 0 ? shown : NO_FIBERS
+  }, [fiberShown, fibers, filters.operatorId])
+
+  // Clicking the map opens exactly one of these — a fiber's detail panel or a
+  // closure's popup. Both are right-hand panels, so they are never both open.
+  const [panelFiberId, setPanelFiberId] = useState(null)
+  const [closurePopupId, setClosurePopupId] = useState(null)
+  // Filled by the map once it is live: centre the view on one point.
+  const centreRef = useRef(null)
 
   // Every building in scope, fetched once per session — the map is not a page
   // of results. Reading the paginated list at pageSize=500 is what capped it.
@@ -77,9 +99,18 @@ function CoverageMapPage() {
       <BuildingsMap
         buildings={visibleBuildings}
         zones={zonesShown ? zones : []}
-        fiberRoutes={visibleFiberRoutes}
+        fibers={visibleFibers}
         selectedId={selected?.id}
         onSelect={setSelected}
+        onFiberSelect={(id) => {
+          setClosurePopupId(null)
+          setPanelFiberId(id)
+        }}
+        onClosureSelect={(id) => {
+          setPanelFiberId(null)
+          setClosurePopupId(id)
+        }}
+        centreRef={centreRef}
       />
 
       <div className="absolute inset-x-3 top-3 z-40 flex gap-2 lg:inset-x-6 lg:top-6">
@@ -128,9 +159,34 @@ function CoverageMapPage() {
         notLiveShown={notLiveShown}
         onToggleNotLive={() => setNotLiveShown((v) => !v)}
         fiberShown={fiberShown}
-        fiberCount={visibleFiberRoutes.length}
+        fiberCount={visibleFibers.length}
         onToggleFiber={() => setFiberShown((v) => !v)}
       />
+
+      {panelFiberId && (
+        <FiberDetailPanel
+          key={panelFiberId}
+          fiberId={panelFiberId}
+          readOnly={readOnlyFiber}
+          onClose={() => setPanelFiberId(null)}
+          onSwap={setPanelFiberId}
+          onCentre={(point) => centreRef.current?.(point)}
+          onEdit={(fiber) => router.push(`/admin/fiber?edit=${fiber.id}`)}
+        />
+      )}
+
+      {closurePopupId && (
+        <ClosurePopup
+          key={closurePopupId}
+          closureId={closurePopupId}
+          readOnly={readOnlyFiber}
+          onClose={() => setClosurePopupId(null)}
+          onOpenFiber={(id) => {
+            setClosurePopupId(null)
+            setPanelFiberId(id)
+          }}
+        />
+      )}
 
       <SelectedBuildingCard building={selected} onClose={() => setSelected(null)} />
       <FilterSheet
