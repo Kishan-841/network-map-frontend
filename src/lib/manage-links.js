@@ -12,6 +12,8 @@ import {
   IconCalculator,
   IconRupee,
   IconDashboard,
+  IconHome,
+  IconCrosshair,
 } from '@/components/ui/icons'
 
 /**
@@ -43,7 +45,9 @@ export const NAV_GROUPS = [
       { href: '/admin/cities', label: 'Cities', icon: IconMap },
       { href: '/admin/operators', label: 'Operators', icon: IconLayers },
       { href: '/admin/zones', label: 'Zones', icon: IconPin },
-      { href: '/admin/fiber', label: 'Fiber routes', icon: IconNavigate },
+      { href: '/admin/fiber', label: 'Fibers', icon: IconNavigate },
+      { href: '/admin/pops', label: 'POPs', icon: IconHome },
+      { href: '/admin/closures', label: 'Closures', icon: IconCrosshair },
       { href: '/admin/building-types', label: 'Building types', icon: IconBuildings },
       { href: '/admin/users', label: 'Users', icon: IconUser },
       { href: '/admin/system-logs', label: 'System logs', icon: IconLogs },
@@ -68,7 +72,9 @@ const SUBTITLES = {
   '/admin/cities': 'Operator groups',
   '/admin/operators': 'Zone groups',
   '/admin/zones': 'Coverage areas',
-  '/admin/fiber': 'Network lines',
+  '/admin/fiber': 'Cables on the map',
+  '/admin/pops': 'Sites and OLTs',
+  '/admin/closures': 'Splice boxes and splitters',
   '/admin/building-types': 'Form options',
   '/admin/users': 'Team & roles',
   '/admin/system-logs': 'Audit trail',
@@ -80,8 +86,13 @@ export const MANAGE_LINKS = NAV_GROUPS.flatMap((group) =>
     sub: SUBTITLES[item.href] ?? '',
     // Everything in these groups is admin-only; a manager's grid shows the
     // handful they can actually reach.
-    adminOnly: !['/admin/operators', '/admin/zones', '/admin/fiber', '/admin/building-types'].includes(
-      item.href,
-    ),
+    adminOnly: ![
+      '/admin/operators',
+      '/admin/zones',
+      '/admin/fiber',
+      '/admin/pops',
+      '/admin/closures',
+      '/admin/building-types',
+    ].includes(item.href),
   })),
 )
