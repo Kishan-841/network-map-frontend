@@ -121,6 +121,8 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     buildingsShown: overlays.buildings,
     zonesShown: overlays.zones,
     onTargetClick: handleTargetClick,
+    // Drawing: markers must not intercept the tap that places a point.
+    markersClickable: !drawing,
   })
 
   // Saved fibers as dim context behind the draft — never interactive here.
@@ -366,7 +368,17 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
       />
 
       <div className="relative min-h-0 flex-1">
-        <div ref={containerRef} className="h-full w-full" />
+        {/* touch-action while drawing: with the default `auto`, the browser
+            holds a tap back to see whether a double-tap-to-zoom is coming and
+            never synthesises the click at all — on a phone the first tap is
+            lost and every later one lands a point behind. Draw mode already
+            turns the map's own gestures off (`gestureHandling: 'none'`), so
+            taking the browser's away with it costs nothing. */}
+        <div
+          ref={containerRef}
+          className="h-full w-full"
+          style={drawing ? { touchAction: 'none' } : undefined}
+        />
 
         <EditorSearch getCenter={getCenter} onJump={jumpTo} />
 

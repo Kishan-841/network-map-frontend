@@ -68,11 +68,35 @@ const mapsIcon = (icon) => ({
  * lazily fetched zone outlines. Everything lives in refs; `onTargetClick` is
  * mirrored so a fresh arrow from the caller never rebuilds a layer.
  */
-export function useEditorOverlays({ map, ready, targets, buildingsShown, zonesShown, onTargetClick }) {
+export function useEditorOverlays({
+  map,
+  ready,
+  targets,
+  buildingsShown,
+  zonesShown,
+  onTargetClick,
+  markersClickable = true,
+}) {
   const clickRef = useRef(onTargetClick)
   useEffect(() => {
     clickRef.current = onTargetClick
   })
+
+  // A clickable Google marker eats the tap on a touch screen: the browser never
+  // synthesises the click the draw handler listens for, so tapping a POP or a
+  // splitter diamond to start a line did nothing on a phone. Draw mode has no
+  // use for marker clicks (the target card is Pan-mode only), so the markers
+  // step out of the way there and the tap reaches the map surface.
+  const clickableRef = useRef(markersClickable)
+  const nodeMarkersRef = useRef([])
+  const buildingMarkersRef = useRef([])
+  // Declared BEFORE the layers so the ref is current when they (re)build.
+  useEffect(() => {
+    clickableRef.current = markersClickable
+    for (const marker of [...nodeMarkersRef.current, ...buildingMarkersRef.current]) {
+      marker.setOptions({ clickable: markersClickable })
+    }
+  }, [markersClickable])
 
   // ---- POP + closure markers (always visible) -------------------------------
   useEffect(() => {
@@ -84,11 +108,13 @@ export function useEditorOverlays({ map, ready, targets, buildingsShown, zonesSh
         map,
         position: { lat: target.latitude, lng: target.longitude },
         icon: mapsIcon(typedMarkerIcon(kind)),
+        clickable: clickableRef.current,
         zIndex: 8,
       })
       marker.addListener('click', () => clickRef.current?.(target))
       return marker
     })
+    nodeMarkersRef.current = markers
 
     const applyZoom = () => {
       const zoom = map.getZoom() ?? 0
@@ -102,6 +128,7 @@ export function useEditorOverlays({ map, ready, targets, buildingsShown, zonesSh
 
     return () => {
       google.maps.event.removeListener(zoomListener)
+      nodeMarkersRef.current = []
       markers.forEach((marker) => {
         google.maps.event.clearInstanceListeners(marker)
         marker.setMap(null)
@@ -118,6 +145,7 @@ export function useEditorOverlays({ map, ready, targets, buildingsShown, zonesSh
         const dot = buildingDotIcon(BUILDING_DOT_COLOR)
         const marker = new google.maps.Marker({
           position: { lat: target.latitude, lng: target.longitude },
+          clickable: clickableRef.current,
           zIndex: 2,
           icon: {
             url: dot.url,
@@ -128,9 +156,11 @@ export function useEditorOverlays({ map, ready, targets, buildingsShown, zonesSh
         marker.addListener('click', () => clickRef.current?.(target))
         return marker
       })
+    buildingMarkersRef.current = markers
     const clusterer = new MarkerClusterer({ map, markers, renderer: clusterRenderer })
 
     return () => {
+      buildingMarkersRef.current = []
       clusterer.clearMarkers()
       // clearMarkers only empties the list — the clusterer is an OverlayView
       // holding an `idle` listener; only setMap(null) gives that back.
