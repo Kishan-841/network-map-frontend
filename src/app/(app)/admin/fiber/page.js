@@ -12,6 +12,7 @@ import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import FiberTable from '@/components/fiber/FiberTable'
 import FiberDetailPanel from '@/components/fiber/FiberDetailPanel'
+import JunctionsTool from '@/components/fiber/JunctionsTool'
 
 // Client-only: Google Maps JS touches window.
 const FiberEditor = dynamic(() => import('@/components/fiber/editor/FiberEditor'), {
@@ -118,6 +119,8 @@ export default function AdminFiberPage() {
           <p className="text-sm font-normal text-muted">No fibers yet — draw the first one.</p>
         }
       />
+
+      {canManage && <JunctionsTool onMerged={() => {}} />}
 
       {panelFiberId && (
         <FiberDetailPanel
