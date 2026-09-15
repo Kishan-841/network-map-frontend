@@ -174,7 +174,10 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
       strokeColor: coreColor(coreCountRef.current),
       strokeOpacity: 0.95,
       strokeWeight: 3,
-      editable: true,
+      // Editable ONLY while the line is being drawn: Google's ghost midpoint
+      // handles sit exactly where a closure is aimed and swallow the tap that
+      // should place it, and a stray drag in Pan mode would move the route.
+      editable: drawingRef.current,
       clickable: false,
       zIndex: 10,
     })
@@ -318,8 +321,9 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
     rubberRef.current?.setOptions({ strokeColor })
   }, [coreCount])
 
-  // ---- leaving Draw mode drops the rubber band -----------------------------
+  // ---- leaving Draw mode drops the rubber band and the vertex handles ------
   useEffect(() => {
+    polylineRef.current?.setOptions({ editable: drawing })
     if (!drawing) rubberRef.current?.setPath([])
   }, [drawing])
 

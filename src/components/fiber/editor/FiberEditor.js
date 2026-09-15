@@ -430,7 +430,13 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
           canClear={phase === 'draw' && counts.points > 0}
         />
 
-        <MapLayerControl value={layer} onChange={setLayer} position="right-3 top-[4.25rem] sm:top-3" />
+        {/* A phone's top rows belong to the search and the mode control — the
+            layer switcher sits out of the way, above the zoom buttons. */}
+        <MapLayerControl
+          value={layer}
+          onChange={setLayer}
+          position="right-3 bottom-[8.5rem] sm:bottom-auto sm:top-3"
+        />
 
         <EditorHintBar hint={hint} tone={missAt ? 'warn' : 'muted'} />
 

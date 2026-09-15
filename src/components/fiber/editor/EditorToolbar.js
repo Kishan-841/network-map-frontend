@@ -22,14 +22,15 @@ export default function EditorToolbar({ phase, mode, onMode, coreCount, onCoreCo
 
   return (
     <>
-      <div className="absolute left-3 top-[4.25rem] z-10 flex overflow-hidden rounded-btn border border-line bg-card/95 text-xs font-medium shadow-soft backdrop-blur sm:left-1/2 sm:top-3 sm:-translate-x-1/2 sm:text-sm">
+      {/* Full width on a phone: three modes never fit beside the layer control. */}
+      <div className="absolute left-3 right-3 top-[4.25rem] z-10 flex overflow-hidden rounded-btn border border-line bg-card/95 text-xs font-medium shadow-soft backdrop-blur sm:left-1/2 sm:right-auto sm:top-3 sm:-translate-x-1/2 sm:text-sm">
         {modes.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => onMode(option.value)}
             aria-pressed={mode === option.value}
-            className={`min-h-11 px-3 transition-colors sm:px-4 ${
+            className={`min-h-11 flex-1 px-3 transition-colors sm:flex-none sm:px-4 ${
               mode === option.value ? 'bg-fiber text-white' : 'text-muted hover:text-ink'
             }`}
           >
