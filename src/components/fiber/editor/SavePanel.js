@@ -161,6 +161,8 @@ export default function SavePanel({
   }
 
   const nameBlank = name.length > 0 && !name.trim()
+  // An OLT with no PON port saves a half-connection nobody can trace.
+  const portMissing = !fromSplitterOutput && Boolean(oltId) && ponPort === ''
 
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
@@ -228,6 +230,9 @@ export default function SavePanel({
                 })}
             </Select>
           </div>
+        )}
+        {portMissing && (
+          <p className="-mt-2 text-xs font-normal text-bad">Choose a PON port</p>
         )}
 
         {cutLocked ? (
@@ -347,7 +352,7 @@ export default function SavePanel({
           <Button
             className="flex-1"
             loading={saving}
-            disabled={uploading || nameBlank}
+            disabled={uploading || nameBlank || portMissing}
             onClick={handleSubmit}
           >
             {mode === 'edit' ? 'Save fiber' : 'Create fiber'}
