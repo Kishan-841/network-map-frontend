@@ -26,6 +26,13 @@ export const isSupervisor = (role) => role === 'SUPERVISOR'
  */
 export const canManageBuildings = (role) => ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)
 
+/**
+ * May build and edit the fiber network — draw routes, correct laid lengths,
+ * mark a fiber cut or restored. Mirrors the API, where every write under
+ * /fibers is `requireRole('ADMIN', 'MANAGER')`; a surveyor reads it only.
+ */
+export const canManageFiber = (role) => ['ADMIN', 'MANAGER'].includes(role)
+
 export const DESIGNATIONS = [
   { value: 'CHAIRMAN', label: 'Chairman' },
   { value: 'SECRETARY', label: 'Secretary' },
