@@ -41,7 +41,7 @@ export function useOverlayToggles() {
     buildings: readPref(PREF_KEYS.buildings, false),
     zones: readPref(PREF_KEYS.zones, false),
     // Saved fiber is context by default — the whole point is seeing what is
-    // already laid so a new line does not duplicate it.
+    // already there so a new line does not duplicate it.
     others: readPref(PREF_KEYS.others, true),
   }))
   const toggleOverlay = useCallback((key, value) => {
