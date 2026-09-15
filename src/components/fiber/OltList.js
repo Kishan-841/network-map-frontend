@@ -76,13 +76,9 @@ function OltEditForm({ initial, onSave, onCancel, saveLabel }) {
 function OltRow({ olt, canManage, busy, onEdit, onDelete }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-btn border border-line px-3 py-2">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-ink">{olt.name}</p>
-        <p className="text-xs font-normal text-faint">
-          {olt.ponPortCount} ports
-          {olt._count?.fibers != null ? ` · ${olt._count.fibers} fiber${olt._count.fibers === 1 ? '' : 's'}` : ''}
-        </p>
-      </div>
+      <p className="min-w-0 truncate text-sm font-medium text-ink">
+        {olt.name} · {olt.ponPortCount} ports · {olt._count?.fibers ?? 0} fibers
+      </p>
       {canManage && (
         <div className="flex shrink-0 gap-1">
           <button
@@ -111,14 +107,12 @@ function OltRow({ olt, canManage, busy, onEdit, onDelete }) {
 
 /**
  * OLT sub-table for one POP's expanded row: list of OLTs with edit/delete,
- * plus an inline "add OLT" form. Keeps its own copy of the list, seeded from
- * `olts` once, so create/update/delete are reflected immediately here even
- * though the shared POP list only refreshes on its next mount (see
- * `useSessionResource`'s cache-invalidation comment). `onMutated` still fires
- * on every write so that cache — and every other consumer of it — catches up.
+ * plus an inline "add OLT" form. Renders straight from the `olts` prop —
+ * every mutation calls `onMutated()` (→ `invalidatePops(); invalidateFibers()`)
+ * and relies on `useSessionResource`'s mounted-consumer refetch to bring the
+ * POP list (and this component, re-rendered with fresh `olts`) up to date.
  */
 export default function OltList({ popId, olts, canManage, onMutated }) {
-  const [localOlts, setLocalOlts] = useState(() => olts)
   // undefined = no form open, null = adding, an id = editing that OLT.
   const [editingId, setEditingId] = useState(undefined)
   const [busyId, setBusyId] = useState(null)
@@ -128,11 +122,9 @@ export default function OltList({ popId, olts, canManage, onMutated }) {
 
   async function handleSave(oltId, values) {
     if (oltId) {
-      const res = await apiClient.patch(`/pops/${popId}/olts/${oltId}`, values)
-      setLocalOlts((list) => list.map((o) => (o.id === oltId ? { ...o, ...res.data.data } : o)))
+      await apiClient.patch(`/pops/${popId}/olts/${oltId}`, values)
     } else {
-      const res = await apiClient.post(`/pops/${popId}/olts`, values)
-      setLocalOlts((list) => [...list, res.data.data])
+      await apiClient.post(`/pops/${popId}/olts`, values)
     }
     onMutated()
     closeForm()
@@ -144,7 +136,6 @@ export default function OltList({ popId, olts, canManage, onMutated }) {
     setError(null)
     try {
       await apiClient.delete(`/pops/${popId}/olts/${olt.id}`)
-      setLocalOlts((list) => list.filter((o) => o.id !== olt.id))
       onMutated()
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not delete this OLT'))
@@ -159,11 +150,11 @@ export default function OltList({ popId, olts, canManage, onMutated }) {
         <p className="rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">{error}</p>
       )}
 
-      {localOlts.length === 0 && editingId === undefined && (
+      {olts.length === 0 && editingId === undefined && (
         <p className="text-sm font-normal text-muted">No OLTs yet.</p>
       )}
 
-      {localOlts.map((olt) =>
+      {olts.map((olt) =>
         editingId === olt.id ? (
           <OltEditForm
             key={olt.id}
