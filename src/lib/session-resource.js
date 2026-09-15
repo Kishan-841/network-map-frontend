@@ -12,27 +12,38 @@ import { useAuthStore } from '@/stores/auth-store'
  * logged-in user changes (logout, different login), never in between.
  *
  * Staleness is handled by invalidation: every admin mutation (create/update/
- * delete/import) calls the resource's `invalidate()`, clearing the cache so
- * the NEXT consumer fetches fresh data. No polling, no TTL.
+ * delete/import) calls the resource's `invalidate()`, clearing the cache and
+ * nudging every currently-mounted consumer to refetch — not just the next
+ * one to mount — via a module-level listener set (a `tick` state bump, not a
+ * synchronous effect-body `setState`, so `react-hooks/set-state-in-effect`
+ * stays satisfied). No polling, no TTL.
  */
 export function createSessionResource(path) {
   const cache = { userId: undefined, data: null, promise: null }
+  const listeners = new Set()
 
   function useSessionResource(enabled = true) {
     const userId = useAuthStore((s) => s.user?.id)
     const cached = enabled && cache.userId === userId ? cache.data : null
     const [data, setData] = useState(cached)
     const [loading, setLoading] = useState(enabled && cached === null)
+    const [tick, setTick] = useState(0)
 
     useEffect(() => {
-      if (!enabled || !userId) return
+      // Registered unconditionally so any invalidate() while this hook is
+      // mounted — regardless of enabled/userId — triggers a re-run that
+      // re-evaluates them, rather than only benefiting the next mount.
+      const notify = () => setTick((t) => t + 1)
+      listeners.add(notify)
+
+      if (!enabled || !userId) return () => listeners.delete(notify)
       // A different account invalidates the previous user's cache.
       if (cache.userId !== userId) {
         cache.userId = userId
         cache.data = null
         cache.promise = null
       }
-      if (cache.data) return // state was seeded from cache — nothing to do
+      if (cache.data) return () => listeners.delete(notify) // state was seeded from cache — nothing to do
       cache.promise ??= apiClient.get(path).then((res) => {
         cache.data = res.data.data
         return cache.data
@@ -51,17 +62,20 @@ export function createSessionResource(path) {
         })
       return () => {
         cancelled = true
+        listeners.delete(notify)
       }
-    }, [enabled, userId])
+    }, [enabled, userId, tick])
 
     return { data: data ?? [], loading }
   }
 
-  // Flip the stale flag: drops the cached copy (and any in-flight promise)
-  // so the next mount of the hook fetches from the API again.
+  // Flip the stale flag: drops the cached copy (and any in-flight promise),
+  // then wakes every mounted consumer so it re-fetches immediately instead
+  // of only the next one to mount.
   useSessionResource.invalidate = () => {
     cache.data = null
     cache.promise = null
+    listeners.forEach((notify) => notify())
   }
 
   return useSessionResource
