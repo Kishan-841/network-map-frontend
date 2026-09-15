@@ -48,18 +48,6 @@ function LaidInput({ segment, disabled, onSave }) {
   )
 }
 
-function CutChip({ segment }) {
-  if (!segment.isCut) return null
-  return (
-    <span
-      title={segment.cutNote ?? 'Cut'}
-      className="ml-2 shrink-0 rounded-full bg-bad-tint px-2 py-0.5 text-[10px] font-bold tracking-wide text-bad"
-    >
-      CUT
-    </span>
-  )
-}
-
 /**
  * The fiber's segments — a table on desktop, stacked rows on a phone (Design.md
  * never puts a real table on mobile). Editing laid metres is the only write;
@@ -96,7 +84,6 @@ export default function SegmentList({ segments, points, readOnly = false, busy =
           <li key={segment.id} className="rounded-btn border border-line p-3">
             <p className="flex items-center text-sm font-medium text-ink">
               <span className="min-w-0 truncate">{segmentLabel(points, segment)}</span>
-              <CutChip segment={segment} />
             </p>
             <div className="mt-2 flex items-center justify-between gap-3">
               <span className="text-xs font-normal text-faint">
@@ -133,7 +120,6 @@ export default function SegmentList({ segments, points, readOnly = false, busy =
                 <td className="border-b border-line px-3 py-2 text-ink">
                   <span className="flex items-center">
                     <span className="min-w-0 truncate">{segmentLabel(points, segment)}</span>
-                    <CutChip segment={segment} />
                   </span>
                 </td>
                 <td className="border-b border-line px-3 py-2 text-right tabular-nums text-muted">

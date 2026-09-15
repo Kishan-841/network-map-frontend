@@ -19,19 +19,9 @@ const mapsIcon = (icon) => ({
 
 const latLngs = (points) => new google.maps.MVCArray(points.map((p) => new google.maps.LatLng(p.latitude, p.longitude)))
 
-// The red dashed twin laid over a cut segment: a transparent line whose only
-// visible content is the repeating dash symbol.
-const CUT_OPTIONS = {
-  strokeColor: '#dc2626',
-  strokeOpacity: 0,
-  icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#dc2626', scale: 4 }, offset: '0', repeat: '20px' }],
-  zIndex: 6,
-  clickable: false,
-}
-
 /**
- * Draws SAVED fibers — polylines, deduplicated typed markers, cut overlays —
- * on any Google map. Shared by the map page (full weight, interactive) and the
+ * Draws SAVED fibers — polylines and deduplicated typed markers — on any
+ * Google map. Shared by the map page (full weight, interactive) and the
  * fiber editor (`dim`, as context behind the draft line).
  *
  * Everything lives in refs and is rebuilt wholesale whenever the inputs change:
@@ -89,9 +79,6 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
           line.addListener('mouseout', () => onFiberHoverRef.current?.(null))
         }
         polylines.push(line)
-        if (range.isCut) {
-          polylines.push(new google.maps.Polyline({ map, path: latLngs(range.points), ...CUT_OPTIONS }))
-        }
       })
     })
 

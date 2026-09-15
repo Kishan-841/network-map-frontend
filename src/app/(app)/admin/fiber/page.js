@@ -8,7 +8,6 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { IconPlus } from '@/components/ui/icons'
 import { useFibers, invalidateFibers } from '@/hooks/useFibers'
-import { FIBER_STATUS } from '@/lib/fiber/constants'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import FiberTable from '@/components/fiber/FiberTable'
@@ -20,41 +19,6 @@ const FiberEditor = dynamic(() => import('@/components/fiber/editor/FiberEditor'
   ssr: false,
 })
 
-const STATUS_FILTERS = [
-  { value: 'ALL', label: 'All' },
-  { value: 'PLANNED', label: FIBER_STATUS.PLANNED.label },
-  { value: 'LIVE', label: FIBER_STATUS.LIVE.label },
-  { value: 'CUT', label: FIBER_STATUS.CUT.label },
-]
-
-function StatusFilterPills({ fibers, value, onChange }) {
-  const countFor = (status) =>
-    status === 'ALL' ? fibers.length : fibers.filter((f) => f.status === status).length
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {STATUS_FILTERS.map((filter) => {
-        const active = value === filter.value
-        return (
-          <button
-            key={filter.value}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onChange(filter.value)}
-            className={`min-h-11 rounded-full border px-4 text-sm font-medium transition-colors ${
-              active
-                ? 'border-fiber bg-fiber text-white'
-                : 'border-line bg-card text-muted hover:text-ink'
-            }`}
-          >
-            {filter.label} <span className="tabular-nums">{countFor(filter.value)}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 function AdminFiberContent() {
   // The map's fiber panel sends "Edit" here as `?edit=<id>`: the editor is a
   // full-screen tool that only lives on this page.
@@ -62,14 +26,10 @@ function AdminFiberContent() {
   const role = useAuthStore((s) => s.user?.role)
   const canManage = canManageFiber(role)
   const { fibers, loading } = useFibers()
-  const [statusFilter, setStatusFilter] = useState('ALL')
   const [panelFiberId, setPanelFiberId] = useState(null)
   // undefined = closed, null = new fiber, object = edit that fiber.
   const [editorFiber, setEditorFiber] = useState(undefined)
   const [listError, setListError] = useState(null)
-
-  const filtered =
-    statusFilter === 'ALL' ? fibers : fibers.filter((f) => f.status === statusFilter)
 
   // Derived, never stored: the editor opens for `?edit=` as soon as the fibers
   // list contains that id. Closing records WHICH id was dismissed — dropping
@@ -126,10 +86,6 @@ function AdminFiberContent() {
         }
       />
 
-      <div className="mb-4">
-        <StatusFilterPills fibers={fibers} value={statusFilter} onChange={setStatusFilter} />
-      </div>
-
       {listError && (
         <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
           {listError}
@@ -137,7 +93,7 @@ function AdminFiberContent() {
       )}
 
       <FiberTable
-        fibers={filtered}
+        fibers={fibers}
         loading={loading}
         canManage={canManage}
         onRowClick={(row) => setPanelFiberId(row.id)}

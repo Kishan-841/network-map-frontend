@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
-import { coreColor, FIBER_STATUS, RATIO_LABELS } from '@/lib/fiber/constants'
+import { coreColor, RATIO_LABELS } from '@/lib/fiber/constants'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/Button'
@@ -32,7 +32,6 @@ function Skeleton() {
 
 /** One fiber touching this closure — a row that hands off to the fiber panel. */
 function FiberRow({ fiber, onOpenFiber }) {
-  const status = FIBER_STATUS[fiber.status] ?? FIBER_STATUS.PLANNED
   return (
     <button
       type="button"
@@ -45,7 +44,6 @@ function FiberRow({ fiber, onOpenFiber }) {
       />
       <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{fiber.name}</span>
       <span className={`${CHIP} bg-paper text-muted`}>{ROLE_LABEL[fiber.role] ?? fiber.role}</span>
-      <span className={`${CHIP} ${status.className}`}>{status.label}</span>
     </button>
   )
 }
