@@ -1,223 +1,146 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
-import { Modal } from '@/components/ui/Modal'
-import { IconEdit, IconTrash, IconPlus, IconEye } from '@/components/ui/icons'
-import { fiberTypeColor } from '@/lib/constants'
+import { IconPlus } from '@/components/ui/icons'
+import { useFibers, invalidateFibers } from '@/hooks/useFibers'
 import { FIBER_STATUS } from '@/lib/fiber/constants'
+import { canManageFiber } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+import FiberTable from '@/components/fiber/FiberTable'
+import FiberDetailPanel from '@/components/fiber/FiberDetailPanel'
 
 // Client-only: Google Maps JS touches window.
 const FiberEditor = dynamic(() => import('@/components/fiber/editor/FiberEditor'), {
   ssr: false,
 })
 
-export default function AdminFiberPage() {
-  const [routes, setRoutes] = useState(null)
-  const [listError, setListError] = useState(null)
-  // undefined = closed, null = new route, object = edit that route.
-  const [editorRoute, setEditorRoute] = useState(undefined)
-  const [viewRoute, setViewRoute] = useState(null)
+const STATUS_FILTERS = [
+  { value: 'ALL', label: 'All' },
+  { value: 'PLANNED', label: FIBER_STATUS.PLANNED.label },
+  { value: 'LIVE', label: FIBER_STATUS.LIVE.label },
+  { value: 'CUT', label: FIBER_STATUS.CUT.label },
+]
 
-  const fetchRoutes = useCallback(
-    () =>
-      apiClient
-        .get('/fibers')
-        .then((res) => setRoutes(res.data.data))
-        // Empty list (not a permanent "Loading…") when the fetch fails.
-        .catch(() => setRoutes([])),
-    [],
+function StatusFilterPills({ fibers, value, onChange }) {
+  const countFor = (status) =>
+    status === 'ALL' ? fibers.length : fibers.filter((f) => f.status === status).length
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {STATUS_FILTERS.map((filter) => {
+        const active = value === filter.value
+        return (
+          <button
+            key={filter.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(filter.value)}
+            className={`min-h-11 rounded-full border px-4 text-sm font-medium transition-colors ${
+              active
+                ? 'border-fiber bg-fiber text-white'
+                : 'border-line bg-card text-muted hover:text-ink'
+            }`}
+          >
+            {filter.label} <span className="tabular-nums">{countFor(filter.value)}</span>
+          </button>
+        )
+      })}
+    </div>
   )
+}
 
-  useEffect(() => {
-    fetchRoutes()
-  }, [fetchRoutes])
+export default function AdminFiberPage() {
+  const role = useAuthStore((s) => s.user?.role)
+  const canManage = canManageFiber(role)
+  const { fibers, loading } = useFibers()
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [panelFiberId, setPanelFiberId] = useState(null)
+  // undefined = closed, null = new fiber, object = edit that fiber.
+  const [editorFiber, setEditorFiber] = useState(undefined)
+  const [listError, setListError] = useState(null)
 
-  async function handleDelete(route) {
-    if (!window.confirm(`Delete fiber "${route.name}"?`)) return
+  const filtered =
+    statusFilter === 'ALL' ? fibers : fibers.filter((f) => f.status === statusFilter)
+
+  const closeEditor = () => setEditorFiber(undefined)
+
+  async function handleDelete(fiber) {
+    if (!window.confirm(`Delete fiber "${fiber.name}"?`)) return
     setListError(null)
     try {
-      await apiClient.delete(`/fibers/${route.id}`)
-      fetchRoutes()
+      await apiClient.delete(`/fibers/${fiber.id}`)
+      invalidateFibers()
     } catch (err) {
-      setListError(getApiErrorMessage(err))
+      setListError(getApiErrorMessage(err, 'Could not delete this fiber'))
     }
   }
 
-  const segmentCount = (route) => route.segments?.length ?? 0
-  const pointCount = (route) => route.points?.length ?? 0
-  // The colour of a fiber is its core count — one chip, phase-1 palette.
-  const typeList = (route) => [`${route.coreCount} core`]
-
   return (
-    <main className="mx-auto max-w-2xl">
+    <main className="mx-auto max-w-5xl">
       <PageHeader
         eyebrow="Administration"
-        title="Fiber routes"
-        sub="Draw the physical fiber network on the map — trunks and branches"
+        title="Fibers"
+        sub="Cables on the map"
         backHref="/dashboard"
         backLabel="Dashboard"
+        action={
+          canManage && (
+            <Button type="button" onClick={() => setEditorFiber(null)}>
+              <IconPlus className="h-4.5 w-4.5" />
+              Draw new fiber
+            </Button>
+          )
+        }
       />
 
-      <Button onClick={() => setEditorRoute(null)}>
-        <IconPlus className="h-4.5 w-4.5" />
-        Draw new route
-      </Button>
+      <div className="mb-4">
+        <StatusFilterPills fibers={fibers} value={statusFilter} onChange={setStatusFilter} />
+      </div>
 
       {listError && (
-        <p className="mt-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
+        <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
           {listError}
         </p>
       )}
 
-      <div className="mt-5 flex flex-col gap-3">
-        {routes === null && <p className="text-sm font-normal text-muted">Loading…</p>}
-        {routes?.length === 0 && (
-          <p className="text-sm font-normal text-muted">
-            No fiber routes yet — draw the first one.
-          </p>
-        )}
-        {routes?.map((route) => (
-          <div
-            key={route.id}
-            className="flex items-center justify-between gap-3 rounded-card bg-card p-4 shadow-soft"
-          >
-            <span className="flex shrink-0 -space-x-1.5">
-              {typeList(route)
-                .slice(0, 4)
-                .map((type) => (
-                  <span
-                    key={type}
-                    title={type}
-                    className="h-4 w-4 rounded-full border-2 border-white shadow"
-                    style={{ backgroundColor: fiberTypeColor(type) }}
-                  />
-                ))}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-bold">{route.name}</p>
-              <p className="text-sm font-normal text-muted">
-                {route.coreCount} core · {FIBER_STATUS[route.status]?.label ?? route.status} ·{' '}
-                {route.totals?.closureCount ?? 0} closure
-                {route.totals?.closureCount === 1 ? '' : 's'}
-                {route.olt?.name && ` · ${route.olt.name}`}
-              </p>
-            </div>
-            <button
-              aria-label="View"
-              onClick={() => setViewRoute(route)}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-paper hover:text-ink"
-            >
-              <IconEye className="h-4.5 w-4.5" strokeWidth={1.8} />
-            </button>
-            <button
-              aria-label="Edit"
-              onClick={() => setEditorRoute(route)}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-paper hover:text-ink"
-            >
-              <IconEdit className="h-4.5 w-4.5" strokeWidth={1.8} />
-            </button>
-            <button
-              aria-label="Delete"
-              onClick={() => handleDelete(route)}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-bad-tint hover:text-bad"
-            >
-              <IconTrash className="h-4.5 w-4.5" strokeWidth={1.8} />
-            </button>
-          </div>
-        ))}
-      </div>
+      <FiberTable
+        fibers={filtered}
+        loading={loading}
+        canManage={canManage}
+        onRowClick={(row) => setPanelFiberId(row.id)}
+        onEdit={setEditorFiber}
+        onDelete={handleDelete}
+        emptyState={
+          <p className="text-sm font-normal text-muted">No fibers yet — draw the first one.</p>
+        }
+      />
 
-      {/* Route details: everything captured at save time, photos included. */}
-      <Modal
-        open={Boolean(viewRoute)}
-        onClose={() => setViewRoute(null)}
-        title={viewRoute?.name ?? ''}
-      >
-        {viewRoute && (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
-              {typeList(viewRoute).map((type) => (
-                <span
-                  key={type}
-                  className="flex items-center gap-1.5 rounded-full bg-paper px-2.5 py-1 text-muted"
-                >
-                  <span
-                    className="h-2.5 w-2.5 rounded-full border border-white shadow"
-                    style={{ backgroundColor: fiberTypeColor(type) }}
-                  />
-                  {type}
-                </span>
-              ))}
-              {viewRoute.placement && (
-                <span className="rounded-full bg-paper px-2.5 py-1 text-muted">
-                  {viewRoute.placement}
-                </span>
-              )}
-              {viewRoute.operator?.name && (
-                <span className="rounded-full bg-fiber-tint px-2.5 py-1 text-fiber">
-                  {viewRoute.operator.name}
-                </span>
-              )}
-            </div>
+      {panelFiberId && (
+        <FiberDetailPanel
+          key={panelFiberId}
+          fiberId={panelFiberId}
+          onClose={() => setPanelFiberId(null)}
+          onEdit={(f) => {
+            setPanelFiberId(null)
+            setEditorFiber(f)
+          }}
+          onSwap={setPanelFiberId}
+          onCentre={() => {}}
+        />
+      )}
 
-            <div className="rounded-card bg-paper px-4 py-1">
-              {[
-                ['Status', FIBER_STATUS[viewRoute.status]?.label ?? viewRoute.status ?? '—'],
-                ['Placement', viewRoute.placement || '—'],
-                [
-                  'Lines',
-                  `${segmentCount(viewRoute)} line${segmentCount(viewRoute) === 1 ? '' : 's'} · ${pointCount(viewRoute)} points`,
-                ],
-                ['Notes', viewRoute.notes || '—'],
-              ].map(([label, value], i) => (
-                <div
-                  key={label}
-                  className={`flex items-baseline justify-between gap-4 py-2.5 ${
-                    i > 0 ? 'border-t border-line/60' : ''
-                  }`}
-                >
-                  <span className="shrink-0 text-sm font-normal text-muted">{label}</span>
-                  <span className="text-right text-sm font-medium">{value}</span>
-                </div>
-              ))}
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">
-                Photos {viewRoute.images?.length ? `(${viewRoute.images.length})` : ''}
-              </p>
-              {viewRoute.images?.length ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {viewRoute.images.map((url) => (
-                    <a key={url} href={url} target="_blank" rel="noreferrer" title="Open full size">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url}
-                        alt="Fiber route"
-                        className="aspect-square w-full rounded-btn border border-line object-cover transition-transform hover:scale-[1.03]"
-                      />
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm font-normal text-muted">No photos uploaded.</p>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {editorRoute !== undefined && (
+      {editorFiber !== undefined && (
         <FiberEditor
-          initialFiber={editorRoute ?? undefined}
-          onClose={() => setEditorRoute(undefined)}
-          onSaved={() => {
-            setEditorRoute(undefined)
-            fetchRoutes()
+          initialFiber={editorFiber ?? undefined}
+          onClose={closeEditor}
+          onSaved={(f) => {
+            closeEditor()
+            invalidateFibers()
+            setPanelFiberId(f.id)
           }}
         />
       )}
