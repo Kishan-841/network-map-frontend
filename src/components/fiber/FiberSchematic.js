@@ -13,7 +13,10 @@ function pointKind(point) {
 }
 
 function pointLabel(point) {
-  return point.type === 'CLOSURE' && point.splitter ? `${point.label} · ${point.splitter}` : point.label
+  if (point.type !== 'CLOSURE') return point.label
+  if (point.splitter) return `${point.label} · ${point.splitter}`
+  if (point.kind) return `${point.label} · ${point.kind}`
+  return point.label
 }
 
 function FiberNode({ data }) {
