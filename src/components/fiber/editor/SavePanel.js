@@ -1,19 +1,17 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { uploadFile } from '@/lib/upload'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { useFibers, invalidateFibers } from '@/hooks/useFibers'
-import { usePops, invalidatePops } from '@/hooks/usePops'
+import { invalidatePops } from '@/hooks/usePops'
 import { invalidateClosures } from '@/hooks/useClosures'
 import { useOperators } from '@/hooks/useOperators'
-import { deriveSegments, toPayloadPoints } from '@/lib/fiber/draft'
-import { coreColor, FIBER_STATUS } from '@/lib/fiber/constants'
-import SegmentTable from './SegmentTable'
+import { toPayloadPoints } from '@/lib/fiber/draft'
+import { coreColor } from '@/lib/fiber/constants'
 
-const STATUS_CHOICES = ['PLANNED', 'LIVE']
 const PLACEMENT_CHOICES = [
   { value: 'IN', label: 'IN' },
   { value: 'OUT', label: 'OUT' },
@@ -21,31 +19,17 @@ const PLACEMENT_CHOICES = [
 ]
 
 /**
- * Details + segment table for saving a fiber (Save… overlay in the fiber
- * editor). Replaces the old GoogleFiberEditor save card: same overlay idiom
- * (dark backdrop, rounded card) but built for the new typed-point fiber
- * model — cascading POP → OLT → PON port, a status that can't override a
- * cut fiber, and a per-segment laid-metres table derived from the draft.
+ * The short "Save fiber" form: route name, fiber ID, IN/OUT, operator, remark
+ * and photos — everything a surveyor knows at the moment the line is drawn.
+ * Creating sends the drawn points with it; editing only touches the details
+ * (the editor's own "Save changes" owns the point list). OLT / PON port /
+ * status / cable type stay in the database and out of this dialog.
  */
-export default function SavePanel({
-  mode,
-  fiber,
-  draftPoints,
-  coreCount,
-  fromSplitterOutput,
-  onSaved,
-  onBack,
-}) {
+export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved, onBack }) {
   const { fibers } = useFibers()
-  const { pops } = usePops()
   const { operators } = useOperators()
 
   const [name, setName] = useState(() => fiber?.name ?? '')
-  const [cableType, setCableType] = useState(() => fiber?.cableType ?? '')
-  const [popId, setPopId] = useState(() => fiber?.olt?.pop?.id ?? '')
-  const [oltId, setOltId] = useState(() => fiber?.oltId ?? '')
-  const [ponPort, setPonPort] = useState(() => (fiber?.ponPort != null ? String(fiber.ponPort) : ''))
-  const [status, setStatus] = useState(() => (fiber?.status === 'CUT' ? 'CUT' : (fiber?.status ?? 'PLANNED')))
   const [cableTag, setCableTag] = useState(() => fiber?.cableTag ?? '')
   const [placement, setPlacement] = useState(() => fiber?.placement ?? null)
   const [operatorId, setOperatorId] = useState(() => fiber?.operatorId ?? '')
@@ -55,48 +39,7 @@ export default function SavePanel({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
-  const derived = useMemo(() => deriveSegments(draftPoints), [draftPoints])
-  const segmentsMatch = mode === 'edit' && fiber && fiber.segments.length === derived.length
-  const [laid, setLaid] = useState(() =>
-    derived.map((segment, i) =>
-      segmentsMatch ? (fiber.segments[i].fiberLaidMeters ?? Math.round(segment.mapMeters)) : Math.round(segment.mapMeters)
-    )
-  )
-  const segmentWarning =
-    mode === 'edit' && fiber && fiber.segments.length !== derived.length && derived.length > 0
-      ? 'Typed points changed — laid metres will be re-entered'
-      : null
-
   const namePlaceholder = `Auto — FIB-${String(fibers.length + 1).padStart(3, '0')}`
-  const cutLocked = mode === 'edit' && fiber?.status === 'CUT'
-
-  const oltOptions = pops.find((p) => p.id === popId)?.olts ?? []
-  const selectedOlt = oltOptions.find((o) => o.id === oltId)
-
-  // Ports another fiber already occupies on this OLT (never this fiber's own port).
-  const usedPorts = useMemo(() => {
-    const map = new Map()
-    if (!oltId) return map
-    for (const f of fibers) {
-      if (f.oltId === oltId && f.ponPort != null && f.id !== fiber?.id) map.set(f.ponPort, f.name)
-    }
-    return map
-  }, [fibers, oltId, fiber?.id])
-
-  function handlePopChange(e) {
-    setPopId(e.target.value)
-    setOltId('')
-    setPonPort('')
-  }
-
-  function handleOltChange(e) {
-    setOltId(e.target.value)
-    setPonPort('') // port list depends on the OLT — stale selection would be invalid
-  }
-
-  function onChangeLaid(index, value) {
-    setLaid((prev) => prev.map((v, i) => (i === index ? value : v)))
-  }
 
   async function handleImagesPicked(event) {
     const files = [...event.target.files]
@@ -122,27 +65,16 @@ export default function SavePanel({
     try {
       const payload = {
         coreCount,
-        cableType: cableType.trim() || null,
         cableTag: cableTag.trim() || null,
         operatorId: operatorId || null,
         notes: notes.trim() || null,
         images,
         placement,
-        points: toPayloadPoints(draftPoints),
-        segmentLaidMeters: laid,
       }
       const trimmedName = name.trim()
       if (trimmedName) payload.name = trimmedName
-      if (fromSplitterOutput) {
-        payload.fromSplitterOutput = {
-          splitterId: fromSplitterOutput.splitterId,
-          portNo: fromSplitterOutput.portNo,
-        }
-      } else {
-        payload.oltId = oltId || null
-        payload.ponPort = oltId && ponPort !== '' ? Number(ponPort) : null
-      }
-      if (!cutLocked) payload.status = status
+      // Only a new fiber carries its geometry here — an edit is details-only.
+      if (mode !== 'edit') payload.points = toPayloadPoints(draftPoints)
 
       const res =
         mode === 'edit'
@@ -161,113 +93,30 @@ export default function SavePanel({
   }
 
   const nameBlank = name.length > 0 && !name.trim()
-  // An OLT with no PON port saves a half-connection nobody can trace.
-  const portMissing = !fromSplitterOutput && Boolean(oltId) && ponPort === ''
 
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-full w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-card bg-card p-5 shadow-lift">
-        <h2 className="text-base font-bold">{mode === 'edit' ? 'Save fiber' : 'New fiber'}</h2>
+      <div className="flex max-h-full w-full max-w-md flex-col gap-4 overflow-y-auto rounded-card bg-card p-5 shadow-lift">
+        <h2 className="text-base font-bold">{mode === 'edit' ? 'Fiber details' : 'Save fiber'}</h2>
 
         <Input
           id="fiber-name"
+          label="Route name"
           placeholder={namePlaceholder}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
 
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium uppercase tracking-wide text-faint">Cores</span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3.5 py-1.5 text-sm font-medium text-ink">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: coreColor(coreCount) }}
-              aria-hidden="true"
-            />
-            {coreCount} core
-          </span>
-        </div>
-
-        <Input
-          id="fiber-cable-type"
-          placeholder="Cable type (optional)"
-          value={cableType}
-          onChange={(e) => setCableType(e.target.value)}
-        />
-
-        {fromSplitterOutput ? (
-          <span className="inline-flex w-fit items-center gap-2 rounded-full bg-fiber-tint px-3.5 py-1.5 text-sm font-medium text-fiber">
-            Fed by {fromSplitterOutput.closureCode} · out {fromSplitterOutput.portNo}
-          </span>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Select id="fiber-pop" value={popId} onChange={handlePopChange}>
-              <option value="">No POP</option>
-              {pops.map((pop) => (
-                <option key={pop.id} value={pop.id}>
-                  {pop.name}
-                </option>
-              ))}
-            </Select>
-            <Select id="fiber-olt" value={oltId} onChange={handleOltChange}>
-              <option value="">No OLT</option>
-              {oltOptions.map((olt) => (
-                <option key={olt.id} value={olt.id}>
-                  {olt.name}
-                </option>
-              ))}
-            </Select>
-            <Select id="fiber-pon-port" value={ponPort} onChange={(e) => setPonPort(e.target.value)}>
-              <option value="">—</option>
-              {selectedOlt &&
-                Array.from({ length: selectedOlt.ponPortCount }, (_, i) => i + 1).map((port) => {
-                  const usedBy = usedPorts.get(port)
-                  return (
-                    <option key={port} value={port} disabled={Boolean(usedBy)}>
-                      {usedBy ? `${port} · ${usedBy}` : port}
-                    </option>
-                  )
-                })}
-            </Select>
-          </div>
-        )}
-        {portMissing && (
-          <p className="-mt-2 text-xs font-normal text-bad">Choose a PON port</p>
-        )}
-
-        {cutLocked ? (
-          <span
-            className={`w-fit rounded-full px-3.5 py-1.5 text-sm font-medium ${FIBER_STATUS.CUT.className}`}
-          >
-            {FIBER_STATUS.CUT.label}
-          </span>
-        ) : (
-          <div className="flex w-fit overflow-hidden rounded-btn border border-line text-sm font-medium">
-            {STATUS_CHOICES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={status === option}
-                onClick={() => setStatus(option)}
-                className={`px-4 py-2 transition-colors ${
-                  status === option ? 'bg-fiber text-white' : 'text-muted hover:text-ink'
-                }`}
-              >
-                {FIBER_STATUS[option].label}
-              </button>
-            ))}
-          </div>
-        )}
-
         <Input
           id="fiber-cable-tag"
-          placeholder="Cable tag (optional)"
+          label="Fiber ID"
+          placeholder="Optional"
           value={cableTag}
           onChange={(e) => setCableTag(e.target.value)}
         />
 
         <div className="flex items-center justify-between gap-3 rounded-btn border border-line bg-card px-4 py-3">
-          <span className="text-sm font-medium text-ink">Placement</span>
+          <span className="text-sm font-medium text-ink">IN / OUT</span>
           <div className="flex overflow-hidden rounded-full border border-line">
             {PLACEMENT_CHOICES.map(({ value, label }) => (
               <button
@@ -275,7 +124,7 @@ export default function SavePanel({
                 type="button"
                 aria-pressed={placement === value}
                 onClick={() => setPlacement(value)}
-                className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                className={`min-h-11 px-4 text-sm font-medium transition-colors ${
                   placement === value ? 'bg-fiber text-white' : 'text-muted hover:text-ink'
                 }`}
               >
@@ -285,7 +134,12 @@ export default function SavePanel({
           </div>
         </div>
 
-        <Select id="fiber-operator" value={operatorId} onChange={(e) => setOperatorId(e.target.value)}>
+        <Select
+          id="fiber-operator"
+          label="Operator"
+          value={operatorId}
+          onChange={(e) => setOperatorId(e.target.value)}
+        >
           <option value="">No operator</option>
           {operators.map((operator) => (
             <option key={operator.id} value={operator.id}>
@@ -296,8 +150,9 @@ export default function SavePanel({
 
         <Textarea
           id="fiber-notes"
+          label="Remark"
           rows={2}
-          placeholder="Notes (optional)"
+          placeholder="Optional"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />
@@ -314,6 +169,7 @@ export default function SavePanel({
                   className="h-14 w-14 rounded-btn border border-line object-cover"
                 />
                 <button
+                  type="button"
                   aria-label="Remove photo"
                   onClick={() => setImages((prev) => prev.filter((u) => u !== url))}
                   className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-bad text-[10px] font-bold text-white shadow"
@@ -336,9 +192,16 @@ export default function SavePanel({
           </div>
         </div>
 
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">Segments</p>
-          <SegmentTable rows={derived} laid={laid} onChangeLaid={onChangeLaid} warning={segmentWarning} />
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-faint">Cores</span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3.5 py-1.5 text-sm font-medium text-ink">
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: coreColor(coreCount) }}
+              aria-hidden="true"
+            />
+            {coreCount} core
+          </span>
         </div>
 
         {error && (
@@ -346,16 +209,17 @@ export default function SavePanel({
         )}
 
         <div className="flex gap-3">
-          <Button variant="secondary" className="flex-1" disabled={saving} onClick={onBack}>
+          <Button type="button" variant="secondary" className="flex-1" disabled={saving} onClick={onBack}>
             Back
           </Button>
           <Button
+            type="button"
             className="flex-1"
             loading={saving}
-            disabled={uploading || nameBlank || portMissing}
+            disabled={uploading || nameBlank}
             onClick={handleSubmit}
           >
-            {mode === 'edit' ? 'Save fiber' : 'Create fiber'}
+            {mode === 'edit' ? 'Save details' : 'Save fiber'}
           </Button>
         </div>
       </div>
