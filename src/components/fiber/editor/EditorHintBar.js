@@ -19,13 +19,14 @@ export default function EditorHintBar({ drawing, snapOff, onToggleSnapOff }) {
       {drawing && (
         <button
           type="button"
-          aria-pressed={snapOff}
+          // Pressed = snapping is ON, the state the pill turns off for one tap.
+          aria-pressed={!snapOff}
           onClick={onToggleSnapOff}
           className={`pointer-events-auto shrink-0 rounded-full border border-line px-3 py-1.5 text-xs font-medium shadow transition-colors ${
-            snapOff ? 'bg-fiber text-white' : 'bg-card/90 text-muted hover:text-ink'
+            snapOff ? 'bg-card/90 text-muted hover:text-ink' : 'bg-fiber text-white'
           }`}
         >
-          Snap
+          {snapOff ? 'Snap: off for next click' : 'Snap: on'}
         </button>
       )}
     </div>

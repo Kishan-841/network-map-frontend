@@ -82,7 +82,8 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const { targets } = useSnapTargets({ enabled: true })
   const { pops } = usePops()
   const { closures } = useClosures()
-  const { fibers } = useFibers()
+  // Only fetched while the "Other fiber" overlay is on — the legend promises lazy.
+  const { fibers } = useFibers(overlays.others)
 
   // Mirrors for the DOM listeners, which are attached once.
   const draftRef = useRef(draft)
@@ -123,7 +124,9 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   })
 
   // Saved fibers as dim context behind the draft — never interactive here.
-  const otherFibers = overlays.others ? fibers : NO_FIBERS
+  // `fibers` is a fresh [] on every render until the fetch lands — map that
+  // window onto the stable empty array so the overlay does not rebuild.
+  const otherFibers = overlays.others && fibers.length > 0 ? fibers : NO_FIBERS
   useFiberOverlays({
     map,
     ready,
@@ -300,6 +303,22 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     draft.points.length === 0 || draft.points[0].ref?.closureId !== fromSplitterOutput?.closureId
 
   // ---- actions --------------------------------------------------------------
+  // An empty draft has nothing left that the feed describes, so drop it with
+  // the points rather than leaving a chip pointing at a closure nobody drew.
+  function emptyDraftDropsFeed(remaining) {
+    if (remaining === 0) setFromSplitterOutput(null)
+  }
+
+  function handleUndo() {
+    dispatch({ type: 'undo' })
+    emptyDraftDropsFeed(draft.points.length - 1)
+  }
+
+  function handleClear() {
+    dispatch({ type: 'clear' })
+    emptyDraftDropsFeed(0)
+  }
+
   function pickSplitterOutput({ splitterId, portNo }) {
     const target = splitterDialog
     setFromSplitterOutput({
@@ -339,10 +358,11 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
         title={initialFiber?.name?.trim() || 'New fiber'}
         counts={counts}
         canSave={errors.length === 0}
-        onUndo={() => dispatch({ type: 'undo' })}
-        onClear={() => dispatch({ type: 'clear' })}
+        onUndo={handleUndo}
+        onClear={handleClear}
         onCancel={onClose}
         onSave={() => setSaveOpen(true)}
+        hint={counts.points < 2 ? 'Draw at least two points' : null}
       />
 
       <div className="relative min-h-0 flex-1">
@@ -369,7 +389,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
             toggleOverlay(key, value)
             if (key === 'buildings' && !value) setSelectedTarget(null)
           }}
-          onClear={() => dispatch({ type: 'clear' })}
+          onClear={handleClear}
           canClear={counts.points > 0}
         />
 
@@ -381,7 +401,9 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
           onToggleSnapOff={() => applySnapOff(!snapOff)}
         />
 
-        {errors.length > 0 && counts.points > 0 && (
+        {/* Under two points the only error is the length rule, which the header's
+            helper line already states — keep the banner for the real ones. */}
+        {counts.points >= 2 && errors.length > 0 && (
           <div className="absolute left-3 right-3 top-[13rem] z-10 mx-auto max-w-md rounded-card border border-line bg-card px-4 py-3 text-sm font-normal text-bad shadow-lift sm:top-[9.5rem]">
             {errors.map((error) => (
               <p key={error}>{error}</p>
