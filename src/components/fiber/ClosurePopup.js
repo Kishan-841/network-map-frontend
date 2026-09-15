@@ -79,7 +79,15 @@ function OutputRow({ output, onOpenFiber }) {
 
 /** A splitter card: ratio/location header, its feed, its outputs, delete. */
 function SplitterCard({ splitter, fiberById, canManage, busy, onOpenFiber, onDelete }) {
-  const feed = splitter.inputFiberId ? fiberById.get(splitter.inputFiberId)?.name : null
+  // Three states: no input chosen yet, an input chosen but not among this
+  // closure's own fibers (data integrity oddity — still worth surfacing
+  // distinctly rather than silently falling back to "no input yet"), or a
+  // resolved feed name.
+  const feedLabel = !splitter.inputFiberId
+    ? 'no input yet'
+    : fiberById.has(splitter.inputFiberId)
+      ? `fed by ${fiberById.get(splitter.inputFiberId).name}`
+      : 'input fiber not on this closure'
   return (
     <div className="flex flex-col gap-1.5 rounded-card border border-line p-3">
       <div className="flex items-start justify-between gap-2">
@@ -87,14 +95,14 @@ function SplitterCard({ splitter, fiberById, canManage, busy, onOpenFiber, onDel
           <p className="text-sm font-bold text-ink">
             {RATIO_LABELS[splitter.ratio] ?? splitter.ratio} · {splitter.location}
           </p>
-          <p className="text-xs font-normal text-faint">{feed ? `fed by ${feed}` : 'no input yet'}</p>
+          <p className="text-xs font-normal text-faint">{feedLabel}</p>
         </div>
         {canManage && (
           <button
             type="button"
             aria-label="Delete splitter"
             disabled={busy}
-            onClick={() => onDelete(splitter.id)}
+            onClick={() => onDelete(splitter)}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-btn text-faint transition-colors hover:bg-bad-tint hover:text-bad disabled:opacity-50"
           >
             <IconTrash className="h-4 w-4" />
@@ -168,12 +176,13 @@ export default function ClosurePopup({ closureId, onClose, onOpenFiber, readOnly
     refresh()
   }
 
-  const deleteSplitter = async (splitterId) => {
-    if (!window.confirm('Delete this splitter?')) return
-    setBusyId(splitterId)
+  const deleteSplitter = async (splitter) => {
+    const label = RATIO_LABELS[splitter.ratio] ?? splitter.ratio
+    if (!window.confirm(`Delete this ${label} splitter?`)) return
+    setBusyId(splitter.id)
     setActionError(null)
     try {
-      await apiClient.delete(`/splitters/${splitterId}`)
+      await apiClient.delete(`/splitters/${splitter.id}`)
       invalidateClosures()
       invalidateFibers()
       refresh()
