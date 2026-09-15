@@ -2,7 +2,7 @@
 
 import { DataTable } from '@/components/ui/DataTable'
 import { IconEdit, IconTrash } from '@/components/ui/icons'
-import { coreColor, FIBER_STATUS } from '@/lib/fiber/constants'
+import { coreColor } from '@/lib/fiber/constants'
 
 const CoreDot = ({ coreCount }) => (
   <span
@@ -16,15 +16,6 @@ function feedLine(fiber) {
   if (fiber.olt) return `${fiber.olt.pop.name} · ${fiber.olt.name} · port ${fiber.ponPort}`
   if (fiber.fedBy) return `⤷ ${fiber.fedBy.splitter.closure.code} · out ${fiber.fedBy.portNo}`
   return '—'
-}
-
-function StatusPill({ status }) {
-  const s = FIBER_STATUS[status] ?? FIBER_STATUS.PLANNED
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${s.className}`}>
-      {s.label}
-    </span>
-  )
 }
 
 function RowActions({ fiber, onEdit, onDelete }) {
@@ -56,7 +47,7 @@ function RowActions({ fiber, onEdit, onDelete }) {
   )
 }
 
-/** Fiber list: gridded table ≥lg, stacked cards below — status filter lives in the page. */
+/** Fiber list: gridded table ≥lg, stacked cards below. */
 export default function FiberTable({ fibers, loading, canManage, onRowClick, onEdit, onDelete, emptyState }) {
   const columns = [
     {
@@ -78,7 +69,6 @@ export default function FiberTable({ fibers, loading, canManage, onRowClick, onE
       render: (f) => `${Math.round(f.totals.fiberLaidMeters)} m`,
       className: 'tabular-nums',
     },
-    { key: 'status', header: 'Status', render: (f) => <StatusPill status={f.status} /> },
     ...(canManage
       ? [
           {
@@ -102,7 +92,6 @@ export default function FiberTable({ fibers, loading, canManage, onRowClick, onE
           <CoreDot coreCount={f.coreCount} />
           <span className="truncate font-bold">{f.name}</span>
         </span>
-        <StatusPill status={f.status} />
       </div>
       <p className="mt-1 truncate text-sm font-normal text-muted">{feedLine(f)}</p>
       <p className="mt-1 text-sm font-normal text-muted">

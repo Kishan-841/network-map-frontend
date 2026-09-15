@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { invalidateFibers } from '@/hooks/useFibers'
-import { coreColor, FIBER_STATUS } from '@/lib/fiber/constants'
+import { coreColor } from '@/lib/fiber/constants'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconClose } from '@/components/ui/icons'
@@ -53,30 +53,6 @@ function FeedChip({ fiber, onSwap }) {
     >
       {label} · {splitter.inputFiber.name} →
     </button>
-  )
-}
-
-/** "Without service: …" — only ever present while the fiber is CUT. */
-function DownstreamBox({ downstream, onSwap }) {
-  if (!downstream) return null
-  const { buildings = [], fibers = [] } = downstream
-  return (
-    <div className="rounded-btn bg-warn-tint p-3 text-sm font-medium text-warn">
-      Without service: {buildings.length ? buildings.map((b) => b.buildingName).join(', ') : 'none'}
-      {fibers.length > 0 && (
-        <>
-          {' · Fibers affected: '}
-          {fibers.map((f, i) => (
-            <span key={f.id}>
-              {i > 0 && ', '}
-              <button type="button" onClick={() => onSwap?.(f.id)} className="underline underline-offset-2">
-                {f.name}
-              </button>
-            </span>
-          ))}
-        </>
-      )}
-    </div>
   )
 }
 
@@ -196,19 +172,12 @@ export default function FiberDetailPanel({ fiberId, onClose, onEdit, onSwap, onC
       'Could not save the laid length',
     )
 
-  const cut = (segmentId, note) =>
-    mutate(() => apiClient.post(`/fibers/${fiberId}/cut`, { segmentId, note }), 'Could not mark this fiber cut')
-
-  const restore = () =>
-    mutate(() => apiClient.post(`/fibers/${fiberId}/restore`), 'Could not restore this fiber')
-
   const retry = () => {
     setLoading(true)
     setError(null)
     refresh()
   }
 
-  const status = fiber ? (FIBER_STATUS[fiber.status] ?? FIBER_STATUS.PLANNED) : null
   const untypedPath = fiber ? fiber.segments.length === 0 : false
 
   return (
@@ -261,7 +230,6 @@ export default function FiberDetailPanel({ fiberId, onClose, onEdit, onSwap, onC
                 {fiber.coreCount} core
               </span>
               <FeedChip fiber={fiber} onSwap={onSwap} />
-              <span className={`${CHIP} ${status.className}`}>{status.label}</span>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -287,22 +255,13 @@ export default function FiberDetailPanel({ fiberId, onClose, onEdit, onSwap, onC
               onSaveLaid={saveLaid}
             />
 
-            <DownstreamBox downstream={fiber.downstream} onSwap={onSwap} />
-
             {actionError && (
               <p className="rounded-btn bg-bad-tint p-3 text-sm font-medium text-bad">{actionError}</p>
             )}
 
             <DetailsBlock fiber={fiber} />
 
-            <FiberActions
-              fiber={fiber}
-              canManage={canManage}
-              busy={busy}
-              onEdit={onEdit}
-              onCut={cut}
-              onRestore={restore}
-            />
+            <FiberActions fiber={fiber} canManage={canManage} onEdit={onEdit} />
           </>
         )}
       </div>

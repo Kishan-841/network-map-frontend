@@ -8,7 +8,7 @@ import { buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/m
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 import { useFiberOverlays } from '@/components/fiber/useFiberOverlays'
-import { coreColor, FIBER_STATUS } from '@/lib/fiber/constants'
+import { coreColor } from '@/lib/fiber/constants'
 
 const polygonCentroid = (points) => ({
   lat: points.reduce((sum, p) => sum + p.latitude, 0) / points.length,
@@ -244,7 +244,6 @@ export default function GoogleBuildingsMap({
         y: domEvent.clientY,
         name: fiber.name,
         coreCount: fiber.coreCount,
-        status: fiber.status,
         operator: fiber.operator?.name,
       })
     },
@@ -340,8 +339,6 @@ export default function GoogleBuildingsMap({
     prevSelectedRef.current = selectedId
   }, [selectedId, ready])
 
-  const hoverStatus = hover ? (FIBER_STATUS[hover.status] ?? FIBER_STATUS.PLANNED) : null
-
   return (
     <div className="relative isolate z-0 h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
@@ -367,9 +364,6 @@ export default function GoogleBuildingsMap({
                 style={{ backgroundColor: coreColor(hover.coreCount) }}
               />
               {hover.coreCount} core
-            </span>
-            <span className={`rounded-full px-2 py-0.5 ${hoverStatus.className}`}>
-              {hoverStatus.label}
             </span>
             {hover.operator && (
               <span className="rounded-full bg-fiber-tint px-2 py-0.5 text-fiber">
