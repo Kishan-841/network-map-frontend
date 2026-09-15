@@ -239,9 +239,12 @@ export default function ClosurePopup({ closureId, onClose, onOpenFiber, readOnly
 
         {!loading && !error && closure && (
           <>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
+              {closure.kind && (
+                <span className={`${CHIP} w-fit bg-fiber-tint text-fiber`}>{closure.kind} closure</span>
+              )}
+              {closure.notes && <p className="text-sm text-muted">{closure.notes}</p>}
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className={`${CHIP} bg-paper text-muted`}>{closure.kind}</span>
                 {closure.building && (
                   <span className={`${CHIP} bg-paper text-muted`}>{closure.building.buildingName}</span>
                 )}
@@ -249,7 +252,6 @@ export default function ClosurePopup({ closureId, onClose, onOpenFiber, readOnly
               <p className="font-mono text-xs text-faint">
                 {closure.latitude.toFixed(6)}, {closure.longitude.toFixed(6)}
               </p>
-              {closure.notes && <p className="text-sm text-muted">{closure.notes}</p>}
             </div>
 
             <div className="flex flex-col gap-1">

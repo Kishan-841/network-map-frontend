@@ -15,6 +15,7 @@ import { useSnapTargets } from './useSnapTargets'
 import { useEditorOverlays, useOverlayToggles } from './useEditorOverlays'
 import SavePanel from './SavePanel'
 import ClosureCard from './ClosureCard'
+import ClosureInfoCard from './ClosureInfoCard'
 import EditorSearch from './EditorSearch'
 import EditorLegend from './EditorLegend'
 import EditorHintBar from './EditorHintBar'
@@ -85,6 +86,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const [overlays, toggleOverlay] = useOverlayToggles()
   const [saveOpen, setSaveOpen] = useState(false)
   const [selectedTarget, setSelectedTarget] = useState(null) // Pan-mode marker tap
+  const [closureInfo, setClosureInfo] = useState(null) // draft closure tapped in annotate + Pan
   const [closureCard, setClosureCard] = useState(null) // { key, x, y }
   const [closureSaving, setClosureSaving] = useState(false)
   const [closureError, setClosureError] = useState(null)
@@ -111,6 +113,16 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     cardOpenRef.current = closureCard !== null
   })
 
+  // A tap can only ever mean "show me what this is" once the fiber is saved
+  // and the map isn't owning taps for drawing — never in Draw / Add closure /
+  // Edit line, where a tap must reach the map instead.
+  const pointsClickable = phase === 'annotate' && mode === 'pan'
+
+  const handleClosureClick = useCallback((point) => {
+    setClosureInfo(point)
+    setSelectedTarget(null)
+  }, [])
+
   const { hitTestLine, projection } = useDraftPolyline({
     map,
     ready,
@@ -119,10 +131,15 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     drawing,
     coreCount,
     snapRing: null,
+    pointsClickable,
+    onClosureClick: handleClosureClick,
   })
 
   const handleTargetClick = useCallback((target) => {
-    if (modeRef.current === 'pan') setSelectedTarget(target)
+    if (modeRef.current === 'pan') {
+      setSelectedTarget(target)
+      setClosureInfo(null)
+    }
   }, [])
   useEditorOverlays({
     map,
@@ -360,7 +377,11 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
 
   function handleMode(next) {
     setMode(next)
-    if (next !== 'pan') setSelectedTarget(null) // a stale card is noise while drawing
+    if (next !== 'pan') {
+      // Stale cards are noise while drawing.
+      setSelectedTarget(null)
+      setClosureInfo(null)
+    }
   }
 
   function jumpTo({ latitude, longitude }) {
@@ -452,6 +473,11 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
         {/* Tapped POP / closure / building (Pan mode): compact details card. */}
         {selectedTarget && (
           <TargetCard target={selectedTarget} onClose={() => setSelectedTarget(null)} />
+        )}
+
+        {/* Tapped closure ON the draft line itself (annotate + Pan mode). */}
+        {closureInfo && (
+          <ClosureInfoCard point={closureInfo} onClose={() => setClosureInfo(null)} />
         )}
 
         {closureCard && (

@@ -78,7 +78,7 @@ export const fromApiPoints = (api) =>
       p.type === 'POP'
         ? { popId: p.popId, name: p.label }
         : p.type === 'CLOSURE'
-          ? { closureId: p.closureId, code: p.label, splitter: p.splitter }
+          ? { closureId: p.closureId, code: p.label, splitter: p.splitter, kind: p.kind ?? null, notes: p.closure?.notes ?? null }
           : p.type === 'BUILDING'
             ? { buildingId: p.buildingId, name: p.label }
             : null,

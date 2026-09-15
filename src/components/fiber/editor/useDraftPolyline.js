@@ -58,12 +58,12 @@ const isMapSurface = (event) => !event.target.closest('button, a, .gmnoprint, .g
  *
  * Keeps all state in refs — no React state, so no effect ever calls setState.
  */
-export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCount, snapRing }) {
+export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCount, snapRing, pointsClickable = false, onClosureClick }) {
   const polylineRef = useRef(null)
   const pathRef = useRef(null)
   const keysRef = useRef([]) // mirrors the path order: index → point key
   const syncingRef = useRef(false) // true while WE write the path
-  const markersRef = useRef([]) // [{ marker, isWaypoint, text }]
+  const markersRef = useRef([]) // [{ marker, isWaypoint, text, isClickableClosure }]
   const rubberRef = useRef(null)
   const ringRef = useRef(null)
   const projectionRef = useRef(null)
@@ -76,6 +76,8 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
   const drawingRef = useRef(drawing)
   const coreCountRef = useRef(coreCount)
   const snapRingRef = useRef(snapRing)
+  const pointsClickableRef = useRef(pointsClickable)
+  const onClosureClickRef = useRef(onClosureClick)
 
   useEffect(() => {
     draftRef.current = draft
@@ -83,6 +85,8 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
     drawingRef.current = drawing
     coreCountRef.current = coreCount
     snapRingRef.current = snapRing
+    pointsClickableRef.current = pointsClickable
+    onClosureClickRef.current = onClosureClick
   })
 
   // ---- snap ring follows the hovered target -------------------------------
@@ -137,16 +141,24 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
       const icon = typedMarkerIcon(iconKind(p), {
         selected: i === points.length - 1,
       })
+      // Only a SAVED closure (it has a code) carries a type/note worth a card —
+      // and only in annotate + Pan mode, where a tap can never mean "draw".
+      const isClickableClosure = p.type === 'CLOSURE' && Boolean(p.ref?.closureId)
+      const marker = new google.maps.Marker({
+        map: map_,
+        position: { lat: p.latitude, lng: p.longitude },
+        clickable: isClickableClosure && pointsClickableRef.current,
+        zIndex: 11,
+        icon: mapsIcon(icon),
+      })
+      if (isClickableClosure) {
+        marker.addListener('click', () => onClosureClickRef.current?.(p))
+      }
       return {
-        marker: new google.maps.Marker({
-          map: map_,
-          position: { lat: p.latitude, lng: p.longitude },
-          clickable: false,
-          zIndex: 11,
-          icon: mapsIcon(icon),
-        }),
+        marker,
         isWaypoint: p.type === 'WAYPOINT',
         text,
+        isClickableClosure,
       }
     })
     applyZoomRef.current()
@@ -326,6 +338,15 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
     polylineRef.current?.setOptions({ editable: drawing })
     if (!drawing) rubberRef.current?.setPath([])
   }, [drawing])
+
+  // A mode switch (e.g. Pan ↔ Draw) never changes the point list itself, so
+  // `syncDraft` never re-runs for it — flip clickability on the existing
+  // closure markers directly instead of waiting for a rebuild.
+  useEffect(() => {
+    markersRef.current.forEach(({ marker, isClickableClosure }) => {
+      if (isClickableClosure) marker.setClickable(pointsClickable)
+    })
+  }, [pointsClickable])
 
   useEffect(() => {
     applySnapRing(snapRing)
