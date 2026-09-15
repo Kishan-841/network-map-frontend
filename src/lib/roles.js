@@ -36,6 +36,13 @@ export const isAccounts = (role) => role === 'ACCOUNTS'
 export const canManageBuildings = (role) => ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)
 
 /**
+ * May build and edit the fiber network — draw routes, correct laid lengths,
+ * mark a fiber cut or restored. Mirrors the API, where every write under
+ * /fibers is `requireRole('ADMIN', 'MANAGER')`; a surveyor reads it only.
+ */
+export const canManageFiber = (role) => ['ADMIN', 'MANAGER'].includes(role)
+
+/**
  * May work the partner network — recruit partners, see their leads, quote the
  * rate card. An admin does everything a partner manager does; the difference
  * is that a partner manager does ONLY this, and sees only their own partners.
