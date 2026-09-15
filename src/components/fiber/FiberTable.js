@@ -64,9 +64,9 @@ export default function FiberTable({ fibers, loading, canManage, onRowClick, onE
     { key: 'feed', header: 'Feed', render: feedLine, className: 'text-muted' },
     { key: 'closures', header: 'Closures', render: (f) => f.totals.closureCount },
     {
-      key: 'laid',
-      header: 'Laid',
-      render: (f) => `${Math.round(f.totals.fiberLaidMeters)} m`,
+      key: 'length',
+      header: 'Length',
+      render: (f) => `${Math.round(f.totals.mapMeters || f.totals.pathMeters)} m`,
       className: 'tabular-nums',
     },
     ...(canManage
@@ -95,7 +95,7 @@ export default function FiberTable({ fibers, loading, canManage, onRowClick, onE
       </div>
       <p className="mt-1 truncate text-sm font-normal text-muted">{feedLine(f)}</p>
       <p className="mt-1 text-sm font-normal text-muted">
-        {Math.round(f.totals.fiberLaidMeters)} m laid · {f.totals.closureCount} closure
+        {Math.round(f.totals.mapMeters || f.totals.pathMeters)} m · {f.totals.closureCount} closure
         {f.totals.closureCount === 1 ? '' : 's'}
       </p>
       {canManage && (

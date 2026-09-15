@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
-import { invalidateFibers } from '@/hooks/useFibers'
 import { coreColor } from '@/lib/fiber/constants'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
@@ -117,8 +116,6 @@ export default function FiberDetailPanel({ fiberId, onClose, onEdit, onSwap, onC
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [version, setVersion] = useState(0)
-  const [busy, setBusy] = useState(false)
-  const [actionError, setActionError] = useState(null)
   const canManage = canManageFiber(useAuthStore((s) => s.user?.role)) && !readOnly
 
   useEffect(() => {
@@ -151,34 +148,11 @@ export default function FiberDetailPanel({ fiberId, onClose, onEdit, onSwap, onC
 
   const refresh = () => setVersion((v) => v + 1)
 
-  /** Every write follows the same path: run it, drop the cached list, refetch. */
-  const mutate = async (request, fallback) => {
-    setBusy(true)
-    setActionError(null)
-    try {
-      await request()
-      invalidateFibers()
-      refresh()
-    } catch (err) {
-      setActionError(getApiErrorMessage(err, fallback))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const saveLaid = (segmentId, fiberLaidMeters) =>
-    mutate(
-      () => apiClient.patch(`/fibers/${fiberId}/segments/${segmentId}`, { fiberLaidMeters }),
-      'Could not save the laid length',
-    )
-
   const retry = () => {
     setLoading(true)
     setError(null)
     refresh()
   }
-
-  const untypedPath = fiber ? fiber.segments.length === 0 : false
 
   return (
     <div
@@ -232,12 +206,8 @@ export default function FiberDetailPanel({ fiberId, onClose, onEdit, onSwap, onC
               <FeedChip fiber={fiber} onSwap={onSwap} />
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <Stat caption="Laid" value={metres(fiber.totals.fiberLaidMeters)} />
-              <Stat
-                caption={untypedPath ? 'Map (untyped path)' : 'Map'}
-                value={metres(untypedPath ? fiber.totals.pathMeters : fiber.totals.mapMeters)}
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <Stat caption="Length" value={metres(fiber.totals.mapMeters || fiber.totals.pathMeters)} />
               <Stat caption="Closures" value={fiber.totals.closureCount} />
             </div>
 
@@ -247,17 +217,7 @@ export default function FiberDetailPanel({ fiberId, onClose, onEdit, onSwap, onC
               onFiberLink={(id) => onSwap?.(id)}
             />
 
-            <SegmentList
-              segments={fiber.segments}
-              points={fiber.points}
-              readOnly={!canManage}
-              busy={busy}
-              onSaveLaid={saveLaid}
-            />
-
-            {actionError && (
-              <p className="rounded-btn bg-bad-tint p-3 text-sm font-medium text-bad">{actionError}</p>
-            )}
+            <SegmentList segments={fiber.segments} points={fiber.points} />
 
             <DetailsBlock fiber={fiber} />
 

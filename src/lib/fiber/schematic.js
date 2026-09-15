@@ -16,10 +16,10 @@ const H = 64
 export function buildGraph(fiber) {
   const typed = fiber.points.filter((p) => p.type !== 'WAYPOINT')
 
-  const nodes = typed.map((p, i) => ({
+  const nodes = typed.map((p) => ({
     id: p.id,
     type: 'fiberNode',
-    data: { point: p, laidFromPrev: fiber.segments[i - 1]?.fiberLaidMeters ?? null },
+    data: { point: p },
   }))
 
   const edges = typed.slice(1).map((p, i) => ({

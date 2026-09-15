@@ -20,7 +20,7 @@ function pointLabel(point) {
 }
 
 function FiberNode({ data }) {
-  const { point, laidFromPrev } = data
+  const { point } = data
   return (
     <div className="relative h-16 w-[180px] overflow-hidden rounded-btn border border-line bg-card px-3 py-2 shadow-soft">
       <Handle type="target" position={Position.Left} className="!opacity-0" />
@@ -29,7 +29,6 @@ function FiberNode({ data }) {
       <p className="truncate font-mono text-[11px] text-muted">
         {point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}
       </p>
-      {laidFromPrev != null && <p className="truncate text-[11px] text-faint">laid {Math.round(laidFromPrev)} m</p>}
       <Handle type="source" position={Position.Right} className="!opacity-0" />
     </div>
   )
