@@ -1,24 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
-import { emptyDraft, reduce, draftErrors, fromApiPoints } from '@/lib/fiber/draft'
-import { findSnap, targetToType, targetToRef } from '@/lib/fiber/snap'
-import { haversineMeters } from '@/lib/fiber/geo'
-import { useFibers } from '@/hooks/useFibers'
-import { usePops } from '@/hooks/usePops'
-import { useClosures } from '@/hooks/useClosures'
+import { emptyDraft, reduce, draftErrors, fromApiPoints, toPayloadPoints } from '@/lib/fiber/draft'
+import { useFibers, invalidateFibers } from '@/hooks/useFibers'
+import { invalidateClosures } from '@/hooks/useClosures'
 import { useFiberOverlays } from '../useFiberOverlays'
-import { useDraftPolyline, pixelToLatLng, latLngToPixel } from './useDraftPolyline'
+import { useDraftPolyline, pixelToLatLng } from './useDraftPolyline'
 import { useSnapTargets } from './useSnapTargets'
-import { usePointGesture } from './usePointGesture'
 import { useEditorOverlays, useOverlayToggles } from './useEditorOverlays'
-import PointMenu from './PointMenu'
-import SplitterStartDialog from './SplitterStartDialog'
 import SavePanel from './SavePanel'
+import ClosureCard from './ClosureCard'
 import EditorSearch from './EditorSearch'
 import EditorLegend from './EditorLegend'
 import EditorHintBar from './EditorHintBar'
@@ -29,19 +25,42 @@ import TargetCard from './TargetCard'
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 } // country-level fallback
 const DEFAULT_ZOOM = 5
 const MAX_POINTS = 200 // matches the API cap (fiber.schemas.js)
-const NEARBY_BUILDING_METERS = 50 // how far the point menu looks for a building
-const OFF_SCREEN = { x: Infinity, y: Infinity }
+const MISS_HINT_MS = 1600
 const NO_FIBERS = [] // stable identity — useFiberOverlays rebuilds on a new array
 
 // Ignore Google's own controls (zoom buttons, attribution links).
 const isMapSurface = (event) => !event.target.closest('button, a, .gmnoprint, .gm-style-cc')
 
+// What "the same line" means for the dirty check: order, type, position and
+// which entity each point points at. Fixed precision because a LatLng
+// round-trip through the API is decimal, not bit-identical.
+const signatureOf = (points) =>
+  points
+    .map(
+      (p) =>
+        `${p.type}:${p.latitude.toFixed(7)},${p.longitude.toFixed(7)}:${
+          p.ref?.closureId ?? p.ref?.popId ?? p.ref?.buildingId ?? (p.ref?.newClosure ? 'new' : '')
+        }`,
+    )
+    .join('|')
+
+const HINTS = {
+  pan: 'Navigate to the area, then switch to Draw points',
+  draw: 'Tap to add a point · drag a point to move it',
+  annotatePan: 'Add closure: click the line where the closure sits',
+  addClosure: 'Click on the line to place a closure',
+  editLine: 'Tap to extend the line · Save changes when done',
+}
+
 /**
- * Full-screen draw/edit surface for ONE fiber: a single chain of typed points
- * (POP / closure / building / waypoint) bound to one editable polyline. Taps in
- * Draw mode snap to nearby POPs, closures and buildings; a first tap on a
- * splitter closure asks which output the fiber leaves from. Save… hands the
- * draft to SavePanel, which writes it through `/fibers`.
+ * Full-screen editor for ONE fiber, in two phases on the same map:
+ *
+ *  - `draw`     — a new line: tap points, then "Save fiber" writes it with the
+ *                 short details form. The editor stays open.
+ *  - `annotate` — a saved fiber: click the line to drop a closure on it (the
+ *                 API mints its CL- code), edit the line, or close with Done.
+ *
+ * Editing an existing fiber lands straight in `annotate`.
  */
 export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const containerRef = useRef(null)
@@ -55,64 +74,55 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const [draft, dispatch] = useReducer(reduce, initialFiber, (fiber) =>
     fiber ? reduce(emptyDraft(), { type: 'load', points: fromApiPoints(fiber.points) }) : emptyDraft(),
   )
-  const [drawing, setDrawing] = useState(false)
+  const [fiber, setFiber] = useState(initialFiber ?? null)
+  const phase = fiber ? 'annotate' : 'draw'
+  const [mode, setMode] = useState(initialFiber ? 'pan' : 'draw')
+  const [savedSignature, setSavedSignature] = useState(() =>
+    initialFiber ? signatureOf(fromApiPoints(initialFiber.points)) : null,
+  )
   const [coreCount, setCoreCount] = useState(initialFiber?.coreCount ?? 2)
   const [layer, setLayer] = useMapLayer('fiber', 'hybrid')
   const [overlays, toggleOverlay] = useOverlayToggles()
-  // One-shot "ignore snapping": the ref is the authority the DOM handlers read,
-  // the state only drives the hint bar.
-  const [snapOff, setSnapOff] = useState(false)
-  const snapOffRef = useRef(false)
-  const [snapRing, setSnapRing] = useState(null)
-  const ringIdRef = useRef(null) // last hovered target id — throttles setSnapRing
-  const [fromSplitterOutput, setFromSplitterOutput] = useState(() =>
-    initialFiber?.fedBy
-      ? {
-          splitterId: initialFiber.fedBy.splitter.id,
-          portNo: initialFiber.fedBy.portNo,
-          closureCode: initialFiber.fedBy.splitter.closure.code,
-          closureId: initialFiber.fedBy.splitter.closure.id,
-        }
-      : null,
-  )
-  const [splitterDialog, setSplitterDialog] = useState(null) // the tapped closure target
   const [saveOpen, setSaveOpen] = useState(false)
   const [selectedTarget, setSelectedTarget] = useState(null) // Pan-mode marker tap
+  const [closureCard, setClosureCard] = useState(null) // { key, x, y }
+  const [closureSaving, setClosureSaving] = useState(false)
+  const [closureError, setClosureError] = useState(null)
+  const [pointsError, setPointsError] = useState(null)
+  const [savingPoints, setSavingPoints] = useState(false)
+  const [missAt, setMissAt] = useState(0) // a click that found no line
+
+  // Draw and Add-closure both take over the tap: the map's own gestures go
+  // quiet so every tap reaches our handler.
+  const drawing = mode === 'draw' || mode === 'editLine'
+  const frozen = drawing || mode === 'addClosure'
 
   const { targets } = useSnapTargets({ enabled: true })
-  const { pops } = usePops()
-  const { closures } = useClosures()
   // Only fetched while the "Other fiber" overlay is on — the legend promises lazy.
   const { fibers } = useFibers(overlays.others)
 
   // Mirrors for the DOM listeners, which are attached once.
   const draftRef = useRef(draft)
-  const drawingRef = useRef(drawing)
-  const targetsRef = useRef(targets)
+  const modeRef = useRef(mode)
+  const cardOpenRef = useRef(false)
   useEffect(() => {
     draftRef.current = draft
-    drawingRef.current = drawing
-    targetsRef.current = targets
+    modeRef.current = mode
+    cardOpenRef.current = closureCard !== null
   })
 
-  const applySnapOff = useCallback((value) => {
-    snapOffRef.current = value
-    setSnapOff(value)
-  }, [])
-
-  const { hitTest, projection } = useDraftPolyline({
+  const { hitTestLine, projection } = useDraftPolyline({
     map,
     ready,
     draft,
     dispatch,
     drawing,
     coreCount,
-    snapRing,
+    snapRing: null,
   })
-  const { menu, close: closeMenu } = usePointGesture({ containerRef, enabled: ready, hitTest })
 
   const handleTargetClick = useCallback((target) => {
-    if (!drawingRef.current) setSelectedTarget(target)
+    if (modeRef.current === 'pan') setSelectedTarget(target)
   }, [])
   useEditorOverlays({
     map,
@@ -121,8 +131,8 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     buildingsShown: overlays.buildings,
     zonesShown: overlays.zones,
     onTargetClick: handleTargetClick,
-    // Drawing: markers must not intercept the tap that places a point.
-    markersClickable: !drawing,
+    // Drawing / dropping a closure: markers must not intercept the tap.
+    markersClickable: !frozen,
   })
 
   // Saved fibers as dim context behind the draft — never interactive here.
@@ -133,7 +143,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     map,
     ready,
     fibers: otherFibers,
-    exclude: initialFiber?.id,
+    exclude: fiber?.id,
     dim: true,
     cluster: false,
   })
@@ -169,7 +179,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     }
   }, [])
 
-  // The point menu clamps itself inside the map — it needs the live size.
+  // The closure card clamps itself inside the map — it needs the live size.
   useEffect(() => {
     const element = containerRef.current
     if (!element) return
@@ -187,158 +197,170 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     if (mapRef.current && ready) mapRef.current.setMapTypeId(layer)
   }, [layer, ready])
 
-  // Draw mode: freeze pan/drag gestures (zoom buttons still work), crosshair.
+  // Draw / Add closure: freeze pan-drag gestures (zoom buttons still work).
   useEffect(() => {
     if (!mapRef.current || !ready) return
     mapRef.current.setOptions({
-      gestureHandling: drawing ? 'none' : 'greedy',
-      draggableCursor: drawing ? 'crosshair' : null,
+      gestureHandling: frozen ? 'none' : 'greedy',
+      draggableCursor: frozen ? 'crosshair' : null,
     })
-  }, [drawing, ready])
+  }, [frozen, ready])
 
-  // ---- draw gestures on the container (never the map's own click event) -----
+  // "Click on the line" nudge fades on its own.
+  useEffect(() => {
+    if (!missAt) return
+    const timer = setTimeout(() => setMissAt(0), MISS_HINT_MS)
+    return () => clearTimeout(timer)
+  }, [missAt])
+
+  // ---- map taps on the container (never the map's own click event) ----------
   useEffect(() => {
     const container = containerRef.current
     if (!container || !ready) return
 
-    const pixelOf = (event) => {
-      const rect = container.getBoundingClientRect()
-      return { x: event.clientX - rect.left, y: event.clientY - rect.top }
-    }
-    const projectPixel = (target) =>
-      latLngToPixel(projection.current, new google.maps.LatLng(target.latitude, target.longitude)) ??
-      OFF_SCREEN
-    const probe = (pixel) => {
-      const latLng = pixelToLatLng(projection.current, pixel)
-      if (!latLng) return { latLng: null, snap: null }
-      const snap = findSnap(targetsRef.current, {
-        pixel,
-        latLng: { latitude: latLng.lat(), longitude: latLng.lng() },
-        projectPixel,
-      })
-      return { latLng, snap }
-    }
-    const clearRing = () => {
-      if (ringIdRef.current === null) return
-      ringIdRef.current = null
-      setSnapRing(null)
-    }
-
     const onClick = (event) => {
-      if (!drawingRef.current || !isMapSurface(event)) return
+      if (cardOpenRef.current || !isMapSurface(event)) return
+      const rect = container.getBoundingClientRect()
+      const pixel = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+
+      if (modeRef.current === 'addClosure') {
+        const hit = hitTestLine(pixel)
+        if (!hit) {
+          setMissAt(Date.now())
+          return
+        }
+        const key = `p${draftRef.current.nextKey}`
+        dispatch({
+          type: 'insert',
+          index: hit.index + 1,
+          point: {
+            latitude: hit.latitude,
+            longitude: hit.longitude,
+            pointType: 'CLOSURE',
+            ref: { newClosure: { kind: null } },
+          },
+        })
+        setClosureError(null)
+        setClosureCard({ key, x: pixel.x, y: pixel.y })
+        return
+      }
+
+      if (modeRef.current !== 'draw' && modeRef.current !== 'editLine') return
       if (draftRef.current.points.length >= MAX_POINTS) return
-      const { latLng, snap: nearest } = probe(pixelOf(event))
+      const latLng = pixelToLatLng(projection.current, pixel)
       if (!latLng) return
-      const snap = snapOffRef.current ? null : nearest
-      if (snapOffRef.current) applySnapOff(false)
-      // A fiber leaving a splitter must declare which output it leaves from.
-      if (snap && draftRef.current.points.length === 0 && snap.kind === 'CLOSURE' && snap.splitter) {
-        setSplitterDialog(snap)
-        return
-      }
-      dispatch({
-        type: 'add',
-        point: snap
-          ? {
-              latitude: snap.latitude,
-              longitude: snap.longitude,
-              pointType: targetToType(snap),
-              ref: targetToRef(snap),
-            }
-          : { latitude: latLng.lat(), longitude: latLng.lng() },
-      })
-    }
-
-    const onMove = (event) => {
-      if (!drawingRef.current || snapOffRef.current || !isMapSurface(event)) {
-        clearRing()
-        return
-      }
-      const { snap } = probe(pixelOf(event))
-      const id = snap?.id ?? null
-      if (id === ringIdRef.current) return
-      ringIdRef.current = id
-      setSnapRing(snap ? { latitude: snap.latitude, longitude: snap.longitude } : null)
-    }
-
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape' && drawingRef.current) applySnapOff(true)
+      dispatch({ type: 'add', point: { latitude: latLng.lat(), longitude: latLng.lng() } })
     }
 
     container.addEventListener('click', onClick)
-    container.addEventListener('mousemove', onMove)
-    container.addEventListener('mouseleave', clearRing)
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      container.removeEventListener('click', onClick)
-      container.removeEventListener('mousemove', onMove)
-      container.removeEventListener('mouseleave', clearRing)
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [ready, projection, applySnapOff])
+    return () => container.removeEventListener('click', onClick)
+  }, [ready, projection, hitTestLine])
 
   // ---- derived --------------------------------------------------------------
-  const counts = useMemo(() => {
-    const typed = draft.points.filter((p) => p.type !== 'WAYPOINT')
-    return {
+  const counts = useMemo(
+    () => ({
       points: draft.points.length,
-      typed: typed.length,
-      closures: typed.filter((p) => p.type === 'CLOSURE').length,
-    }
-  }, [draft.points])
-
-  const errors = useMemo(
-    () => draftErrors(draft.points, { fromSplitterOutput }),
-    [draft.points, fromSplitterOutput],
+      closures: draft.points.filter((p) => p.type === 'CLOSURE').length,
+    }),
+    [draft.points],
   )
 
-  const menuPoint = menu ? (draft.points.find((p) => p.key === menu.pointKey) ?? null) : null
-  const nearbyBuildings = useMemo(() => {
-    if (!menuPoint) return []
-    return targets.filter(
-      (t) => t.kind === 'BUILDING' && haversineMeters(menuPoint, t) <= NEARBY_BUILDING_METERS,
-    )
-  }, [menuPoint, targets])
+  // A fiber fed by a splitter legitimately starts on that splitter closure —
+  // the editor no longer offers the feed, but it must not fail its own rule.
+  const feedClosureId = fiber?.fedBy?.splitter?.closure?.id ?? null
+  const errors = useMemo(
+    () =>
+      draftErrors(draft.points, {
+        fromSplitterOutput: feedClosureId ? { closureId: feedClosureId } : null,
+      }),
+    [draft.points, feedClosureId],
+  )
 
-  // The feed can only be dropped while nothing in the draft depends on it.
-  const canClearFeed =
-    draft.points.length === 0 || draft.points[0].ref?.closureId !== fromSplitterOutput?.closureId
+  const dirty = phase === 'annotate' && signatureOf(draft.points) !== savedSignature
+
+  const hint = missAt
+    ? 'Click on the line'
+    : phase === 'draw'
+      ? HINTS[mode]
+      : mode === 'pan'
+        ? HINTS.annotatePan
+        : HINTS[mode]
 
   // ---- actions --------------------------------------------------------------
-  // An empty draft has nothing left that the feed describes, so drop it with
-  // the points rather than leaving a chip pointing at a closure nobody drew.
-  function emptyDraftDropsFeed(remaining) {
-    if (remaining === 0) setFromSplitterOutput(null)
+  function applySaved(saved) {
+    const points = fromApiPoints(saved.points)
+    setFiber(saved)
+    dispatch({ type: 'load', points })
+    setSavedSignature(signatureOf(points))
+    invalidateFibers()
+    invalidateClosures()
+    onSaved?.(saved)
   }
 
-  function handleUndo() {
-    dispatch({ type: 'undo' })
-    emptyDraftDropsFeed(draft.points.length - 1)
+  function handleCreated(saved) {
+    setSaveOpen(false)
+    setMode('pan')
+    applySaved(saved)
   }
 
-  function handleClear() {
-    dispatch({ type: 'clear' })
-    emptyDraftDropsFeed(0)
+  // A details-only save must not touch the draft: line edits in progress are
+  // the editor's own, and "Save changes" is what writes them.
+  function handleDetailsSaved(saved) {
+    setSaveOpen(false)
+    setFiber(saved)
+    invalidateFibers()
+    onSaved?.(saved)
   }
 
-  function pickSplitterOutput({ splitterId, portNo }) {
-    const target = splitterDialog
-    setFromSplitterOutput({
-      splitterId,
-      portNo,
-      closureCode: target.label,
-      closureId: target.id,
-    })
-    dispatch({
-      type: 'add',
-      point: {
-        latitude: target.latitude,
-        longitude: target.longitude,
-        pointType: targetToType(target),
-        ref: targetToRef(target),
-      },
-    })
-    setSplitterDialog(null)
+  async function patchPoints(points) {
+    const res = await apiClient.patch(`/fibers/${fiber.id}`, { points: toPayloadPoints(points) })
+    applySaved(res.data.data)
+  }
+
+  async function handleSaveChanges() {
+    setSavingPoints(true)
+    setPointsError(null)
+    try {
+      await patchPoints(draft.points)
+    } catch (err) {
+      setPointsError(getApiErrorMessage(err))
+    } finally {
+      setSavingPoints(false)
+    }
+  }
+
+  async function handleClosureSave({ kind, notes }) {
+    const { key } = closureCard
+    const ref = { newClosure: { kind, notes } }
+    // The reducer's update lands next render — PATCH the list we just built.
+    const points = draft.points.map((p) => (p.key === key ? { ...p, type: 'CLOSURE', ref } : p))
+    dispatch({ type: 'setType', key, pointType: 'CLOSURE', ref })
+    setClosureSaving(true)
+    setClosureError(null)
+    try {
+      await patchPoints(points)
+      setClosureCard(null)
+    } catch (err) {
+      setClosureError(getApiErrorMessage(err))
+    } finally {
+      setClosureSaving(false)
+    }
+  }
+
+  function handleClosureCancel() {
+    dispatch({ type: 'remove', key: closureCard.key })
+    setClosureCard(null)
+    setClosureError(null)
+  }
+
+  function handleDone() {
+    if (dirty && !window.confirm('The line has unsaved changes. Close anyway?')) return
+    onClose()
+  }
+
+  function handleMode(next) {
+    setMode(next)
+    if (next !== 'pan') setSelectedTarget(null) // a stale card is noise while drawing
   }
 
   function jumpTo({ latitude, longitude }) {
@@ -357,42 +379,45 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
       <style>{`.fiber-zone-label { text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.75); }`}</style>
 
       <EditorHeader
-        title={initialFiber?.name?.trim() || 'New fiber'}
+        title={fiber?.name?.trim() || 'New fiber'}
         counts={counts}
+        phase={phase}
         canSave={errors.length === 0}
-        onUndo={handleUndo}
-        onClear={handleClear}
+        dirty={dirty}
+        savingPoints={savingPoints}
+        drawingLine={mode === 'editLine'}
+        onUndo={() => dispatch({ type: 'undo' })}
+        onClear={() => dispatch({ type: 'clear' })}
         onCancel={onClose}
         onSave={() => setSaveOpen(true)}
-        hint={counts.points < 2 ? 'Draw at least two points' : null}
+        onDetails={() => setSaveOpen(true)}
+        onSaveChanges={handleSaveChanges}
+        onDone={handleDone}
+        hint={phase === 'draw' && counts.points < 2 ? 'Draw at least two points' : null}
       />
 
       <div className="relative min-h-0 flex-1">
-        {/* touch-action while drawing: with the default `auto`, the browser
-            holds a tap back to see whether a double-tap-to-zoom is coming and
-            never synthesises the click at all — on a phone the first tap is
-            lost and every later one lands a point behind. Draw mode already
-            turns the map's own gestures off (`gestureHandling: 'none'`), so
-            taking the browser's away with it costs nothing. */}
+        {/* touch-action while a mode owns the tap: with the default `auto`, the
+            browser holds a tap back to see whether a double-tap-to-zoom is
+            coming and never synthesises the click at all — on a phone the
+            first tap is lost and every later one lands a point behind. Those
+            modes already turn the map's own gestures off, so taking the
+            browser's away with them costs nothing. */}
         <div
           ref={containerRef}
           className="h-full w-full"
-          style={drawing ? { touchAction: 'none' } : undefined}
+          style={frozen ? { touchAction: 'none' } : undefined}
         />
 
         <EditorSearch getCenter={getCenter} onJump={jumpTo} />
 
         <EditorToolbar
-          drawing={drawing}
-          onDrawing={(next) => {
-            setDrawing(next)
-            if (next) setSelectedTarget(null) // a stale card is noise while drawing
-          }}
+          phase={phase}
+          mode={mode}
+          onMode={handleMode}
           coreCount={coreCount}
           onCoreCount={setCoreCount}
-          fromSplitterOutput={fromSplitterOutput}
-          canClearFeed={canClearFeed}
-          onClearFeed={() => setFromSplitterOutput(null)}
+          showCores={phase === 'draw' || mode === 'editLine'}
         />
 
         <EditorLegend
@@ -401,25 +426,20 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
             toggleOverlay(key, value)
             if (key === 'buildings' && !value) setSelectedTarget(null)
           }}
-          onClear={handleClear}
-          canClear={counts.points > 0}
+          onClear={() => dispatch({ type: 'clear' })}
+          canClear={phase === 'draw' && counts.points > 0}
         />
 
         <MapLayerControl value={layer} onChange={setLayer} position="right-3 top-[4.25rem] sm:top-3" />
 
-        <EditorHintBar
-          drawing={drawing}
-          snapOff={snapOff}
-          onToggleSnapOff={() => applySnapOff(!snapOff)}
-        />
+        <EditorHintBar hint={hint} tone={missAt ? 'warn' : 'muted'} />
 
         {/* Under two points the only error is the length rule, which the header's
             helper line already states — keep the banner for the real ones. */}
-        {counts.points >= 2 && errors.length > 0 && (
+        {((counts.points >= 2 && errors.length > 0) || pointsError) && (
           <div className="absolute left-3 right-3 top-[13rem] z-10 mx-auto max-w-md rounded-card border border-line bg-card px-4 py-3 text-sm font-normal text-bad shadow-lift sm:top-[9.5rem]">
-            {errors.map((error) => (
-              <p key={error}>{error}</p>
-            ))}
+            {counts.points >= 2 && errors.map((error) => <p key={error}>{error}</p>)}
+            {pointsError && <p>{pointsError}</p>}
           </div>
         )}
 
@@ -428,47 +448,24 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
           <TargetCard target={selectedTarget} onClose={() => setSelectedTarget(null)} />
         )}
 
-        {menu && menuPoint && (
-          <PointMenu
-            point={menuPoint}
-            at={{ x: menu.x, y: menu.y }}
+        {closureCard && (
+          <ClosureCard
+            at={closureCard}
             bounds={containerSize}
-            pops={pops}
-            nearbyBuildings={nearbyBuildings}
-            onChoose={(pointType, ref, position) =>
-              dispatch({
-                type: 'setType',
-                key: menu.pointKey,
-                pointType,
-                ref,
-                ...(position ?? {}),
-              })
-            }
-            onRemove={() => dispatch({ type: 'remove', key: menu.pointKey })}
-            onClose={closeMenu}
+            saving={closureSaving}
+            error={closureError}
+            onSave={handleClosureSave}
+            onCancel={handleClosureCancel}
           />
         )}
 
-        {splitterDialog && (
-          <SplitterStartDialog
-            closure={{ id: splitterDialog.id, code: splitterDialog.label }}
-            splitters={closures.find((c) => c.id === splitterDialog.id)?.splitters ?? []}
-            onPick={pickSplitterOutput}
-            onClose={() => setSplitterDialog(null)}
-          />
-        )}
-
-        {/* Mounted fresh each time so its laid-metres state re-initialises. */}
         {saveOpen && (
           <SavePanel
-            mode={initialFiber ? 'edit' : 'create'}
-            fiber={initialFiber}
+            mode={fiber ? 'edit' : 'create'}
+            fiber={fiber}
             draftPoints={draft.points}
             coreCount={coreCount}
-            fromSplitterOutput={fromSplitterOutput}
-            onSaved={(fiber) => {
-              onSaved?.(fiber)
-            }}
+            onSaved={fiber ? handleDetailsSaved : handleCreated}
             onBack={() => setSaveOpen(false)}
           />
         )}

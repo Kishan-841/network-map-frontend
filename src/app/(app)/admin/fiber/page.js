@@ -83,8 +83,11 @@ function AdminFiberContent() {
   const editorOpen = editorFiber !== undefined || Boolean(editParamFiber)
   const editorInitialFiber = editorFiber !== undefined ? (editorFiber ?? undefined) : editParamFiber
 
+  // The editor now closes itself (Done) after it has saved everything it
+  // wanted to save — refresh the table on the way out.
   const closeEditor = () => {
     setEditorFiber(undefined)
+    invalidateFibers()
     if (editParamId) {
       setDismissedEditId(editParamId)
       // Tidy `?edit=` out of the address bar. The native History API (which
@@ -165,11 +168,9 @@ function AdminFiberContent() {
         <FiberEditor
           initialFiber={editorInitialFiber}
           onClose={closeEditor}
-          onSaved={(f) => {
-            closeEditor()
-            invalidateFibers()
-            setPanelFiberId(f.id)
-          }}
+          // A save keeps the editor open (it moves on to closures) — the list
+          // behind it just needs to know the row changed.
+          onSaved={() => invalidateFibers()}
         />
       )}
     </main>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { isPinned } from '@/lib/fiber/draft'
+import { nearestPointOnPath } from '@/lib/fiber/line-hit'
 import { typedMarkerIcon, markerLabel } from '@/lib/fiber/markers'
 import { coreColor } from '@/lib/fiber/constants'
 
@@ -345,5 +346,24 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
     return best
   }, [])
 
-  return { hitTest, projection: projectionRef }
+  // Nearest point ON the line (not on a vertex): where an inserted closure
+  // goes. `index` is the vertex it follows — insert at `index + 1`.
+  const hitTestLine = useCallback((pixel) => {
+    const path = pathRef.current
+    const overlay = projectionRef.current
+    if (!path || !overlay) return null
+    const pixels = []
+    for (let i = 0; i < path.getLength(); i++) {
+      const vertexPixel = latLngToPixel(overlay, path.getAt(i))
+      if (!vertexPixel) return null // projection not ready yet
+      pixels.push({ x: vertexPixel.x, y: vertexPixel.y })
+    }
+    const hit = nearestPointOnPath(pixels, pixel, HIT_PX)
+    if (!hit) return null
+    const latLng = pixelToLatLng(overlay, hit)
+    if (!latLng) return null
+    return { index: hit.index, latitude: latLng.lat(), longitude: latLng.lng() }
+  }, [])
+
+  return { hitTest, hitTestLine, projection: projectionRef }
 }
