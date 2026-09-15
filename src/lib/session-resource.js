@@ -24,6 +24,10 @@ export function createSessionResource(path) {
 
   function useSessionResource(enabled = true) {
     const userId = useAuthStore((s) => s.user?.id)
+    // Read on EVERY render, not only to seed the state: a consumer that mounts
+    // disabled (the map's lazy fiber layer) and is enabled later finds the
+    // cache already warm, and the effect below then has nothing to fetch and
+    // nothing to set — so the cache is what it returns.
     const cached = enabled && cache.userId === userId ? cache.data : null
     const [data, setData] = useState(cached)
     const [loading, setLoading] = useState(enabled && cached === null)
@@ -73,7 +77,7 @@ export function createSessionResource(path) {
       }
     }, [enabled, userId, tick])
 
-    return { data: data ?? [], loading }
+    return { data: data ?? cached ?? [], loading }
   }
 
   // Flip the stale flag: drops the cached copy (and any in-flight promise),

@@ -2,16 +2,24 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
-import { buildingColor, zoneColor, fiberTypeColor } from '@/lib/constants'
+import { buildingColor, zoneColor } from '@/lib/constants'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
+import { useFiberOverlays } from '@/components/fiber/useFiberOverlays'
+import { coreColor, FIBER_STATUS } from '@/lib/fiber/constants'
 
 const polygonCentroid = (points) => ({
   lat: points.reduce((sum, p) => sum + p.latitude, 0) / points.length,
   lng: points.reduce((sum, p) => sum + p.longitude, 0) / points.length,
 })
+
+// A stable empty array: `useFiberOverlays` rebuilds whenever `fibers` changes
+// identity, so a default of `[]` in the signature would rebuild every render.
+const NO_FIBERS = []
+
+const CENTRE_ZOOM = 17 // close enough to see the pole a point sits on
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 } // country-level fallback
 const DEFAULT_ZOOM = 5
@@ -41,17 +49,20 @@ const pinIcon = (building, selected) => {
 export default function GoogleBuildingsMap({
   buildings,
   zones = [],
-  fiberRoutes = [],
+  fibers = NO_FIBERS,
   selectedId,
   onSelect,
+  onFiberSelect,
+  onClosureSelect,
+  centreRef,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markersRef = useRef(new Map())
   const zoneOverlaysRef = useRef([])
-  const fiberOverlaysRef = useRef([])
-  // Hovered/tapped fiber segment → floating details card at the cursor.
-  const [fiberInfo, setFiberInfo] = useState(null)
+  // Hovered fiber → floating details card at the cursor. Hover only: on touch
+  // the same tap opens the detail panel, which says more than a card could.
+  const [hover, setHover] = useState(null)
   const clustererRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   const selectedIdRef = useRef(selectedId)
@@ -61,6 +72,9 @@ export default function GoogleBuildingsMap({
     onSelectRef.current = onSelect
   }, [onSelect])
   const [ready, setReady] = useState(false)
+  // The instance as state as well as a ref: `useFiberOverlays` takes it as an
+  // argument, and a ref may not be read during render.
+  const [map, setMap] = useState(null)
   const [layer, setLayer] = useMapLayer('tab', 'roadmap')
 
   useEffect(() => {
@@ -86,11 +100,22 @@ export default function GoogleBuildingsMap({
       }
       containerRef.current.appendChild(pooledContainer)
       mapRef.current = pooledMap
+      // The panel's "centre on this point" handle. Published here rather than
+      // from an effect so no render is involved — the parent only ever calls
+      // it from an event.
+      if (centreRef) {
+        centreRef.current = (point) => {
+          if (point?.latitude == null || point?.longitude == null) return
+          pooledMap.panTo({ lat: point.latitude, lng: point.longitude })
+          if ((pooledMap.getZoom() ?? 0) < CENTRE_ZOOM) pooledMap.setZoom(CENTRE_ZOOM)
+        }
+      }
       clustererRef.current = new MarkerClusterer({
         map: mapRef.current,
         markers: [],
         renderer: clusterRenderer,
       })
+      setMap(pooledMap)
       setReady(true)
     })
     return () => {
@@ -99,7 +124,7 @@ export default function GoogleBuildingsMap({
       clustererRef.current = null
       markersRef.current.forEach((marker) => marker.setMap(null))
       markersRef.current.clear()
-      fiberOverlaysRef.current.forEach((line) => line.setMap(null))
+      if (centreRef) centreRef.current = null
       zoneOverlaysRef.current.forEach((overlay) => overlay.setMap(null))
       zoneOverlaysRef.current = []
       // Detach (never destroy) the pooled map so the next visit is free.
@@ -198,44 +223,32 @@ export default function GoogleBuildingsMap({
     return () => zoomListener.remove()
   }, [zones, ready])
 
-  // Fiber routes: plain colored polylines (trunk + branches per route).
-  // Hover (or tap, on touch) shows a details card, like building pins do.
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    fiberOverlaysRef.current.forEach((line) => line.setMap(null))
-    fiberOverlaysRef.current = fiberRoutes.flatMap((route) =>
-      (route.segments ?? []).map((segment) => {
-        const line = new google.maps.Polyline({
-          map,
-          path: (segment.points ?? []).map((p) => ({ lat: p.latitude, lng: p.longitude })),
-          strokeColor: fiberTypeColor(segment.fiberType),
-          strokeOpacity: 0.9,
-          strokeWeight: 4,
-          zIndex: 5,
-        })
-        const show = (event) => {
-          const dom = event.domEvent
-          if (!dom) return
-          setFiberInfo({
-            x: dom.clientX,
-            y: dom.clientY,
-            name: route.name,
-            fiberType: segment.fiberType,
-            fiberId: route.fiberId,
-            placement: route.placement,
-            operator: route.operator?.name,
-            remark: route.remark,
-          })
-        }
-        line.addListener('mouseover', show)
-        line.addListener('mousemove', show)
-        line.addListener('click', show) // touch devices have no hover
-        line.addListener('mouseout', () => setFiberInfo(null))
-        return line
-      }),
-    )
-  }, [fiberRoutes, ready])
+  // Fiber: coloured lines by core count + one typed marker per real entity.
+  // Everything about the drawing lives in the shared hook — this component
+  // only says what a click and a hover mean on THIS map.
+  useFiberOverlays({
+    map,
+    ready,
+    fibers,
+    dim: false,
+    cluster: true,
+    onFiberClick: (fiber) => onFiberSelect?.(fiber.id),
+    // A splitter marker is still a CLOSURE point — both open the closure.
+    onPointClick: (point) => {
+      if (point.type === 'CLOSURE' && point.closureId) onClosureSelect?.(point.closureId)
+    },
+    onFiberHover: (fiber, domEvent) => {
+      if (!fiber || !domEvent) return setHover(null)
+      setHover({
+        x: domEvent.clientX,
+        y: domEvent.clientY,
+        name: fiber.name,
+        coreCount: fiber.coreCount,
+        status: fiber.status,
+        operator: fiber.operator?.name,
+      })
+    },
+  })
 
   // Diff markers against the buildings prop — never tear down the world.
   // Selection is handled in its own effect so a tap only re-icons two pins.
@@ -327,52 +340,43 @@ export default function GoogleBuildingsMap({
     prevSelectedRef.current = selectedId
   }, [selectedId, ready])
 
+  const hoverStatus = hover ? (FIBER_STATUS[hover.status] ?? FIBER_STATUS.PLANNED) : null
+
   return (
     <div className="relative isolate z-0 h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       <MapLayerControl value={layer} onChange={setLayer} position="right-3 top-[4.75rem] lg:top-24" />
 
-      {/* Fiber hover/tap card — fixed at the cursor, like a rich tooltip.
-          The fiberRoutes guard hides a stale card when the layer toggles off
-          (no mouseout fires once the lines are gone). */}
-      {fiberInfo && fiberRoutes.length > 0 && (
+      {/* Fiber hover card — fixed at the cursor, like a rich tooltip. Hover
+          only: a tap opens the detail panel instead. The fibers guard hides a
+          stale card when the layer toggles off (no mouseout fires once the
+          lines are gone). */}
+      {hover && fibers.length > 0 && (
         <div
           className="pointer-events-none fixed z-50 w-56 rounded-card border border-line bg-card p-3 shadow-lift"
           style={{
-            left: Math.min(fiberInfo.x + 14, window.innerWidth - 240),
-            top: Math.min(fiberInfo.y + 14, window.innerHeight - 140),
+            left: Math.min(hover.x + 14, window.innerWidth - 240),
+            top: Math.min(hover.y + 14, window.innerHeight - 140),
           }}
         >
-          <p className="truncate text-sm font-bold">{fiberInfo.name}</p>
+          <p className="truncate text-sm font-bold">{hover.name}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-medium">
-            <span
-              className="flex items-center gap-1.5 rounded-full bg-paper px-2 py-0.5 text-muted"
-            >
+            <span className="flex items-center gap-1.5 rounded-full bg-paper px-2 py-0.5 text-muted">
               <span
                 className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: fiberTypeColor(fiberInfo.fiberType) }}
+                style={{ backgroundColor: coreColor(hover.coreCount) }}
               />
-              {fiberInfo.fiberType}
+              {hover.coreCount} core
             </span>
-            {fiberInfo.placement && (
-              <span className="rounded-full bg-paper px-2 py-0.5 text-muted">
-                {fiberInfo.placement}
-              </span>
-            )}
-            {fiberInfo.fiberId && (
-              <span className="rounded-full bg-paper px-2 py-0.5 text-muted">
-                {fiberInfo.fiberId}
-              </span>
-            )}
-            {fiberInfo.operator && (
+            <span className={`rounded-full px-2 py-0.5 ${hoverStatus.className}`}>
+              {hoverStatus.label}
+            </span>
+            {hover.operator && (
               <span className="rounded-full bg-fiber-tint px-2 py-0.5 text-fiber">
-                {fiberInfo.operator}
+                {hover.operator}
               </span>
             )}
           </div>
-          {fiberInfo.remark && (
-            <p className="mt-1.5 line-clamp-2 text-xs font-normal text-muted">{fiberInfo.remark}</p>
-          )}
         </div>
       )}
     </div>
