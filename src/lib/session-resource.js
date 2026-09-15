@@ -44,20 +44,27 @@ export function createSessionResource(path) {
         cache.promise = null
       }
       if (cache.data) return () => listeners.delete(notify) // state was seeded from cache — nothing to do
-      cache.promise ??= apiClient.get(path).then((res) => {
-        cache.data = res.data.data
-        return cache.data
-      })
+      if (!cache.promise) {
+        const request = apiClient.get(path).then((res) => {
+          // Only the fetch that is still current may populate the cache — an
+          // older in-flight request resolving after an invalidate() must not
+          // win and clobber fresher data with stale data.
+          if (cache.promise === request) cache.data = res.data.data
+          return res.data.data
+        })
+        cache.promise = request
+      }
       let cancelled = false
-      cache.promise
+      const current = cache.promise
+      current
         .then((result) => {
-          if (!cancelled) {
+          if (!cancelled && cache.promise === current) {
             setData(result)
             setLoading(false)
           }
         })
         .catch(() => {
-          cache.promise = null // allow a retry on the next mount
+          if (cache.promise === current) cache.promise = null // allow a retry on the next mount
           if (!cancelled) setLoading(false)
         })
       return () => {
