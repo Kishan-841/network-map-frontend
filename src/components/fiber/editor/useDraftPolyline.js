@@ -119,9 +119,15 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
         }
       })
       syncingRef.current = false
-      markersRef.current.forEach(({ marker }, i) => {
+      markersRef.current.forEach((entry, i) => {
         const p = points[i]
-        if (p) marker.setPosition({ lat: p.latitude, lng: p.longitude })
+        if (!p) return
+        entry.marker.setPosition({ lat: p.latitude, lng: p.longitude })
+        // The click listener below reads through this box — keep it current
+        // even when the shape (and so the listener itself) didn't rebuild,
+        // e.g. editing a closure's kind/note leaves the marker signature the
+        // same but must still hand the click the fresh ref next time.
+        entry.pointRef.current = p
       })
       return
     }
@@ -144,6 +150,7 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
       // Only a SAVED closure (it has a code) carries a type/note worth a card —
       // and only in annotate + Pan mode, where a tap can never mean "draw".
       const isClickableClosure = p.type === 'CLOSURE' && Boolean(p.ref?.closureId)
+      const pointRef = { current: p }
       const marker = new google.maps.Marker({
         map: map_,
         position: { lat: p.latitude, lng: p.longitude },
@@ -152,13 +159,14 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
         icon: mapsIcon(icon),
       })
       if (isClickableClosure) {
-        marker.addListener('click', () => onClosureClickRef.current?.(p))
+        marker.addListener('click', () => onClosureClickRef.current?.(pointRef.current))
       }
       return {
         marker,
         isWaypoint: p.type === 'WAYPOINT',
         text,
         isClickableClosure,
+        pointRef,
       }
     })
     applyZoomRef.current()

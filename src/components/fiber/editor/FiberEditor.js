@@ -15,7 +15,6 @@ import { useSnapTargets } from './useSnapTargets'
 import { useEditorOverlays, useOverlayToggles } from './useEditorOverlays'
 import SavePanel from './SavePanel'
 import ClosureCard from './ClosureCard'
-import ClosureInfoCard from './ClosureInfoCard'
 import EditorSearch from './EditorSearch'
 import EditorLegend from './EditorLegend'
 import EditorHintBar from './EditorHintBar'
@@ -86,7 +85,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const [overlays, toggleOverlay] = useOverlayToggles()
   const [saveOpen, setSaveOpen] = useState(false)
   const [selectedTarget, setSelectedTarget] = useState(null) // Pan-mode marker tap
-  const [closureInfo, setClosureInfo] = useState(null) // draft closure tapped in annotate + Pan
+  const [editingClosure, setEditingClosure] = useState(null) // draft closure tapped in annotate + Pan
   const [closureCard, setClosureCard] = useState(null) // { key, x, y }
   const [closureSaving, setClosureSaving] = useState(false)
   const [closureError, setClosureError] = useState(null)
@@ -110,7 +109,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   useEffect(() => {
     draftRef.current = draft
     modeRef.current = mode
-    cardOpenRef.current = closureCard !== null
+    cardOpenRef.current = closureCard !== null || editingClosure !== null
   })
 
   // A tap can only ever mean "show me what this is" once the fiber is saved
@@ -119,7 +118,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const pointsClickable = phase === 'annotate' && mode === 'pan'
 
   const handleClosureClick = useCallback((point) => {
-    setClosureInfo(point)
+    setEditingClosure(point)
     setSelectedTarget(null)
   }, [])
 
@@ -138,7 +137,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const handleTargetClick = useCallback((target) => {
     if (modeRef.current === 'pan') {
       setSelectedTarget(target)
-      setClosureInfo(null)
+      setEditingClosure(null)
     }
   }, [])
   useEditorOverlays({
@@ -370,6 +369,50 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     setClosureError(null)
   }
 
+  async function handleClosureEditSave({ kind, notes }) {
+    const point = editingClosure
+    setClosureSaving(true)
+    setClosureError(null)
+    try {
+      await apiClient.patch(`/closures/${point.ref.closureId}`, { kind, notes })
+      // Simpler than a round-trip GET /fibers/:id — only the ref changed, and
+      // any other view of this fiber refetches once invalidated below.
+      dispatch({ type: 'setType', key: point.key, pointType: 'CLOSURE', ref: { ...point.ref, kind, notes } })
+      invalidateClosures()
+      invalidateFibers()
+      setEditingClosure(null)
+    } catch (err) {
+      setClosureError(getApiErrorMessage(err))
+    } finally {
+      setClosureSaving(false)
+    }
+  }
+
+  async function handleClosureRemove() {
+    const point = editingClosure
+    if (!window.confirm(`Remove ${point.ref.code}? The point stays as a plain bend in the line.`)) return
+    setClosureSaving(true)
+    setClosureError(null)
+    try {
+      // The point must stop referencing the closure BEFORE it is deleted —
+      // the API 409s a delete while any fiber point still points at it.
+      const points = draft.points.map((p) => (p.key === point.key ? { ...p, type: 'WAYPOINT', ref: null } : p))
+      await patchPoints(points)
+      await apiClient.delete(`/closures/${point.ref.closureId}`)
+      invalidateClosures()
+      setEditingClosure(null)
+    } catch (err) {
+      setClosureError(getApiErrorMessage(err))
+    } finally {
+      setClosureSaving(false)
+    }
+  }
+
+  function handleClosureEditCancel() {
+    setEditingClosure(null)
+    setClosureError(null)
+  }
+
   function handleDone() {
     if (dirty && !window.confirm('The line has unsaved changes. Close anyway?')) return
     onClose()
@@ -380,7 +423,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     if (next !== 'pan') {
       // Stale cards are noise while drawing.
       setSelectedTarget(null)
-      setClosureInfo(null)
+      setEditingClosure(null)
     }
   }
 
@@ -475,13 +518,29 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
           <TargetCard target={selectedTarget} onClose={() => setSelectedTarget(null)} />
         )}
 
-        {/* Tapped closure ON the draft line itself (annotate + Pan mode). */}
-        {closureInfo && (
-          <ClosureInfoCard point={closureInfo} onClose={() => setClosureInfo(null)} />
+        {/* Tapped closure ON the draft line itself (annotate + Pan mode):
+            edit its type/note or remove it from the line entirely. */}
+        {editingClosure && (
+          <ClosureCard
+            key={editingClosure.key}
+            mode="edit"
+            initial={{
+              code: editingClosure.ref?.code,
+              kind: editingClosure.ref?.kind,
+              notes: editingClosure.ref?.notes,
+            }}
+            saving={closureSaving}
+            error={closureError}
+            onSave={handleClosureEditSave}
+            onRemove={handleClosureRemove}
+            onCancel={handleClosureEditCancel}
+          />
         )}
 
         {closureCard && (
           <ClosureCard
+            key={closureCard.key}
+            mode="create"
             at={closureCard}
             bounds={containerSize}
             saving={closureSaving}
