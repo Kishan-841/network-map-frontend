@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Modal } from '@/components/ui/Modal'
-import { IconTrash } from '@/components/ui/icons'
+import { IconClose, IconTrash } from '@/components/ui/icons'
 import { RATIO_LABELS } from '@/lib/fiber/constants'
+import BottomSheet, { SHEET_DIALOG } from './BottomSheet'
 
 const RATIOS = Object.keys(RATIO_LABELS)
 const FIBER_TYPES = [
@@ -61,57 +61,64 @@ export default function SplitterModal({ code, initial, onSave, onRemove, onCance
   }
 
   return (
-    <Modal
-      open
-      onClose={onCancel}
-      title={editing && code ? `Edit splitter · ${code}` : `${editing ? 'Edit' : 'Add'} splitter`}
-      footer={
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-11 flex-1"
-              disabled={saving}
-              onClick={onCancel}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="min-h-11 flex-1"
-              loading={saving}
-              onClick={() => onSave({ ratio, fiberType, location })}
-            >
-              Save
-            </Button>
-          </div>
-          {editing && onRemove && (
-            <Button type="button" variant="danger" className="min-h-11" disabled={saving} onClick={handleRemove}>
-              <IconTrash className="h-4 w-4" aria-hidden="true" />
-              Remove splitter
-            </Button>
-          )}
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        <PillGroup
-          label="Ratio"
-          options={RATIOS.map((value) => ({ value, label: RATIO_LABELS[value] }))}
-          value={ratio}
-          onChange={setRatio}
-        />
-        <PillGroup label="Fiber type" options={FIBER_TYPES} value={fiberType} onChange={setFiberType} />
-        <PillGroup
-          label="Location"
-          options={LOCATIONS.map((value) => ({ value, label: value }))}
-          value={location}
-          onChange={setLocation}
-        />
-
-        {error && <p className="rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">{error}</p>}
+    <BottomSheet desktop={SHEET_DIALOG} backdrop onBackdropClick={onCancel} className="gap-4">
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <h2 className="text-base font-bold">
+          {editing && code ? `Edit splitter · ${code}` : `${editing ? 'Edit' : 'Add'} splitter`}
+        </h2>
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="Close"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-btn text-faint transition-colors hover:text-ink"
+        >
+          <IconClose className="h-5 w-5" aria-hidden="true" />
+        </button>
       </div>
-    </Modal>
+
+      <PillGroup
+        label="Ratio"
+        options={RATIOS.map((value) => ({ value, label: RATIO_LABELS[value] }))}
+        value={ratio}
+        onChange={setRatio}
+      />
+      <PillGroup label="Fiber type" options={FIBER_TYPES} value={fiberType} onChange={setFiberType} />
+      <PillGroup
+        label="Location"
+        options={LOCATIONS.map((value) => ({ value, label: value }))}
+        value={location}
+        onChange={setLocation}
+      />
+
+      {error && <p className="rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">{error}</p>}
+
+      <div className="flex flex-col gap-2 border-t border-line/60 pt-4">
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-11 flex-1"
+            disabled={saving}
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            className="min-h-11 flex-1"
+            loading={saving}
+            onClick={() => onSave({ ratio, fiberType, location })}
+          >
+            Save
+          </Button>
+        </div>
+        {editing && onRemove && (
+          <Button type="button" variant="danger" className="min-h-11" disabled={saving} onClick={handleRemove}>
+            <IconTrash className="h-4 w-4" aria-hidden="true" />
+            Remove splitter
+          </Button>
+        )}
+      </div>
+    </BottomSheet>
   )
 }

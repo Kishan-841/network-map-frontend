@@ -41,6 +41,17 @@ export {
   IndianRupee as IconRupee,
   Phone as IconPhone,
   Ellipsis as IconMore,
+  ChevronLeft as IconChevronLeft,
+  ChevronRight as IconChevronRight,
+  Undo2 as IconUndo,
+  Hand as IconHand,
+  PenLine as IconPen,
+  CircleDot as IconCircleDot,
+  Diamond as IconDiamond,
+  Route as IconRoute,
+  Settings2 as IconOptions,
+  LocateFixed as IconLocate,
+  CircleHelp as IconHelp,
 } from 'lucide-react'
 
 /** Brand glyph: three network nodes joined by fiber links. */
