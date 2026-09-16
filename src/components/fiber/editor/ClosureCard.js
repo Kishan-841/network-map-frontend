@@ -5,17 +5,22 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { IconTrash } from '@/components/ui/icons'
 import { CLOSURE_KINDS, FIBER_TYPE_LABELS, POINT_COLORS, RATIO_LABELS } from '@/lib/fiber/constants'
+import BottomSheet, { SHEET_ANCHORED } from './BottomSheet'
 
 const CARD_WIDTH = 248
 const CARD_HEIGHT = 230
+// `create` still lands on the pixel that was tapped — but only from `lg` up,
+// where there is room beside the line. On a phone it is a bottom sheet.
+const SHEET_AT_PIXEL =
+  'lg:absolute lg:bottom-auto lg:right-auto lg:left-[var(--card-x)] lg:top-[var(--card-y)] lg:w-[248px] lg:max-h-none lg:rounded-card lg:p-3 lg:pb-3'
 
 /**
  * The card for a closure on the draft line, in two modes that share the same
  * kind pills / note input:
  *
  *  - `create` — a closure just dropped on the line. Pixel-positioned at `at`
- *    (clamped inside `bounds`, like PointMenu). Save mints it via the fiber
- *    PATCH the caller already has queued.
+ *    (clamped inside `bounds`, like PointMenu) on a desktop; a bottom sheet on
+ *    a phone. Save mints it via the fiber PATCH the caller already has queued.
  *  - `edit`   — a saved closure tapped in annotate + Pan mode. Bottom-anchored,
  *    same idiom as TargetCard. Save PATCHes the closure directly; Remove takes
  *    it off the line (the point stays as a plain bend) via `onRemove`.
@@ -33,13 +38,10 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
   const top = pixelPositioned && bounds?.height ? Math.max(8, Math.min(at.y, bounds.height - CARD_HEIGHT - 8)) : at?.y
 
   return (
-    <div
-      style={pixelPositioned ? { left, top, width: CARD_WIDTH } : undefined}
-      className={
-        pixelPositioned
-          ? 'absolute z-30 flex flex-col gap-3 rounded-card border border-line bg-card p-3 shadow-lift'
-          : 'absolute bottom-16 left-3 right-3 z-30 mx-auto flex max-w-sm flex-col gap-3 rounded-card border border-line bg-card p-4 shadow-lift sm:bottom-14'
-      }
+    <BottomSheet
+      desktop={pixelPositioned ? SHEET_AT_PIXEL : SHEET_ANCHORED}
+      className="gap-3"
+      style={pixelPositioned ? { '--card-x': `${left}px`, '--card-y': `${top}px` } : undefined}
     >
       <p className="flex items-center gap-2 text-sm font-bold">
         <span
@@ -141,6 +143,6 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
           Remove closure
         </Button>
       )}
-    </div>
+    </BottomSheet>
   )
 }

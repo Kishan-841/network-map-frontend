@@ -1,5 +1,7 @@
 'use client'
 
+import BottomSheet from './BottomSheet'
+
 const KIND_LABEL = { POP: 'POP', CLOSURE: 'Closure', BUILDING: 'Building' }
 
 /**
@@ -9,7 +11,7 @@ const KIND_LABEL = { POP: 'POP', CLOSURE: 'Closure', BUILDING: 'Building' }
 export default function TargetCard({ target, onClose }) {
   const kind = KIND_LABEL[target.kind] ?? target.kind
   return (
-    <div className="absolute bottom-16 left-3 right-3 z-10 mx-auto max-w-sm rounded-card border border-line bg-card p-4 shadow-lift sm:bottom-14">
+    <BottomSheet>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-bold">{target.label}</p>
@@ -36,6 +38,6 @@ export default function TargetCard({ target, onClose }) {
           Open building ↗
         </a>
       )}
-    </div>
+    </BottomSheet>
   )
 }
