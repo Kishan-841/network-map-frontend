@@ -30,6 +30,8 @@ export function latLngToPixel(projectionOverlay, latLng) {
 const iconKind = (p) => (p.type === 'CLOSURE' && p.ref?.splitter ? 'SPLITTER' : p.type)
 const labelText = (p) => {
   if (p.type === 'WAYPOINT') return ''
+  // A splitter labels with its ratio ('1:4'), the same as on the map page.
+  if (p.type === 'CLOSURE' && p.ref?.splitter) return p.ref.splitter
   return p.ref?.name ?? p.ref?.code ?? (p.ref?.newClosure ? 'New' : (p.ref?.newPop?.name ?? ''))
 }
 // Rebuild trigger: anything that changes the SHAPE of the point list (order,

@@ -46,13 +46,10 @@ export function deriveSegments(points) {
 }
 
 // YOUR TURN (optional): client-side drawing rules live here — e.g. reject two identical consecutive typed points.
-export function draftErrors(points, { fromSplitterOutput } = {}) {
+// A splitter may sit on any closure of a line, so where one sits is not a
+// drawing rule any more — length is the only one left.
+export function draftErrors(points) {
   const errors = []
-  points.forEach((p, i) => {
-    if (p.type !== 'CLOSURE' || !p.ref?.splitter) return
-    const ok = i === points.length - 1 || (i === 0 && fromSplitterOutput?.closureId === p.ref.closureId)
-    if (!ok) errors.push(`Point ${i + 1} is a splitter closure — a fiber must end there`)
-  })
   if (points.length < 2) errors.push('Draw at least two points')
   return errors
 }
@@ -78,7 +75,19 @@ export const fromApiPoints = (api) =>
       p.type === 'POP'
         ? { popId: p.popId, name: p.label }
         : p.type === 'CLOSURE'
-          ? { closureId: p.closureId, code: p.label, splitter: p.splitter, kind: p.kind ?? null, notes: p.closure?.notes ?? null }
+          ? {
+              closureId: p.closureId,
+              code: p.label,
+              // `splitter` stays the marker's ratio LABEL ('1:4'); the rest is
+              // what the splitter modal edits.
+              splitter: p.splitter,
+              splitterId: p.splitterId ?? null,
+              splitterRatio: p.splitterRatio ?? null,
+              splitterLocation: p.splitterLocation ?? null,
+              splitterFiberType: p.splitterFiberType ?? null,
+              kind: p.kind ?? null,
+              notes: p.closure?.notes ?? null,
+            }
           : p.type === 'BUILDING'
             ? { buildingId: p.buildingId, name: p.label }
             : null,

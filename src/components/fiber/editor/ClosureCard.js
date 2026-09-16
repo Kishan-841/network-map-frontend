@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { IconTrash } from '@/components/ui/icons'
-import { POINT_COLORS } from '@/lib/fiber/constants'
+import { POINT_COLORS, RATIO_LABELS } from '@/lib/fiber/constants'
 
 const CARD_WIDTH = 248
 const CARD_HEIGHT = 250 // enough room for the "Other" input to appear
 const KINDS = ['Jumbo', 'Tiffin', 'Other']
+const FIBER_TYPE_LABEL = { MAIN: 'Main', SUB: 'Sub' }
 
 // A saved kind is either one of the pills verbatim, or free text that only
 // ever came from "Other" — there is no third source.
@@ -25,7 +26,7 @@ const initialKindState = (kind) => (kind && !KINDS.includes(kind) ? { kind: 'Oth
  *    same idiom as TargetCard. Save PATCHes the closure directly; Remove takes
  *    it off the line (the point stays as a plain bend) via `onRemove`.
  */
-export default function ClosureCard({ mode = 'create', initial, at, bounds, saving, error, onSave, onRemove, onCancel }) {
+export default function ClosureCard({ mode = 'create', initial, splitter, at, bounds, saving, error, onSave, onRemove, onEditSplitter, onCancel }) {
   const [{ kind, other }, setKindState] = useState(() => initialKindState(initial?.kind))
   const [notes, setNotes] = useState(() => initial?.notes ?? '')
 
@@ -53,6 +54,32 @@ export default function ClosureCard({ mode = 'create', initial, at, bounds, savi
         />
         {mode === 'edit' ? (initial?.code ?? 'Closure') : 'New closure'}
       </p>
+
+      {/* A closure that holds a splitter says so, and hands it straight to the
+          splitter modal — the kind/note pickers below stay the closure's own. */}
+      {mode === 'edit' && splitter && (
+        <div className="flex flex-col gap-2 rounded-btn bg-paper px-3 py-2">
+          <p className="flex items-center gap-2 text-sm font-medium text-ink">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rotate-45"
+              style={{ backgroundColor: POINT_COLORS.SPLITTER }}
+              aria-hidden="true"
+            />
+            Splitter {RATIO_LABELS[splitter.ratio] ?? splitter.ratio}
+            {splitter.fiberType ? ` · ${FIBER_TYPE_LABEL[splitter.fiberType] ?? splitter.fiberType}` : ''}
+            {splitter.location ? ` · ${splitter.location}` : ''}
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-11"
+            disabled={saving}
+            onClick={onEditSplitter}
+          >
+            Edit splitter
+          </Button>
+        </div>
+      )}
 
       <div className="flex gap-1.5">
         {KINDS.map((option) => (

@@ -163,40 +163,22 @@ describe('draftErrors', () => {
     type: 'CLOSURE',
     latitude: lat,
     longitude: 0,
-    ref: { closureId, code: 'CL-1', splitter: true },
+    ref: { closureId, code: 'CL-1', splitter: '1:4', splitterId: 's1' },
   })
   const waypoint = (lat) => ({ key: 'w', type: 'WAYPOINT', latitude: lat, longitude: 0, ref: null })
 
-  it('flags a splitter closure that is not the last point', () => {
-    const points = [pop(0), splitterClosure(1), waypoint(2)]
-    const errors = draftErrors(points, {})
-    expect(errors).toContain('Point 2 is a splitter closure — a fiber must end there')
-  })
-
-  it('accepts a splitter closure as the last point', () => {
-    const points = [pop(0), waypoint(1), splitterClosure(2)]
-    const errors = draftErrors(points, {})
-    expect(errors.some((e) => e.includes('splitter closure'))).toBe(false)
-  })
-
-  it('accepts a splitter closure as the first point when it matches fromSplitterOutput.closureId', () => {
-    const points = [splitterClosure(0, 'c1'), waypoint(1), pop(2)]
-    const errors = draftErrors(points, { fromSplitterOutput: { closureId: 'c1' } })
-    expect(errors.some((e) => e.includes('splitter closure'))).toBe(false)
-  })
-
-  it('flags a splitter closure as the first point when fromSplitterOutput.closureId does not match', () => {
-    const points = [splitterClosure(0, 'c1'), waypoint(1), pop(2)]
-    const errors = draftErrors(points, { fromSplitterOutput: { closureId: 'other' } })
-    expect(errors.some((e) => e.includes('splitter closure'))).toBe(true)
+  it('accepts a splitter closure anywhere on the line', () => {
+    expect(draftErrors([pop(0), splitterClosure(1), waypoint(2)])).toEqual([])
+    expect(draftErrors([pop(0), waypoint(1), splitterClosure(2)])).toEqual([])
+    expect(draftErrors([splitterClosure(0), waypoint(1), pop(2)])).toEqual([])
   })
 
   it('flags fewer than two points', () => {
-    expect(draftErrors([pop(0)], {})).toContain('Draw at least two points')
+    expect(draftErrors([pop(0)])).toContain('Draw at least two points')
   })
 
   it('returns no errors for a valid two-point draft', () => {
-    expect(draftErrors([pop(0), waypoint(1)], {})).toEqual([])
+    expect(draftErrors([pop(0), waypoint(1)])).toEqual([])
   })
 })
 
@@ -205,7 +187,18 @@ describe('payload <-> API point conversion', () => {
     const apiPoints = [
       { type: 'POP', latitude: 1, longitude: 2, popId: 'pop1', label: 'Pop A' },
       { type: 'WAYPOINT', latitude: 1.5, longitude: 2.5 },
-      { type: 'CLOSURE', latitude: 2, longitude: 3, closureId: 'c1', label: 'CL-1', splitter: true },
+      {
+        type: 'CLOSURE',
+        latitude: 2,
+        longitude: 3,
+        closureId: 'c1',
+        label: 'CL-1',
+        splitter: '1:4',
+        splitterId: 's1',
+        splitterRatio: 'R1_4',
+        splitterLocation: 'LAN',
+        splitterFiberType: 'SUB',
+      },
       { type: 'BUILDING', latitude: 3, longitude: 4, buildingId: 'b1', label: 'Bldg A' },
     ]
     const draftPoints = fromApiPoints(apiPoints)
@@ -217,5 +210,36 @@ describe('payload <-> API point conversion', () => {
     expect(payload[0].popId).toBe('pop1')
     expect(payload[2].closureId).toBe('c1')
     expect(payload[3].buildingId).toBe('b1')
+  })
+
+  it("carries the closure's splitter details into the draft ref", () => {
+    const [point] = fromApiPoints([
+      {
+        type: 'CLOSURE',
+        latitude: 2,
+        longitude: 3,
+        closureId: 'c1',
+        label: 'CL-1',
+        splitter: '1:8',
+        splitterId: 's9',
+        splitterRatio: 'R1_8',
+        splitterLocation: 'WAN',
+        splitterFiberType: 'MAIN',
+      },
+    ])
+    expect(point.ref).toMatchObject({
+      closureId: 'c1',
+      code: 'CL-1',
+      splitter: '1:8',
+      splitterId: 's9',
+      splitterRatio: 'R1_8',
+      splitterLocation: 'WAN',
+      splitterFiberType: 'MAIN',
+    })
+  })
+
+  it('leaves the splitter fields null on a closure without one', () => {
+    const [point] = fromApiPoints([{ type: 'CLOSURE', latitude: 2, longitude: 3, closureId: 'c1', label: 'CL-1' }])
+    expect(point.ref).toMatchObject({ splitterId: null, splitterRatio: null, splitterLocation: null, splitterFiberType: null })
   })
 })
