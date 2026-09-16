@@ -85,12 +85,16 @@ export function markerKind(point) {
 }
 
 /**
- * A splitter ON the line has a code of its own, so it labels with it; one that
- * only exists as a closure's attachment has nothing but its ratio to show.
+ * A splitter ON the line has a code of its own, so it reads as code and ratio
+ * (`S12 · 1:4`, the same line the editor draws); one that only exists as a
+ * closure's attachment has nothing but its ratio to show.
  */
 export function markerText(kind, point) {
   if (kind !== 'SPLITTER') return point.label ?? ''
-  return (point.type === 'SPLITTER' ? point.label : point.splitter) ?? ''
+  if (point.type !== 'SPLITTER') return point.splitter ?? ''
+  const code = point.label ?? ''
+  if (!point.splitter) return code
+  return code ? `${code} · ${point.splitter}` : point.splitter
 }
 
 /**

@@ -79,10 +79,12 @@ describe('entityKey / markerKind / markerText', () => {
     expect(markerText('CLOSURE', point('p', 0, { type: 'CLOSURE' }))).toBe('')
   })
 
-  it('labels a splitter ON the line with its own code', () => {
+  it('labels a splitter ON the line with its own code and ratio', () => {
     const online = point('p', 0, { type: 'SPLITTER', splitterId: 'sp1', label: 'S3', splitter: '1:6' })
     expect(markerKind(online)).toBe('SPLITTER')
-    expect(markerText('SPLITTER', online)).toBe('S3')
+    expect(markerText('SPLITTER', online)).toBe('S3 · 1:6')
+    // A brand new splitter with no ratio yet is just its code.
+    expect(markerText('SPLITTER', point('p', 0, { type: 'SPLITTER', splitterId: 'sp2', label: 'S4' }))).toBe('S4')
   })
 })
 

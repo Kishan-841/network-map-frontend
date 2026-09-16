@@ -3,17 +3,20 @@
 import { useEffect, useRef } from 'react'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { clusterRenderer } from '@/lib/map-markers'
-import { typedMarkerIcon, markerLabel } from '@/lib/fiber/markers'
+import { typedMarkerIcon, labelBadgeIcon } from '@/lib/fiber/markers'
 import { coreColor } from '@/lib/fiber/constants'
 import { polylineRanges, collectMarkers, markerText } from '@/lib/fiber/overlays'
 
 const WAYPOINT_MIN_ZOOM = 15 // plain waypoints are noise when zoomed out
-const LABEL_MIN_ZOOM = 17 // labels only once individual poles are readable
+// Badges carry their own background, so they read far earlier than a bare
+// label did; below this only hovering a (clickable) symbol reveals one.
+const BADGE_MIN_ZOOM = 15
 const CLUSTER_MAX_ZOOM = 13 // below this, closures collapse into count bubbles
 
+// Takes both icon shapes: a square symbol (`size`) and a badge (`width`/`height`).
 const mapsIcon = (icon) => ({
   url: icon.url,
-  scaledSize: new google.maps.Size(icon.size, icon.size),
+  scaledSize: new google.maps.Size(icon.width ?? icon.size, icon.height ?? icon.size),
   anchor: new google.maps.Point(icon.anchor.x, icon.anchor.y),
 })
 
@@ -31,7 +34,7 @@ const latLngs = (points) => new google.maps.MVCArray(points.map((p) => new googl
  */
 export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, cluster = true, onFiberClick, onPointClick, onFiberHover }) {
   const polylinesRef = useRef([])
-  const markersRef = useRef([]) // [{ marker, isWaypoint, text }]
+  const markersRef = useRef([]) // [{ marker, badge, isWaypoint }]
   const clusterableRef = useRef([]) // the subset the clusterer owns below z13
   const clustererRef = useRef(null)
   const clusteredRef = useRef(null) // null = never applied, so the first pass always runs
@@ -102,18 +105,38 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
       if (clickablePoints) {
         marker.addListener('click', (event) => onPointClickRef.current?.(point, owners[0], event.domEvent))
       }
-      // Zoomed out the labels are hidden; hovering one reveals just that name.
-      if (text) {
-        marker.addListener('mouseover', () => marker.setLabel(markerLabel(text)))
+      // The code/ratio rides ABOVE the symbol on its own marker, so the teal
+      // circle / orange diamond underneath stays visible.
+      const badgeIcons = text ? { light: labelBadgeIcon(text), dark: labelBadgeIcon(text, { tone: 'dark' }) } : null
+      const badge = badgeIcons
+        ? new google.maps.Marker({
+            map,
+            position: { lat: point.latitude, lng: point.longitude },
+            clickable: false,
+            visible: false, // applyZoom below has the final say
+            zIndex: 9,
+            icon: mapsIcon(badgeIcons.light),
+          })
+        : null
+      // Zoomed out the badges are hidden; hovering one reveals just that name.
+      // Hover only reaches a CLICKABLE marker — the dim editor context layer
+      // passes no click handler, so it gets no hover either.
+      if (badge && clickablePoints) {
+        marker.addListener('mouseover', () => {
+          badge.setIcon(mapsIcon(badgeIcons.dark))
+          badge.setVisible(true)
+        })
         marker.addListener('mouseout', () => {
-          if ((map.getZoom() ?? 0) < LABEL_MIN_ZOOM) marker.setLabel(null)
+          badge.setIcon(mapsIcon(badgeIcons.light))
+          badge.setVisible((map.getZoom() ?? 0) >= BADGE_MIN_ZOOM)
         })
       }
-      markers.push({ marker, isWaypoint: false, text })
+      markers.push({ marker, badge, isWaypoint: false })
       if (kind === 'CLOSURE' || kind === 'SPLITTER') clusterable.push(marker)
     })
 
     waypoints.forEach(({ point }) => {
+      // Pure geometry: a waypoint has nothing to say, so it never gets a badge.
       markers.push({
         marker: new google.maps.Marker({
           map,
@@ -122,8 +145,8 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
           clickable: false,
           zIndex: 7,
         }),
+        badge: null,
         isWaypoint: true,
-        text: '',
       })
     })
 
@@ -133,9 +156,9 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
 
     const applyZoom = () => {
       const zoom = map.getZoom() ?? 0
-      markersRef.current.forEach(({ marker, isWaypoint, text }) => {
+      markersRef.current.forEach(({ marker, badge, isWaypoint }) => {
         if (isWaypoint) marker.setVisible(zoom >= WAYPOINT_MIN_ZOOM)
-        else marker.setLabel(text && zoom >= LABEL_MIN_ZOOM ? markerLabel(text) : null)
+        else badge?.setVisible(zoom >= BADGE_MIN_ZOOM)
       })
       const clusterer = clustererRef.current
       if (!clusterer) return
@@ -163,9 +186,10 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
       clustererRef.current?.setMap(null)
       clustererRef.current = null
       clusteredRef.current = null
-      markersRef.current.forEach(({ marker }) => {
+      markersRef.current.forEach(({ marker, badge }) => {
         google.maps.event.clearInstanceListeners(marker)
         marker.setMap(null)
+        badge?.setMap(null)
       })
       polylinesRef.current.forEach((line) => {
         google.maps.event.clearInstanceListeners(line)
