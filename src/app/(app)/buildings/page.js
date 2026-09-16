@@ -411,8 +411,8 @@ function BuildingsList() {
       />
 
       {/* Sticky search + operator filter */}
-      <div className="sticky top-0 z-30 -mx-4 mb-5 flex items-center gap-3 bg-paper/80 px-4 py-2 backdrop-blur-md lg:static lg:mx-0 lg:mb-5 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-        <div className="relative flex-1 lg:max-w-md">
+      <div className="sticky top-0 z-30 -mx-4 mb-5 flex items-center gap-3 overflow-x-auto bg-paper/80 px-4 py-2 backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:static lg:mx-0 lg:mb-5 lg:overflow-visible lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+        <div className="relative min-w-[14rem] flex-1 lg:max-w-md">
           <IconSearch className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-faint" />
           <input
             value={search}
