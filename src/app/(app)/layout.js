@@ -5,7 +5,7 @@ import { BottomNav } from '@/components/layout/BottomNav'
 export default function AppLayout({ children }) {
   return (
     <AuthGuard>
-      <div className="min-h-dvh bg-paper">
+      <div className="min-h-dvh overflow-x-clip bg-paper">
         <Sidebar />
         <div className="transition-[padding-left] duration-300 lg:pl-[var(--sidebar-w)]">
           <div className="mx-auto w-full max-w-[1600px] px-4 pb-32 pt-6 lg:px-10 lg:pb-16 lg:pt-10">
