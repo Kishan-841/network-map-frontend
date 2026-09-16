@@ -70,11 +70,11 @@ describe('entityKey / markerKind / markerText', () => {
   })
 
   it('draws a closure with a splitter as a splitter, labelled with its ratio', () => {
-    const plain = point('p', 0, { type: 'CLOSURE', closureId: 'c1', label: 'CL-01' })
-    const split = point('p', 0, { type: 'CLOSURE', closureId: 'c1', label: 'CL-02', splitter: '1:8' })
+    const plain = point('p', 0, { type: 'CLOSURE', closureId: 'c1', label: 'JC-01' })
+    const split = point('p', 0, { type: 'CLOSURE', closureId: 'c1', label: 'JC-02', splitter: '1:8' })
     expect(markerKind(plain)).toBe('CLOSURE')
     expect(markerKind(split)).toBe('SPLITTER')
-    expect(markerText('CLOSURE', plain)).toBe('CL-01')
+    expect(markerText('CLOSURE', plain)).toBe('JC-01')
     expect(markerText('SPLITTER', split)).toBe('1:8')
     expect(markerText('CLOSURE', point('p', 0, { type: 'CLOSURE' }))).toBe('')
   })
@@ -101,8 +101,8 @@ describe('collectMarkers', () => {
   })
 
   it('upgrades a shared closure to a splitter when any fiber knows about it', () => {
-    const fiberA = { id: 'fa', points: [point('a0', 0, { type: 'CLOSURE', closureId: 'c1', label: 'CL-01' })] }
-    const fiberB = { id: 'fb', points: [point('b0', 0, { type: 'CLOSURE', closureId: 'c1', label: 'CL-01', splitter: '1:4' })] }
+    const fiberA = { id: 'fa', points: [point('a0', 0, { type: 'CLOSURE', closureId: 'c1', label: 'JC-01' })] }
+    const fiberB = { id: 'fb', points: [point('b0', 0, { type: 'CLOSURE', closureId: 'c1', label: 'JC-01', splitter: '1:4' })] }
     const { entities } = collectMarkers([fiberA, fiberB])
     expect(entities).toHaveLength(1)
     expect(entities[0].kind).toBe('SPLITTER')

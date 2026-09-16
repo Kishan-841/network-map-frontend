@@ -46,8 +46,8 @@ describe('typedMarkerIcon', () => {
 
 describe('markerLabel', () => {
   it('returns the expected label object', () => {
-    expect(markerLabel('CL-0001')).toEqual({
-      text: 'CL-0001',
+    expect(markerLabel('JC-0001')).toEqual({
+      text: 'JC-0001',
       color: '#ffffff',
       fontSize: '11px',
       fontWeight: '700',

@@ -59,7 +59,7 @@ describe('targetToRef', () => {
   })
 
   it('builds a CLOSURE ref', () => {
-    expect(targetToRef({ kind: 'CLOSURE', id: 2, label: 'CL-01', splitter: '1:8' })).toEqual({ closureId: 2, code: 'CL-01', splitter: '1:8' })
+    expect(targetToRef({ kind: 'CLOSURE', id: 2, label: 'JC-01', splitter: '1:8' })).toEqual({ closureId: 2, code: 'JC-01', splitter: '1:8' })
   })
 
   it('builds a BUILDING ref', () => {

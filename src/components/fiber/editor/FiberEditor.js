@@ -50,7 +50,7 @@ const signatureOf = (points) =>
  *  - `draw`     — a new line: tap points, then "Save fiber" writes it with the
  *                 short details form. The editor stays open.
  *  - `annotate` — a saved fiber: tap the line to drop a closure on it (the
- *                 API mints its CL- code), edit the line, or leave with Done.
+ *                 API mints its JC- code), edit the line, or leave with Done.
  *
  * Editing an existing fiber lands straight in `annotate`.
  *

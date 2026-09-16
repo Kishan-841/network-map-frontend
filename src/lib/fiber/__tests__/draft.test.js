@@ -60,7 +60,7 @@ describe('reduce', () => {
     let d = emptyDraft()
     d = reduce(d, {
       type: 'add',
-      point: { latitude: 1, longitude: 2, pointType: 'CLOSURE', ref: { closureId: 'c1', code: 'CL-0001', splitter: null } },
+      point: { latitude: 1, longitude: 2, pointType: 'CLOSURE', ref: { closureId: 'c1', code: 'JC-0001', splitter: null } },
     })
     const key = d.points[0].key
     expect(isPinned(d.points[0])).toBe(true)
@@ -133,10 +133,10 @@ describe('deriveSegments', () => {
     d = reduce(d, { type: 'add', point: { latitude: 0, longitude: 0, pointType: 'POP', ref: { popId: 'p1', name: 'Pop A' } } })
     d = reduce(d, { type: 'add', point: { latitude: 0.001, longitude: 0 } })
     d = reduce(d, { type: 'add', point: { latitude: 0.002, longitude: 0 } })
-    d = reduce(d, { type: 'add', point: { latitude: 0.003, longitude: 0, pointType: 'CLOSURE', ref: { closureId: 'c1', code: 'CL-1' } } })
+    d = reduce(d, { type: 'add', point: { latitude: 0.003, longitude: 0, pointType: 'CLOSURE', ref: { closureId: 'c1', code: 'JC-1' } } })
     const segs = deriveSegments(d.points)
     expect(segs).toHaveLength(1)
-    expect(segs[0]).toMatchObject({ fromIndex: 0, toIndex: 3, fromLabel: 'Pop A', toLabel: 'CL-1' })
+    expect(segs[0]).toMatchObject({ fromIndex: 0, toIndex: 3, fromLabel: 'Pop A', toLabel: 'JC-1' })
     expect(segs[0].mapMeters).toBeGreaterThan(0)
     expect(segs[0].mapMeters).toBe(pathMeters(d.points.slice(segs[0].fromIndex, segs[0].toIndex + 1)))
   })
@@ -144,7 +144,7 @@ describe('deriveSegments', () => {
   it('produces one segment per consecutive pair of typed points', () => {
     let d = emptyDraft()
     d = reduce(d, { type: 'add', point: { latitude: 0, longitude: 0, pointType: 'POP', ref: { popId: 'p1', name: 'Pop A' } } })
-    d = reduce(d, { type: 'add', point: { latitude: 0.001, longitude: 0, pointType: 'CLOSURE', ref: { closureId: 'c1', code: 'CL-1' } } })
+    d = reduce(d, { type: 'add', point: { latitude: 0.001, longitude: 0, pointType: 'CLOSURE', ref: { closureId: 'c1', code: 'JC-1' } } })
     d = reduce(d, { type: 'add', point: { latitude: 0.002, longitude: 0, pointType: 'BUILDING', ref: { buildingId: 'b1', name: 'Bldg A' } } })
     const segs = deriveSegments(d.points)
     expect(segs).toHaveLength(2)
@@ -152,7 +152,7 @@ describe('deriveSegments', () => {
       [0, 1],
       [1, 2],
     ])
-    expect(segs[1]).toMatchObject({ fromLabel: 'CL-1', toLabel: 'Bldg A' })
+    expect(segs[1]).toMatchObject({ fromLabel: 'JC-1', toLabel: 'Bldg A' })
   })
 })
 
@@ -163,7 +163,7 @@ describe('draftErrors', () => {
     type: 'CLOSURE',
     latitude: lat,
     longitude: 0,
-    ref: { closureId, code: 'CL-1', splitter: '1:4', splitterId: 's1' },
+    ref: { closureId, code: 'JC-1', splitter: '1:4', splitterId: 's1' },
   })
   const waypoint = (lat) => ({ key: 'w', type: 'WAYPOINT', latitude: lat, longitude: 0, ref: null })
 
@@ -192,7 +192,7 @@ describe('payload <-> API point conversion', () => {
         latitude: 2,
         longitude: 3,
         closureId: 'c1',
-        label: 'CL-1',
+        label: 'JC-1',
         splitter: '1:4',
         splitterId: 's1',
         splitterRatio: 'R1_4',
@@ -219,7 +219,7 @@ describe('payload <-> API point conversion', () => {
         latitude: 2,
         longitude: 3,
         closureId: 'c1',
-        label: 'CL-1',
+        label: 'JC-1',
         splitter: '1:8',
         splitterId: 's9',
         splitterRatio: 'R1_8',
@@ -229,7 +229,7 @@ describe('payload <-> API point conversion', () => {
     ])
     expect(point.ref).toMatchObject({
       closureId: 'c1',
-      code: 'CL-1',
+      code: 'JC-1',
       splitter: '1:8',
       splitterId: 's9',
       splitterRatio: 'R1_8',
@@ -290,7 +290,7 @@ describe('payload <-> API point conversion', () => {
   })
 
   it('leaves the splitter fields null on a closure without one', () => {
-    const [point] = fromApiPoints([{ type: 'CLOSURE', latitude: 2, longitude: 3, closureId: 'c1', label: 'CL-1' }])
+    const [point] = fromApiPoints([{ type: 'CLOSURE', latitude: 2, longitude: 3, closureId: 'c1', label: 'JC-1' }])
     expect(point.ref).toMatchObject({ splitterId: null, splitterRatio: null, splitterLocation: null, splitterFiberType: null })
   })
 })
