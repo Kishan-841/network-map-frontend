@@ -13,6 +13,8 @@ import SplitterForm from '@/components/fiber/SplitterForm'
 
 const CHIP = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium'
 
+const FIBER_TYPE_LABEL = { MAIN: 'Main', SUB: 'Sub' }
+
 const ROLE_LABEL = {
   in: 'ends here',
   out: 'starts here',
@@ -75,7 +77,7 @@ function OutputRow({ output, onOpenFiber }) {
   )
 }
 
-/** A splitter card: ratio/location header, its feed, its outputs, delete. */
+/** A splitter card: ratio/type/location header, its feed, its outputs, delete. */
 function SplitterCard({ splitter, fiberById, canManage, busy, onOpenFiber, onDelete }) {
   // Three states: no input chosen yet, an input chosen but not among this
   // closure's own fibers (data integrity oddity — still worth surfacing
@@ -91,7 +93,11 @@ function SplitterCard({ splitter, fiberById, canManage, busy, onOpenFiber, onDel
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-ink">
-            {RATIO_LABELS[splitter.ratio] ?? splitter.ratio} · {splitter.location}
+            {RATIO_LABELS[splitter.ratio] ?? splitter.ratio}
+            {splitter.fiberType
+              ? ` · ${FIBER_TYPE_LABEL[splitter.fiberType] ?? splitter.fiberType}`
+              : ''}{' '}
+            · {splitter.location}
           </p>
           <p className="text-xs font-normal text-faint">{feedLabel}</p>
         </div>

@@ -8,6 +8,8 @@ import { RATIO_LABELS } from '@/lib/fiber/constants'
 
 const RATIOS = Object.keys(RATIO_LABELS)
 const LOCATIONS = ['WAN', 'LAN']
+const FIBER_TYPES = ['MAIN', 'SUB']
+const FIBER_TYPE_LABEL = { MAIN: 'Main', SUB: 'Sub' }
 
 /** Segmented pill group — same idiom as SavePanel's status/placement pickers. */
 function PillGroup({ options, value, onChange, label: labelFor }) {
@@ -32,11 +34,12 @@ function PillGroup({ options, value, onChange, label: labelFor }) {
 
 /**
  * Inline "add a splitter" form shown under a closure's splitter list. One
- * shot at picking ratio + location + which ending fiber feeds it — the
- * outputs themselves are wired up later, output by output.
+ * shot at picking ratio + fiber type + location + which ending fiber feeds
+ * it — the outputs themselves are wired up later, output by output.
  */
 export default function SplitterForm({ closureId, endingFibers, onSaved, onCancel }) {
   const [ratio, setRatio] = useState('R1_2')
+  const [fiberType, setFiberType] = useState('MAIN')
   const [location, setLocation] = useState('WAN')
   const [inputFiberId, setInputFiberId] = useState(() =>
     endingFibers.length === 1 ? endingFibers[0].id : '',
@@ -50,6 +53,7 @@ export default function SplitterForm({ closureId, endingFibers, onSaved, onCance
     try {
       const res = await apiClient.post(`/closures/${closureId}/splitters`, {
         ratio,
+        fiberType,
         location,
         inputFiberId: inputFiberId || null,
       })
@@ -65,6 +69,16 @@ export default function SplitterForm({ closureId, endingFibers, onSaved, onCance
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-ink">Ratio</span>
         <PillGroup options={RATIOS} value={ratio} onChange={setRatio} label={(r) => RATIO_LABELS[r]} />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-ink">Fiber type</span>
+        <PillGroup
+          options={FIBER_TYPES}
+          value={fiberType}
+          onChange={setFiberType}
+          label={(t) => FIBER_TYPE_LABEL[t]}
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">

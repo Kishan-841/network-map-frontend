@@ -9,6 +9,7 @@ const DRAW_MODES = [
 const ANNOTATE_MODES = [
   { value: 'pan', label: 'Pan & zoom' },
   { value: 'addClosure', label: 'Add closure' },
+  { value: 'addSplitter', label: 'Add splitter' },
   { value: 'editLine', label: 'Edit line' },
 ]
 
@@ -22,7 +23,7 @@ export default function EditorToolbar({ phase, mode, onMode, coreCount, onCoreCo
 
   return (
     <>
-      {/* Full width on a phone: three modes never fit beside the layer control. */}
+      {/* Full width on a phone: four modes never fit beside the layer control. */}
       <div className="absolute left-3 right-3 top-[4.25rem] z-10 flex overflow-hidden rounded-btn border border-line bg-card/95 text-xs font-medium shadow-soft backdrop-blur sm:left-1/2 sm:right-auto sm:top-3 sm:-translate-x-1/2 sm:text-sm">
         {modes.map((option) => (
           <button

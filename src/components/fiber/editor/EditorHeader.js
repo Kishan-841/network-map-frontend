@@ -33,7 +33,8 @@ export default function EditorHeader({
       </div>
       <p className="shrink-0 text-sm tabular-nums text-muted">
         {counts.points} point{counts.points === 1 ? '' : 's'} · {counts.closures} closure
-        {counts.closures === 1 ? '' : 's'}
+        {counts.closures === 1 ? '' : 's'} · {counts.splitters ?? 0} splitter
+        {counts.splitters === 1 ? '' : 's'}
       </p>
 
       {phase === 'draw' ? (
