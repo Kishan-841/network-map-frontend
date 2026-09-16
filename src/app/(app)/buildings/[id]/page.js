@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
+import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { Modal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { IconPin } from '@/components/ui/icons'
@@ -56,6 +57,9 @@ export default function BuildingDetailPage({ params }) {
     setDeleteError(null)
     try {
       await apiClient.delete(`/buildings/${id}`)
+      // The map draws from a session-cached marker set — drop it, or the
+      // deleted building keeps its pin until the tab is reloaded.
+      invalidateBuildingMarkers()
       router.push('/buildings')
     } catch (err) {
       setDeleting(false)

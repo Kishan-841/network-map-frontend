@@ -5,6 +5,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/Button'
 import { canManageBuildings } from '@/lib/roles'
+import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 
 /**
  * Shows whether the fiber connection is live and lets an admin/manager flip it
@@ -21,6 +22,8 @@ export function LiveToggle({ building, onChanged }) {
     setError(null)
     try {
       await apiClient.patch(`/buildings/${building.id}/status`, { isLive })
+      // This is the flag the marker is coloured by.
+      invalidateBuildingMarkers()
       onChanged()
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not update connection status'))

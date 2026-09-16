@@ -8,6 +8,7 @@ import { Input, Select, Textarea } from '@/components/ui/Input'
 import { ZoneSearchSelect } from '@/components/buildings/ZoneSearchSelect'
 import { useZones } from '@/hooks/useZones'
 import { useBuildingTypes } from '@/hooks/useBuildingTypes'
+import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 
 function YesNo({ label, value, onChange }) {
   return (
@@ -99,6 +100,8 @@ export function EditBuildingModal({ building, onClose, onSaved }) {
           ownerMobile: strOrNull(form.ownerMobile),
         },
       })
+      // Name, zone and live flag all show on the map marker.
+      invalidateBuildingMarkers()
       onSaved()
       onClose()
     } catch (err) {

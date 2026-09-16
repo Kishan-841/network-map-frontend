@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useGeolocation } from '@/hooks/useGeolocation'
 import { getMapProvider } from '@/lib/map-providers'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
+import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { uploadFile } from '@/lib/upload'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SearchStep } from '@/components/buildings/SearchStep'
@@ -182,6 +183,9 @@ export default function AddBuildingPage() {
           : undefined,
         photos,
       })
+      // The map draws from a session-cached marker set — drop it so the new
+      // building has a pin the moment the user opens /map.
+      invalidateBuildingMarkers()
       router.replace('/buildings')
     } catch (err) {
       setServerError(getApiErrorMessage(err, 'Could not save the building'))
@@ -224,6 +228,7 @@ export default function AddBuildingPage() {
       }
 
       await apiClient.post('/buildings', payload)
+      invalidateBuildingMarkers()
       router.replace('/buildings')
     } catch (err) {
       setServerError(getApiErrorMessage(err, 'Could not save the building'))

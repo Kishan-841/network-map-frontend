@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 
 /**
  * Bulk go-live bar for the buildings list.
@@ -32,6 +33,8 @@ export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter,
     try {
       const body = allMatching ? { filter, isLive: confirm } : { ids: [...ids], isLive: confirm }
       const res = await apiClient.patch('/buildings/bulk-status', body)
+      // A whole filter's worth of markers just changed colour.
+      invalidateBuildingMarkers()
       setConfirm(null)
       onDone(res.data.data)
     } catch (err) {
