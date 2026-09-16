@@ -6,6 +6,7 @@ import { parseSpreadsheet, downloadCsvTemplate } from '@/lib/spreadsheet'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { IconUpload, IconOkCircle, IconWarn } from '@/components/ui/icons'
+import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 
 const MAX_ROWS = 500
 
@@ -126,6 +127,8 @@ export function ImportBuildingsModal({ onClose, onImported }) {
           remark: remark || null,
         })),
       })
+      // A bulk import is the largest single change the map can see.
+      invalidateBuildingMarkers()
       setResult(res.data.data)
       onImported()
     } catch (err) {

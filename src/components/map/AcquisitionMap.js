@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { useBuildings } from '@/hooks/useBuildings'
+import { useBuildingMarkers } from '@/hooks/useBuildingMarkers'
+import { filterMarkers } from '@/lib/building-filters'
 import { useCities } from '@/hooks/useCities'
 import { useUsers } from '@/hooks/useUsers'
 import { useAuthStore } from '@/stores/auth-store'
@@ -86,11 +87,20 @@ export function AcquisitionMap() {
     [users],
   )
 
-  const { buildings, loading } = useBuildings({
-    pageSize: 500,
-    createdById: lead && agentId ? agentId : undefined,
-    cityId: cityId || undefined,
-  })
+  // One session-cached load of everything in scope, then narrowed in memory —
+  // the paginated list used to stop at 500 rows.
+  const { markers, loading } = useBuildingMarkers()
+  const buildings = useMemo(
+    () =>
+      // The hook loads every registry the actor can reach; this map draws the
+      // acquisition one only. (Acquisition roles are already scoped to it by
+      // the API, so for them this narrowing is a no-op.)
+      filterMarkers(
+        markers.filter((marker) => marker.source === 'ACQUISITION'),
+        { createdById: lead && agentId ? agentId : undefined, cityId: cityId || undefined },
+      ),
+    [markers, lead, agentId, cityId],
+  )
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] transition-[left] duration-300 lg:bottom-0 lg:left-[var(--sidebar-w)]">
