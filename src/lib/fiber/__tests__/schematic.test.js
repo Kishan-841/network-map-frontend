@@ -9,7 +9,7 @@ function baseFiber() {
     points: [
       { id: 'p0', sequence: 0, type: 'POP', latitude: 1, longitude: 1, label: 'POP A', splitter: null, closureId: null, popId: 'pop1', buildingId: null },
       { id: 'p1', sequence: 1, type: 'WAYPOINT', latitude: 1.1, longitude: 1.1, label: null, splitter: null, closureId: null, popId: null, buildingId: null },
-      { id: 'p2', sequence: 2, type: 'CLOSURE', latitude: 2, longitude: 2, label: 'CL-0001', splitter: null, closureId: 'c1', popId: null, buildingId: null },
+      { id: 'p2', sequence: 2, type: 'CLOSURE', latitude: 2, longitude: 2, label: 'JC-0001', splitter: null, closureId: 'c1', popId: null, buildingId: null },
       { id: 'p3', sequence: 3, type: 'WAYPOINT', latitude: 2.5, longitude: 2.5, label: null, splitter: null, closureId: null, popId: null, buildingId: null },
       { id: 'p4', sequence: 4, type: 'BUILDING', latitude: 3, longitude: 3, label: 'Building A', splitter: null, closureId: null, popId: null, buildingId: 'bA' },
     ],
@@ -38,7 +38,7 @@ describe('buildGraph', () => {
       {
         id: 'sp1',
         ratio: '1:2',
-        closure: { id: 'c1', code: 'CL-0001' },
+        closure: { id: 'c1', code: 'JC-0001' },
         outputs: [
           { id: 'o2', portNo: 2, toFiber: { id: 'fib2', name: 'FIB-002', status: 'LIVE' }, toBuilding: null },
           { id: 'o1', portNo: 1, toFiber: null, toBuilding: { id: 'bA', buildingName: 'Building B' } },
@@ -98,7 +98,7 @@ describe('a splitter that is a point on the line', () => {
   it('labels it with code, ratio, fiber type and location', () => {
     expect(nodeLabel(linePoint)).toBe('S1 · 1:4 · Main · WAN')
     expect(nodeLabel({ type: 'POP', label: 'POP A' })).toBe('POP A')
-    expect(nodeLabel({ type: 'CLOSURE', label: 'CL-0001', kind: 'Compass' })).toBe('CL-0001 · Compass')
+    expect(nodeLabel({ type: 'CLOSURE', label: 'JC-0001', kind: 'Compass' })).toBe('JC-0001 · Compass')
   })
 
   it('draws its outputs from its own node, not a closure', () => {
