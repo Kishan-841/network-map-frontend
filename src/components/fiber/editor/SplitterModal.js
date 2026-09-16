@@ -38,15 +38,16 @@ function PillGroup({ label, options, value, onChange }) {
 }
 
 /**
- * The splitter on ONE closure of the line being edited, in two modes that
- * share the same three pickers:
+ * One splitter on the line being edited, in two modes that share the same
+ * three pickers:
  *
- *  - create — "Add splitter" mode, a closure with no splitter yet. Save POSTs
- *    it with the open fiber as its input.
- *  - edit   — the closure already carries one (`initial`). Save PATCHes it;
- *    Remove deletes it after a confirm.
+ *  - create — a splitter just dropped on the line. Save sends it with the
+ *    fiber PATCH the caller has queued; Cancel takes the point back off.
+ *  - edit   — a saved splitter (`initial`). Save PATCHes it directly.
+ *
+ * `code` is the splitter's own S-code once it has one.
  */
-export default function SplitterModal({ closure, initial, onSave, onRemove, onCancel, saving, error }) {
+export default function SplitterModal({ code, initial, onSave, onRemove, onCancel, saving, error }) {
   const [ratio, setRatio] = useState(() => initial?.ratio ?? 'R1_2')
   const [fiberType, setFiberType] = useState(() => initial?.fiberType ?? 'MAIN')
   const [location, setLocation] = useState(() => initial?.location ?? 'WAN')
@@ -55,7 +56,7 @@ export default function SplitterModal({ closure, initial, onSave, onRemove, onCa
 
   const handleRemove = () => {
     const label = RATIO_LABELS[initial?.ratio] ?? initial?.ratio ?? 'splitter'
-    if (!window.confirm(`Remove the ${label} splitter on ${closure?.code ?? 'this closure'}?`)) return
+    if (!window.confirm(`Remove the ${label} splitter${code ? ` ${code}` : ''}?`)) return
     onRemove?.()
   }
 
@@ -63,7 +64,7 @@ export default function SplitterModal({ closure, initial, onSave, onRemove, onCa
     <Modal
       open
       onClose={onCancel}
-      title={`${editing ? 'Edit' : 'Add'} splitter · ${closure?.code ?? 'Closure'}`}
+      title={editing && code ? `Edit splitter · ${code}` : `${editing ? 'Edit' : 'Add'} splitter`}
       footer={
         <div className="flex flex-col gap-2">
           <div className="flex gap-2">

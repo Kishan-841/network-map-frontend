@@ -15,6 +15,7 @@ import { useSnapTargets } from './useSnapTargets'
 import { useEditorOverlays, useOverlayToggles } from './useEditorOverlays'
 import SavePanel from './SavePanel'
 import ClosureCard from './ClosureCard'
+import SplitterCard from './SplitterCard'
 import SplitterModal from './SplitterModal'
 import EditorSearch from './EditorSearch'
 import EditorLegend from './EditorLegend'
@@ -40,7 +41,11 @@ const signatureOf = (points) =>
     .map(
       (p) =>
         `${p.type}:${p.latitude.toFixed(7)},${p.longitude.toFixed(7)}:${
-          p.ref?.closureId ?? p.ref?.popId ?? p.ref?.buildingId ?? (p.ref?.newClosure ? 'new' : '')
+          p.ref?.closureId ??
+          p.ref?.popId ??
+          p.ref?.buildingId ??
+          p.ref?.splitterId ??
+          (p.ref?.newClosure || p.ref?.newSplitter ? 'new' : '')
         }`,
     )
     .join('|')
@@ -48,9 +53,9 @@ const signatureOf = (points) =>
 const HINTS = {
   pan: 'Navigate to the area, then switch to Draw points',
   draw: 'Tap to add a point · drag a point to move it',
-  annotatePan: 'Add closure: click the line where the closure sits',
+  annotatePan: 'Tap a closure or splitter on the line to open it',
   addClosure: 'Click on the line to place a closure',
-  addSplitter: 'Click a closure to add a splitter',
+  addSplitter: 'Click on the line to place a splitter',
   editLine: 'Tap to extend the line · Save changes when done',
 }
 
@@ -89,7 +94,11 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const [selectedTarget, setSelectedTarget] = useState(null) // Pan-mode marker tap
   const [editingClosure, setEditingClosure] = useState(null) // draft closure tapped in annotate + Pan
   const [closureCard, setClosureCard] = useState(null) // { key, x, y }
-  const [splitterPoint, setSplitterPoint] = useState(null) // closure point whose splitter modal is open
+  const [splitterCard, setSplitterCard] = useState(null) // saved SPLITTER point tapped in Pan mode
+  const [splitterPoint, setSplitterPoint] = useState(null) // point whose splitter modal is open
+  // A splitter modal opened for a point that is not on the line yet: Cancel
+  // takes the point back off instead of just closing.
+  const [splitterIsNew, setSplitterIsNew] = useState(false)
   const [splitterSaving, setSplitterSaving] = useState(false)
   const [splitterError, setSplitterError] = useState(null)
   const [closureSaving, setClosureSaving] = useState(false)
@@ -101,7 +110,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   // Draw and Add-closure both take over the tap: the map's own gestures go
   // quiet so every tap reaches our handler.
   const drawing = mode === 'draw' || mode === 'editLine'
-  const frozen = drawing || mode === 'addClosure'
+  const frozen = drawing || mode === 'addClosure' || mode === 'addSplitter'
 
   const { targets } = useSnapTargets({ enabled: true })
   // Only fetched while the "Other fiber" overlay is on — the legend promises lazy.
@@ -114,28 +123,28 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   useEffect(() => {
     draftRef.current = draft
     modeRef.current = mode
-    cardOpenRef.current = closureCard !== null || editingClosure !== null || splitterPoint !== null
+    cardOpenRef.current =
+      closureCard !== null || editingClosure !== null || splitterPoint !== null || splitterCard !== null
   })
 
   // A tap can only ever mean "show me what this is" once the fiber is saved
   // and the map isn't owning taps for drawing — never in Draw / Add closure /
-  // Edit line, where a tap must reach the map instead. Add splitter is the
-  // second mode where a closure marker is the target of the tap.
-  const pointsClickable = phase === 'annotate' && (mode === 'pan' || mode === 'addSplitter')
+  // Add splitter / Edit line, where a tap must reach the map instead.
+  const pointsClickable = phase === 'annotate' && mode === 'pan'
 
   const handleClosureClick = useCallback((point) => {
     setSelectedTarget(null)
-    if (modeRef.current === 'addSplitter') {
-      // One splitter per closure from here: an existing one is edited, not doubled.
+    if (point.type === 'SPLITTER') {
       setSplitterError(null)
-      setSplitterPoint(point)
       setEditingClosure(null)
+      setSplitterCard(point)
       return
     }
+    setSplitterCard(null)
     setEditingClosure(point)
   }, [])
 
-  const { hitTest, hitTestLine, projection } = useDraftPolyline({
+  const { hitTestLine, projection } = useDraftPolyline({
     map,
     ready,
     draft,
@@ -275,11 +284,25 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
       }
 
       if (modeRef.current === 'addSplitter') {
-        // The marker's own listener opens the modal — a tap that found no
-        // closure is the only thing left for this handler to answer.
-        const key = hitTest(pixel)
-        const point = key ? draftRef.current.points.find((p) => p.key === key) : null
-        if (!point || point.type !== 'CLOSURE' || !point.ref?.closureId) setMissAt(Date.now())
+        const hit = hitTestLine(pixel)
+        if (!hit) {
+          setMissAt(Date.now())
+          return
+        }
+        const key = `p${draftRef.current.nextKey}`
+        dispatch({
+          type: 'insert',
+          index: hit.index + 1,
+          point: {
+            latitude: hit.latitude,
+            longitude: hit.longitude,
+            pointType: 'SPLITTER',
+            ref: { newSplitter: null },
+          },
+        })
+        setSplitterError(null)
+        setSplitterIsNew(true)
+        setSplitterPoint({ key, latitude: hit.latitude, longitude: hit.longitude, type: 'SPLITTER', ref: null })
         return
       }
 
@@ -292,14 +315,14 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
 
     container.addEventListener('click', onClick)
     return () => container.removeEventListener('click', onClick)
-  }, [ready, projection, hitTest, hitTestLine])
+  }, [ready, projection, hitTestLine])
 
   // ---- derived --------------------------------------------------------------
   const counts = useMemo(
     () => ({
       points: draft.points.length,
       closures: draft.points.filter((p) => p.type === 'CLOSURE').length,
-      splitters: draft.points.filter((p) => p.ref?.splitterId).length,
+      splitters: draft.points.filter((p) => p.type === 'SPLITTER' || p.ref?.splitterId).length,
     }),
     [draft.points],
   )
@@ -309,7 +332,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const dirty = phase === 'annotate' && signatureOf(draft.points) !== savedSignature
 
   const hint = missAt
-    ? (mode === 'addSplitter' ? HINTS.addSplitter : 'Click on the line')
+    ? 'Click on the line'
     : phase === 'draw'
       ? HINTS[mode]
       : mode === 'pan'
@@ -442,15 +465,20 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     setSplitterError(null)
     try {
       if (point.ref?.splitterId) {
+        // A saved splitter is its own record — edit it in place.
         await apiClient.patch(`/splitters/${point.ref.splitterId}`, values)
+        await reloadFiber()
       } else {
-        await apiClient.post(`/closures/${point.ref.closureId}/splitters`, {
-          ...values,
-          inputFiberId: fiber.id,
-        })
+        // A brand new one is minted by the same PATCH that puts the point on
+        // the line, so the API hands back its S-code in one round trip.
+        const ref = { newSplitter: values }
+        const points = draft.points.map((p) => (p.key === point.key ? { ...p, type: 'SPLITTER', ref } : p))
+        dispatch({ type: 'setType', key: point.key, pointType: 'SPLITTER', ref })
+        await patchPoints(points)
       }
-      await reloadFiber()
       setSplitterPoint(null)
+      setSplitterIsNew(false)
+      setSplitterCard(null)
       setEditingClosure(null)
     } catch (err) {
       setSplitterError(getApiErrorMessage(err))
@@ -459,14 +487,22 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     }
   }
 
-  async function handleSplitterRemove() {
-    const point = splitterPoint
+  /** Takes a splitter off the line: the point becomes a plain bend, then it goes. */
+  async function removeSplitterAt(point, { retype }) {
     setSplitterSaving(true)
     setSplitterError(null)
     try {
+      if (retype) {
+        // The point must stop referencing the splitter BEFORE it is deleted —
+        // the API 409s a delete while any fiber point still points at it.
+        const points = draft.points.map((p) => (p.key === point.key ? { ...p, type: 'WAYPOINT', ref: null } : p))
+        await patchPoints(points)
+      }
       await apiClient.delete(`/splitters/${point.ref.splitterId}`)
-      await reloadFiber()
+      if (!retype) await reloadFiber()
       setSplitterPoint(null)
+      setSplitterIsNew(false)
+      setSplitterCard(null)
       setEditingClosure(null)
     } catch (err) {
       setSplitterError(getApiErrorMessage(err))
@@ -475,8 +511,25 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     }
   }
 
+  function handleSplitterCardRemove() {
+    const point = splitterCard
+    if (!window.confirm(`Remove ${point.ref.code}? The point stays as a plain bend.`)) return
+    return removeSplitterAt(point, { retype: true })
+  }
+
+  /** The legacy shape: a splitter attached to a closure, deleted where it lives. */
+  function handleClosureSplitterRemove() {
+    const point = editingClosure
+    const label = point.ref.splitter ?? 'splitter'
+    if (!window.confirm(`Remove the ${label} splitter on ${point.ref.code}?`)) return
+    return removeSplitterAt(point, { retype: false })
+  }
+
   function handleSplitterCancel() {
+    // A splitter that was never saved leaves no point behind.
+    if (splitterIsNew) dispatch({ type: 'remove', key: splitterPoint.key })
     setSplitterPoint(null)
+    setSplitterIsNew(false)
     setSplitterError(null)
   }
 
@@ -492,7 +545,10 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
 
   function handleMode(next) {
     setMode(next)
+    if (splitterIsNew && splitterPoint) dispatch({ type: 'remove', key: splitterPoint.key })
     setSplitterPoint(null)
+    setSplitterIsNew(false)
+    setSplitterCard(null)
     setSplitterError(null)
     if (next !== 'pan') {
       // Stale cards are noise while drawing.
@@ -612,12 +668,9 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
                   }
                 : null
             }
-            onEditSplitter={() => {
-              setSplitterError(null)
-              setSplitterPoint(editingClosure)
-            }}
-            saving={closureSaving}
-            error={closureError}
+            onRemoveSplitter={handleClosureSplitterRemove}
+            saving={closureSaving || splitterSaving}
+            error={closureError ?? splitterError}
             onSave={handleClosureEditSave}
             onRemove={handleClosureRemove}
             onCancel={handleClosureEditCancel}
@@ -637,11 +690,31 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
           />
         )}
 
+        {/* A saved splitter tapped on the line: what it is, Edit, Remove. */}
+        {splitterCard && (
+          <SplitterCard
+            key={`splitter-card-${splitterCard.key}`}
+            point={splitterCard}
+            saving={splitterSaving}
+            error={splitterError}
+            onEdit={() => {
+              setSplitterError(null)
+              setSplitterIsNew(false)
+              setSplitterPoint(splitterCard)
+            }}
+            onRemove={handleSplitterCardRemove}
+            onCancel={() => {
+              setSplitterCard(null)
+              setSplitterError(null)
+            }}
+          />
+        )}
+
         {splitterPoint && (
           <SplitterModal
-            // Prefixed: the closure card behind it is keyed on the same point.
+            // Prefixed: the card behind it is keyed on the same point.
             key={`splitter-${splitterPoint.key}`}
-            closure={{ code: splitterPoint.ref?.code }}
+            code={splitterPoint.ref?.code}
             initial={
               splitterPoint.ref?.splitterId
                 ? {
@@ -654,7 +727,6 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
             saving={splitterSaving}
             error={splitterError}
             onSave={handleSplitterSave}
-            onRemove={splitterPoint.ref?.splitterId ? handleSplitterRemove : undefined}
             onCancel={handleSplitterCancel}
           />
         )}

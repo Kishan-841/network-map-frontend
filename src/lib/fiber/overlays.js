@@ -71,9 +71,11 @@ export function polylineRanges(fiber) {
  * entity id is missing falls back to its own id, so it still draws — it just
  * never merges with anything.
  */
+const ENTITY_ID = { POP: 'popId', CLOSURE: 'closureId', BUILDING: 'buildingId', SPLITTER: 'splitterId' }
+
 export function entityKey(point) {
   if (point.type === 'WAYPOINT') return null
-  const id = point.type === 'POP' ? point.popId : point.type === 'CLOSURE' ? point.closureId : point.buildingId
+  const id = point[ENTITY_ID[point.type]]
   return id ? `${point.type}:${id}` : `POINT:${point.id}`
 }
 
@@ -82,9 +84,13 @@ export function markerKind(point) {
   return point.type === 'CLOSURE' && point.splitter ? 'SPLITTER' : point.type
 }
 
-/** Splitters label with their ratio (`1:2`); everything else with its own label. */
+/**
+ * A splitter ON the line has a code of its own, so it labels with it; one that
+ * only exists as a closure's attachment has nothing but its ratio to show.
+ */
 export function markerText(kind, point) {
-  return (kind === 'SPLITTER' ? point.splitter : point.label) ?? ''
+  if (kind !== 'SPLITTER') return point.label ?? ''
+  return (point.type === 'SPLITTER' ? point.label : point.splitter) ?? ''
 }
 
 /**

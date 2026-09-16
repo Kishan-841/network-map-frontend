@@ -42,7 +42,7 @@ function FeedChip({ fiber, onSwap }) {
   if (!fiber.fedBy) return <span className={`${CHIP} bg-paper text-faint`}>No feed</span>
 
   const { portNo, splitter } = fiber.fedBy
-  const label = `Fed by ${splitter.closure.code} · out ${portNo}`
+  const label = `Fed by ${splitter.closure?.code ?? splitter.code ?? 'splitter'} · out ${portNo}`
   if (!splitter.inputFiber) return <span className={`${CHIP} bg-paper text-muted`}>{label}</span>
   return (
     <button
@@ -209,6 +209,7 @@ export default function FiberDetailPanel({ fiberId, onClose, onEdit, onSwap, onC
             <div className="grid grid-cols-2 gap-2">
               <Stat caption="Length" value={metres(fiber.totals.mapMeters || fiber.totals.pathMeters)} />
               <Stat caption="Closures" value={fiber.totals.closureCount} />
+              <Stat caption="Splitters" value={fiber.totals.splitterCount ?? 0} />
             </div>
 
             <FiberSchematic

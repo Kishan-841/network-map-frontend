@@ -63,6 +63,7 @@ export default function FiberTable({ fibers, loading, canManage, onRowClick, onE
     { key: 'cores', header: 'Cores', render: (f) => `${f.coreCount} core` },
     { key: 'feed', header: 'Feed', render: feedLine, className: 'text-muted' },
     { key: 'closures', header: 'Closures', render: (f) => f.totals.closureCount },
+    { key: 'splitters', header: 'Splitters', render: (f) => f.totals.splitterCount ?? 0 },
     {
       key: 'length',
       header: 'Length',
@@ -96,7 +97,8 @@ export default function FiberTable({ fibers, loading, canManage, onRowClick, onE
       <p className="mt-1 truncate text-sm font-normal text-muted">{feedLine(f)}</p>
       <p className="mt-1 text-sm font-normal text-muted">
         {Math.round(f.totals.mapMeters || f.totals.pathMeters)} m · {f.totals.closureCount} closure
-        {f.totals.closureCount === 1 ? '' : 's'}
+        {f.totals.closureCount === 1 ? '' : 's'} · {f.totals.splitterCount ?? 0} splitter
+        {f.totals.splitterCount === 1 ? '' : 's'}
       </p>
       {canManage && (
         <div className="mt-3 border-t border-line/60 pt-3">

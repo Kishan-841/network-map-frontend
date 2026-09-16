@@ -1,7 +1,13 @@
 import { pathMeters } from './geo.js'
 
 export const emptyDraft = () => ({ points: [], nextKey: 1 })
-export const isPinned = (p) => p.type === 'POP' || p.type === 'BUILDING' || (p.type === 'CLOSURE' && Boolean(p.ref?.closureId))
+// A point pinned to a real entity cannot be dragged: the entity owns the
+// position. An unsaved closure/splitter is still just a spot on the line.
+export const isPinned = (p) =>
+  p.type === 'POP' ||
+  p.type === 'BUILDING' ||
+  (p.type === 'CLOSURE' && Boolean(p.ref?.closureId)) ||
+  (p.type === 'SPLITTER' && Boolean(p.ref?.splitterId))
 const mk = (d, point) => ({ key: `p${d.nextKey}`, type: point.pointType ?? 'WAYPOINT', latitude: point.latitude, longitude: point.longitude, ref: point.ref ?? null })
 
 export function reduce(d, a) {
@@ -32,7 +38,11 @@ export function reduce(d, a) {
   }
 }
 
-const label = (p) => p.ref?.name ?? p.ref?.code ?? (p.ref?.newClosure ? 'New closure' : p.ref?.newPop?.name) ?? p.type
+const label = (p) =>
+  p.ref?.name ??
+  p.ref?.code ??
+  (p.ref?.newClosure ? 'New closure' : p.ref?.newSplitter ? 'New splitter' : p.ref?.newPop?.name) ??
+  p.type
 
 export function deriveSegments(points) {
   const typed = points.map((p, index) => ({ p, index })).filter(({ p }) => p.type !== 'WAYPOINT')
@@ -62,8 +72,10 @@ export const toPayloadPoints = (points) =>
     popId: p.ref?.popId,
     closureId: p.ref?.closureId,
     buildingId: p.ref?.buildingId,
+    splitterId: p.ref?.splitterId,
     newClosure: p.ref?.newClosure,
     newPop: p.ref?.newPop,
+    newSplitter: p.ref?.newSplitter,
   }))
 
 export const fromApiPoints = (api) =>
@@ -90,5 +102,16 @@ export const fromApiPoints = (api) =>
             }
           : p.type === 'BUILDING'
             ? { buildingId: p.buildingId, name: p.label }
-            : null,
+            : p.type === 'SPLITTER'
+              ? {
+                  splitterId: p.splitterId ?? null,
+                  code: p.label,
+                  // Same four fields as a closure-attached splitter, so one card
+                  // and one modal read both. `splitter` is the ratio LABEL.
+                  splitter: p.splitter,
+                  splitterRatio: p.splitterRatio ?? null,
+                  splitterLocation: p.splitterLocation ?? null,
+                  splitterFiberType: p.splitterFiberType ?? null,
+                }
+              : null,
   }))
