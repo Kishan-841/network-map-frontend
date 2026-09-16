@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { isPinned } from '@/lib/fiber/draft'
 import { nearestPointOnPath } from '@/lib/fiber/line-hit'
-import { typedMarkerIcon, markerLabel } from '@/lib/fiber/markers'
+import { typedMarkerIcon, labelBadgeIcon } from '@/lib/fiber/markers'
 import { coreColor } from '@/lib/fiber/constants'
 
 const HIT_PX = 12 // context-menu / drag hit radius around a draft vertex
 const WAYPOINT_MIN_ZOOM = 15 // plain waypoints are noise when zoomed out
-const LABEL_MIN_ZOOM = 17 // labels only once individual poles are readable
+// Badges carry their own background, so they stay legible far earlier than a
+// bare label did — and below this, hovering a (clickable) symbol still reveals
+// one in the dark tone.
+const BADGE_MIN_ZOOM = 15
 const COORD_EPSILON = 1e-9 // LatLng round-trips are exact; guard float noise anyway
 
 /** Pixel → LatLng. `projectionOverlay` is the empty OverlayView; null until it has a projection. */
@@ -46,9 +49,10 @@ const labelText = (p) => {
 // but still differ in the zoom rules (only a real WAYPOINT hides below z15).
 const signatureOf = (points) => points.map((p) => `${p.key}:${p.type}:${iconKind(p)}:${labelText(p)}`).join('|')
 
+// Takes both icon shapes: a square symbol (`size`) and a badge (`width`/`height`).
 const mapsIcon = (icon) => ({
   url: icon.url,
-  scaledSize: new google.maps.Size(icon.size, icon.size),
+  scaledSize: new google.maps.Size(icon.width ?? icon.size, icon.height ?? icon.size),
   anchor: new google.maps.Point(icon.anchor.x, icon.anchor.y),
 })
 
@@ -71,7 +75,7 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
   const pathRef = useRef(null)
   const keysRef = useRef([]) // mirrors the path order: index → point key
   const syncingRef = useRef(false) // true while WE write the path
-  const markersRef = useRef([]) // [{ marker, isWaypoint, text, isClickableClosure }]
+  const markersRef = useRef([]) // [{ marker, badge, badgeIcons, isWaypoint, isClickableClosure, pointRef }]
   const rubberRef = useRef(null)
   const ringRef = useRef(null)
   const projectionRef = useRef(null)
@@ -131,6 +135,9 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
         const p = points[i]
         if (!p) return
         entry.marker.setPosition({ lat: p.latitude, lng: p.longitude })
+        // The badge rides along — Google positions it at the same LatLng and
+        // the icon's own anchor lifts it clear of the symbol.
+        entry.badge?.setPosition({ lat: p.latitude, lng: p.longitude })
         // The click listener below reads through this box — keep it current
         // even when the shape (and so the listener itself) didn't rebuild,
         // e.g. editing a closure's kind/note leaves the marker signature the
@@ -148,7 +155,10 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
     syncingRef.current = false
     keysRef.current = points.map((p) => p.key)
 
-    markersRef.current.forEach(({ marker }) => marker.setMap(null))
+    markersRef.current.forEach(({ marker, badge }) => {
+      marker.setMap(null)
+      badge?.setMap(null)
+    })
     markersRef.current = points.map((p, i) => {
       const text = labelText(p)
       // The last point is where the next tap extends from — highlight it.
@@ -168,13 +178,39 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
         zIndex: 11,
         icon: mapsIcon(icon),
       })
+      // The code/ratio rides ABOVE the symbol on its own marker, so the teal
+      // circle / orange diamond underneath stays visible.
+      const badgeIcons = text ? { light: labelBadgeIcon(text), dark: labelBadgeIcon(text, { tone: 'dark' }) } : null
+      const badge = badgeIcons
+        ? new google.maps.Marker({
+            map: map_,
+            position: { lat: p.latitude, lng: p.longitude },
+            clickable: false,
+            visible: false, // applyZoom below has the final say
+            zIndex: 12,
+            icon: mapsIcon(badgeIcons.light),
+          })
+        : null
       if (isClickableClosure) {
         marker.addListener('click', () => onClosureClickRef.current?.(pointRef.current))
+        // Hover only reaches a CLICKABLE marker, which is exactly the set that
+        // has a card to open — zoomed out, it is how you read one code without
+        // turning every badge back on.
+        if (badge) {
+          marker.addListener('mouseover', () => {
+            badge.setIcon(mapsIcon(badgeIcons.dark))
+            badge.setVisible(true)
+          })
+          marker.addListener('mouseout', () => {
+            badge.setIcon(mapsIcon(badgeIcons.light))
+            badge.setVisible((mapRef.current?.getZoom() ?? 0) >= BADGE_MIN_ZOOM)
+          })
+        }
       }
       return {
         marker,
+        badge,
         isWaypoint: p.type === 'WAYPOINT',
-        text,
         isClickableClosure,
         pointRef,
       }
@@ -286,9 +322,9 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
     // ---- zoom rules --------------------------------------------------------
     const applyZoom = () => {
       const zoom = mapRef.current?.getZoom() ?? 0
-      markersRef.current.forEach(({ marker, isWaypoint, text }) => {
+      markersRef.current.forEach(({ marker, badge, isWaypoint }) => {
         marker.setVisible(!isWaypoint || zoom >= WAYPOINT_MIN_ZOOM)
-        marker.setLabel(text && zoom >= LABEL_MIN_ZOOM ? markerLabel(text) : null)
+        badge?.setVisible(zoom >= BADGE_MIN_ZOOM)
       })
     }
     applyZoomRef.current = applyZoom
@@ -323,7 +359,10 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
       container.removeEventListener('mouseleave', onLeave)
       listeners.forEach((listener) => google.maps.event.removeListener(listener))
       google.maps.event.removeListener(zoomListener)
-      markersRef.current.forEach(({ marker }) => marker.setMap(null))
+      markersRef.current.forEach(({ marker, badge }) => {
+        marker.setMap(null)
+        badge?.setMap(null)
+      })
       markersRef.current = []
       keysRef.current = []
       signatureRef.current = null

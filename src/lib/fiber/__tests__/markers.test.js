@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { typedMarkerIcon, markerLabel } from '../markers.js'
+import { typedMarkerIcon, markerLabel, labelBadgeIcon } from '../markers.js'
 
 describe('typedMarkerIcon', () => {
   it('returns the same cached object for the same args', () => {
@@ -53,5 +53,48 @@ describe('markerLabel', () => {
       fontWeight: '700',
       className: 'fiber-zone-label',
     })
+  })
+})
+
+describe('labelBadgeIcon', () => {
+  const svgOf = (icon) => decodeURIComponent(icon.url.replace('data:image/svg+xml;charset=UTF-8,', ''))
+
+  it('returns the same cached object for the same text and tone', () => {
+    expect(labelBadgeIcon('JC-0001')).toBe(labelBadgeIcon('JC-0001'))
+    expect(labelBadgeIcon('JC-0001', { tone: 'light' })).toBe(labelBadgeIcon('JC-0001'))
+  })
+
+  it('grows wider with longer text', () => {
+    const short = labelBadgeIcon('S1')
+    const long = labelBadgeIcon('S12 \u00b7 1:16')
+    expect(long.width).toBeGreaterThan(short.width)
+  })
+
+  it('never goes below the minimum width', () => {
+    expect(labelBadgeIcon('A').width).toBe(28)
+  })
+
+  it('escapes XML-significant characters', () => {
+    const svg = svgOf(labelBadgeIcon('R&D <hut>'))
+    expect(svg).toContain('R&amp;D &lt;hut&gt;')
+    expect(svg).not.toContain('R&D')
+  })
+
+  it('draws the dark tone differently from the light one', () => {
+    const light = labelBadgeIcon('JC-0002')
+    const dark = labelBadgeIcon('JC-0002', { tone: 'dark' })
+    expect(dark.url).not.toBe(light.url)
+    expect(dark.width).toBe(light.width)
+    expect(svgOf(dark)).toContain('fill="#ffffff"') // white text
+  })
+
+  it('anchors below the image so the pointer floats above the symbol', () => {
+    const icon = labelBadgeIcon('JC-0003')
+    expect(icon.height).toBe(27)
+    expect(icon.anchor).toEqual({ x: icon.width / 2, y: icon.height + 11 })
+  })
+
+  it('produces a data URI SVG', () => {
+    expect(labelBadgeIcon('POP A').url.startsWith('data:image/svg+xml')).toBe(true)
   })
 })

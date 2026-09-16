@@ -161,6 +161,16 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const handleTargetClick = useCallback((target) => {
     if (modeRef.current === 'pan') setSelectedTarget(target)
   }, [])
+  // Closures and splitters the DRAFT already draws: the context layer must skip
+  // them, or every one is painted twice with two badges fighting over the spot.
+  const draftEntityIds = useMemo(() => {
+    const ids = new Set()
+    for (const point of draft.points) {
+      if (point.ref?.closureId) ids.add(point.ref.closureId)
+      if (point.ref?.splitterId) ids.add(point.ref.splitterId)
+    }
+    return ids
+  }, [draft.points])
   useEditorOverlays({
     map,
     ready,
@@ -170,6 +180,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     onTargetClick: handleTargetClick,
     // Drawing / dropping a closure: markers must not intercept the tap.
     markersClickable: !frozen,
+    excludeIds: draftEntityIds,
   })
 
   // Saved fibers as dim context behind the draft — never interactive here.
