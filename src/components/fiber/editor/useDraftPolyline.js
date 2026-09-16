@@ -25,12 +25,18 @@ export function latLngToPixel(projectionOverlay, latLng) {
   return projection.fromLatLngToContainerPixel(latLng)
 }
 
-// A closure that carries a splitter draws as a splitter; every other point
-// draws as its own type (markers.js throws on a kind it cannot draw).
+// A splitter point — and a closure that still carries a legacy attached
+// splitter — draws as a splitter; every other point draws as its own type
+// (markers.js throws on a kind it cannot draw).
 const iconKind = (p) => (p.type === 'CLOSURE' && p.ref?.splitter ? 'SPLITTER' : p.type)
 const labelText = (p) => {
   if (p.type === 'WAYPOINT') return ''
-  // A splitter labels with its ratio ('1:4'), the same as on the map page.
+  // A splitter on the line reads as its code and ratio: `S1 · 1:4`.
+  if (p.type === 'SPLITTER') {
+    if (!p.ref?.splitterId) return 'New'
+    return p.ref.splitter ? `${p.ref.code} · ${p.ref.splitter}` : (p.ref.code ?? '')
+  }
+  // A closure's own splitter labels with its ratio, as on the map page.
   if (p.type === 'CLOSURE' && p.ref?.splitter) return p.ref.splitter
   return p.ref?.name ?? p.ref?.code ?? (p.ref?.newClosure ? 'New' : (p.ref?.newPop?.name ?? ''))
 }
@@ -149,9 +155,11 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
       const icon = typedMarkerIcon(iconKind(p), {
         selected: i === points.length - 1,
       })
-      // Only a SAVED closure (it has a code) carries a type/note worth a card —
-      // and only in annotate + Pan mode, where a tap can never mean "draw".
-      const isClickableClosure = p.type === 'CLOSURE' && Boolean(p.ref?.closureId)
+      // Only a SAVED closure or splitter (it has a code) carries anything worth
+      // a card — and only in annotate + Pan mode, where a tap can never mean
+      // "draw".
+      const isClickableClosure =
+        (p.type === 'CLOSURE' && Boolean(p.ref?.closureId)) || (p.type === 'SPLITTER' && Boolean(p.ref?.splitterId))
       const pointRef = { current: p }
       const marker = new google.maps.Marker({
         map: map_,

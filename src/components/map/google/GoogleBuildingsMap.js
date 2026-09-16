@@ -233,9 +233,11 @@ export default function GoogleBuildingsMap({
     dim: false,
     cluster: true,
     onFiberClick: (fiber) => onFiberSelect?.(fiber.id),
-    // A splitter marker is still a CLOSURE point — both open the closure.
-    onPointClick: (point) => {
+    onPointClick: (point, fiber) => {
+      // A closure — splitter icon or not — opens the closure popup; a splitter
+      // that IS a point on the line belongs to the fiber, so open that.
       if (point.type === 'CLOSURE' && point.closureId) onClosureSelect?.(point.closureId)
+      else if (point.type === 'SPLITTER' && fiber) onFiberSelect?.(fiber.id)
     },
     onFiberHover: (fiber, domEvent) => {
       if (!fiber || !domEvent) return setHover(null)

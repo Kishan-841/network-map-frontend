@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { ReactFlow, Background, Handle, Position } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { buildGraph, layoutGraph } from '@/lib/fiber/schematic'
+import { buildGraph, layoutGraph, nodeLabel } from '@/lib/fiber/schematic'
 import { POINT_COLORS } from '@/lib/fiber/constants'
 
 const EDGE_LABEL_STYLE = { fill: 'var(--color-muted)', fontSize: 11, fontWeight: 500 }
@@ -12,20 +12,13 @@ function pointKind(point) {
   return point.type === 'CLOSURE' && point.splitter ? 'SPLITTER' : point.type
 }
 
-function pointLabel(point) {
-  if (point.type !== 'CLOSURE') return point.label
-  if (point.splitter) return `${point.label} · ${point.splitter}`
-  if (point.kind) return `${point.label} · ${point.kind}`
-  return point.label
-}
-
 function FiberNode({ data }) {
   const { point } = data
   return (
     <div className="relative h-16 w-[180px] overflow-hidden rounded-btn border border-line bg-card px-3 py-2 shadow-soft">
       <Handle type="target" position={Position.Left} className="!opacity-0" />
       <span className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: POINT_COLORS[pointKind(point)] }} />
-      <p className="truncate text-sm font-bold">{pointLabel(point)}</p>
+      <p className="truncate text-sm font-bold">{nodeLabel(point)}</p>
       <p className="truncate font-mono text-[11px] text-muted">
         {point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}
       </p>

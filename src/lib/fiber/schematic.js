@@ -12,6 +12,26 @@ import dagre from '@dagrejs/dagre'
 const W = 180
 const H = 64
 
+const RATIO_LABELS = { R1_2: '1:2', R1_4: '1:4', R1_6: '1:6', R1_8: '1:8', R1_16: '1:16' }
+const FIBER_TYPE_LABELS = { MAIN: 'Main', SUB: 'Sub' }
+
+/**
+ * What a node says. A splitter carries everything that distinguishes it —
+ * `S1 · 1:4 · Main · WAN`; a closure adds its splitter's ratio or its own kind.
+ */
+export function nodeLabel(point) {
+  if (point.type === 'SPLITTER') {
+    const ratio = point.splitter ?? RATIO_LABELS[point.splitterRatio]
+    return [point.label, ratio, FIBER_TYPE_LABELS[point.splitterFiberType], point.splitterLocation]
+      .filter(Boolean)
+      .join(' · ')
+  }
+  if (point.type !== 'CLOSURE') return point.label
+  if (point.splitter) return `${point.label} · ${point.splitter}`
+  if (point.kind) return `${point.label} · ${point.kind}`
+  return point.label
+}
+
 /** Builds fiberNode/fiberLink/buildingLink nodes and edges from a `GET /fibers/:id` payload. */
 export function buildGraph(fiber) {
   const typed = fiber.points.filter((p) => p.type !== 'WAYPOINT')
@@ -30,10 +50,12 @@ export function buildGraph(fiber) {
   }))
 
   for (const s of fiber.splitters ?? []) {
-    const closurePoint = typed.find((p) => p.closureId === s.closure.id)
-    // Should not happen, but a splitter whose closure isn't on this fiber has
-    // no source node to draw from — skip its outputs rather than emit a
-    // dangling edge.
+    // A splitter sits either on a closure of this line or on a point of its
+    // own. Either way it needs a node here to draw its outputs from; one whose
+    // home isn't on this fiber is skipped rather than left dangling.
+    const closurePoint = s.closure?.id
+      ? typed.find((p) => p.closureId === s.closure.id)
+      : typed.find((p) => p.splitterId === s.id)
     if (!closurePoint) continue
 
     for (const o of s.outputs) {

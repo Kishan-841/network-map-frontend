@@ -63,6 +63,7 @@ describe('entityKey / markerKind / markerText', () => {
     expect(entityKey(point('p', 0, { type: 'POP', popId: 'pop1' }))).toBe('POP:pop1')
     expect(entityKey(point('p', 0, { type: 'CLOSURE', closureId: 'c1' }))).toBe('CLOSURE:c1')
     expect(entityKey(point('p', 0, { type: 'BUILDING', buildingId: 'b1' }))).toBe('BUILDING:b1')
+    expect(entityKey(point('p', 0, { type: 'SPLITTER', splitterId: 'sp1' }))).toBe('SPLITTER:sp1')
     expect(entityKey(point('p', 0))).toBeNull()
     // A typed point missing its entity id still draws, but never merges.
     expect(entityKey(point('p9', 0, { type: 'POP' }))).toBe('POINT:p9')
@@ -76,6 +77,12 @@ describe('entityKey / markerKind / markerText', () => {
     expect(markerText('CLOSURE', plain)).toBe('CL-01')
     expect(markerText('SPLITTER', split)).toBe('1:8')
     expect(markerText('CLOSURE', point('p', 0, { type: 'CLOSURE' }))).toBe('')
+  })
+
+  it('labels a splitter ON the line with its own code', () => {
+    const online = point('p', 0, { type: 'SPLITTER', splitterId: 'sp1', label: 'S3', splitter: '1:6' })
+    expect(markerKind(online)).toBe('SPLITTER')
+    expect(markerText('SPLITTER', online)).toBe('S3')
   })
 })
 

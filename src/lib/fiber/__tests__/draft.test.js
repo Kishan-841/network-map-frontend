@@ -238,6 +238,57 @@ describe('payload <-> API point conversion', () => {
     })
   })
 
+  it('round-trips a SPLITTER point on the line', () => {
+    const apiPoints = [
+      { type: 'POP', latitude: 1, longitude: 2, popId: 'pop1', label: 'Pop A' },
+      {
+        type: 'SPLITTER',
+        latitude: 1.5,
+        longitude: 2.5,
+        splitterId: 'sp1',
+        label: 'S3',
+        splitter: '1:6',
+        splitterRatio: 'R1_6',
+        splitterLocation: 'LAN',
+        splitterFiberType: 'SUB',
+      },
+      { type: 'BUILDING', latitude: 3, longitude: 4, buildingId: 'b1', label: 'Bldg A' },
+    ]
+    const draftPoints = fromApiPoints(apiPoints)
+    expect(draftPoints[1]).toMatchObject({
+      type: 'SPLITTER',
+      ref: {
+        splitterId: 'sp1',
+        code: 'S3',
+        splitter: '1:6',
+        splitterRatio: 'R1_6',
+        splitterLocation: 'LAN',
+        splitterFiberType: 'SUB',
+      },
+    })
+    // A saved splitter is pinned: the splitter owns its position.
+    expect(isPinned(draftPoints[1])).toBe(true)
+
+    const payload = toPayloadPoints(draftPoints)
+    expect(payload.map((p) => p.type)).toEqual(['POP', 'SPLITTER', 'BUILDING'])
+    expect(payload[1].splitterId).toBe('sp1')
+    expect(payload[1].newSplitter).toBeUndefined()
+  })
+
+  it('emits newSplitter for a splitter that has not been saved yet', () => {
+    const point = {
+      key: 'p1',
+      type: 'SPLITTER',
+      latitude: 1,
+      longitude: 2,
+      ref: { newSplitter: { ratio: 'R1_6', fiberType: 'SUB', location: 'LAN' } },
+    }
+    expect(isPinned(point)).toBe(false)
+    const [payload] = toPayloadPoints([point])
+    expect(payload).toMatchObject({ type: 'SPLITTER', newSplitter: { ratio: 'R1_6', fiberType: 'SUB', location: 'LAN' } })
+    expect(payload.splitterId).toBeUndefined()
+  })
+
   it('leaves the splitter fields null on a closure without one', () => {
     const [point] = fromApiPoints([{ type: 'CLOSURE', latitude: 2, longitude: 3, closureId: 'c1', label: 'CL-1' }])
     expect(point.ref).toMatchObject({ splitterId: null, splitterRatio: null, splitterLocation: null, splitterFiberType: null })

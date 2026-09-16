@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildGraph, layoutGraph } from '../schematic.js'
+import { buildGraph, layoutGraph, nodeLabel } from '../schematic.js'
 
 function baseFiber() {
   return {
@@ -74,6 +74,48 @@ describe('buildGraph', () => {
     const { nodes, edges } = buildGraph(fiber)
     expect(nodes).toHaveLength(3)
     expect(edges).toHaveLength(2)
+  })
+})
+
+describe('a splitter that is a point on the line', () => {
+  const linePoint = {
+    id: 'p5',
+    sequence: 5,
+    type: 'SPLITTER',
+    latitude: 4,
+    longitude: 4,
+    label: 'S1',
+    splitter: '1:4',
+    splitterId: 'sp9',
+    splitterRatio: 'R1_4',
+    splitterFiberType: 'MAIN',
+    splitterLocation: 'WAN',
+    closureId: null,
+    popId: null,
+    buildingId: null,
+  }
+
+  it('labels it with code, ratio, fiber type and location', () => {
+    expect(nodeLabel(linePoint)).toBe('S1 · 1:4 · Main · WAN')
+    expect(nodeLabel({ type: 'POP', label: 'POP A' })).toBe('POP A')
+    expect(nodeLabel({ type: 'CLOSURE', label: 'CL-0001', kind: 'Compass' })).toBe('CL-0001 · Compass')
+  })
+
+  it('draws its outputs from its own node, not a closure', () => {
+    const fiber = baseFiber()
+    fiber.points.push(linePoint)
+    fiber.segments.push({ id: 's2', sequence: 2, fromPointId: 'p4', toPointId: 'p5', mapMeters: 10, isCut: false })
+    fiber.splitters = [
+      {
+        id: 'sp9',
+        ratio: 'R1_4',
+        closure: null,
+        outputs: [{ id: 'o1', portNo: 1, toFiber: null, toBuilding: { id: 'bZ', buildingName: 'Building Z' } }],
+      },
+    ]
+    const { nodes, edges } = buildGraph(fiber)
+    expect(nodes.map((n) => n.id)).toContain('p5')
+    expect(edges.find((e) => e.target === 'b-sp9-1')).toMatchObject({ source: 'p5', label: 'out 1' })
   })
 })
 
