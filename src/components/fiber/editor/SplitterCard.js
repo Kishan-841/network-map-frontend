@@ -36,7 +36,7 @@ export default function SplitterCard({ point, saving, error, onEdit, onRemove, o
       <div className="flex flex-col gap-1.5">
         <Row caption="Ratio" value={ref.splitter ?? RATIO_LABELS[ref.splitterRatio] ?? '—'} />
         <Row caption="Fiber type" value={FIBER_TYPE_LABELS[ref.splitterFiberType] ?? ref.splitterFiberType ?? '—'} />
-        <Row caption="Location" value={ref.splitterLocation ?? '—'} />
+        <Row caption="Splitter type" value={ref.splitterLocation ?? '—'} />
         <Row
           caption="Lat, long"
           value={`${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`}

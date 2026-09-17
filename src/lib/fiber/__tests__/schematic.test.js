@@ -89,14 +89,14 @@ describe('a splitter that is a point on the line', () => {
     splitterId: 'sp9',
     splitterRatio: 'R1_4',
     splitterFiberType: 'MAIN',
-    splitterLocation: 'WAN',
+    splitterLocation: 'S2',
     closureId: null,
     popId: null,
     buildingId: null,
   }
 
   it('labels it with code, ratio, fiber type and location', () => {
-    expect(nodeLabel(linePoint)).toBe('S1 · 1:4 · Main · WAN')
+    expect(nodeLabel(linePoint)).toBe('S1 · 1:4 · Main · S2')
     expect(nodeLabel({ type: 'POP', label: 'POP A' })).toBe('POP A')
     expect(nodeLabel({ type: 'CLOSURE', label: 'JC-0001', kind: 'Compass' })).toBe('JC-0001 · Compass')
   })

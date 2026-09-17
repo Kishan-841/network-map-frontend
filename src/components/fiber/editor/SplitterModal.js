@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { Select } from '@/components/ui/Input'
 import { IconClose, IconTrash } from '@/components/ui/icons'
 import { RATIO_LABELS } from '@/lib/fiber/constants'
 import BottomSheet, { SHEET_DIALOG } from './BottomSheet'
@@ -11,7 +12,7 @@ const FIBER_TYPES = [
   { value: 'MAIN', label: 'Main' },
   { value: 'SUB', label: 'Sub' },
 ]
-const LOCATIONS = ['LAN', 'WAN']
+const LOCATIONS = ['S1', 'S2', 'S3']
 
 /** Segmented pill group — same idiom as SplitterForm's ratio/location pickers. */
 function PillGroup({ label, options, value, onChange }) {
@@ -39,7 +40,7 @@ function PillGroup({ label, options, value, onChange }) {
 
 /**
  * One splitter on the line being edited, in two modes that share the same
- * three pickers:
+ * three controls:
  *
  *  - create — a splitter just dropped on the line. Save sends it with the
  *    fiber PATCH the caller has queued; Cancel takes the point back off.
@@ -50,7 +51,7 @@ function PillGroup({ label, options, value, onChange }) {
 export default function SplitterModal({ code, initial, onSave, onRemove, onCancel, saving, error }) {
   const [ratio, setRatio] = useState(() => initial?.ratio ?? 'R1_2')
   const [fiberType, setFiberType] = useState(() => initial?.fiberType ?? 'MAIN')
-  const [location, setLocation] = useState(() => initial?.location ?? 'WAN')
+  const [location, setLocation] = useState(() => initial?.location ?? 'S1')
 
   const editing = Boolean(initial)
 
@@ -83,12 +84,18 @@ export default function SplitterModal({ code, initial, onSave, onRemove, onCance
         onChange={setRatio}
       />
       <PillGroup label="Fiber type" options={FIBER_TYPES} value={fiberType} onChange={setFiberType} />
-      <PillGroup
-        label="Location"
-        options={LOCATIONS.map((value) => ({ value, label: value }))}
+      <Select
+        id="splitter-location"
+        label="Splitter type"
         value={location}
-        onChange={setLocation}
-      />
+        onChange={(e) => setLocation(e.target.value)}
+      >
+        {LOCATIONS.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </Select>
 
       {error && <p className="rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">{error}</p>}
 
