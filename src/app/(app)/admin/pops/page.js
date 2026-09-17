@@ -8,7 +8,7 @@ import { DataTable } from '@/components/ui/DataTable'
 import { IconPlus, IconEdit, IconTrash } from '@/components/ui/icons'
 import { usePops, invalidatePops } from '@/hooks/usePops'
 import { invalidateFibers } from '@/hooks/useFibers'
-import { canManageFiber } from '@/lib/roles'
+import { canManagePops } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import PopForm from '@/components/fiber/PopForm'
 import OltList from '@/components/fiber/OltList'
@@ -58,7 +58,7 @@ function RowActions({ pop, onEdit, onDelete }) {
 
 export default function AdminPopsPage() {
   const role = useAuthStore((s) => s.user?.role)
-  const canManage = canManageFiber(role)
+  const canManage = canManagePops(role)
   const { pops, loading } = usePops()
   const [listError, setListError] = useState(null)
   // undefined = closed, null = new POP, object = edit that POP.

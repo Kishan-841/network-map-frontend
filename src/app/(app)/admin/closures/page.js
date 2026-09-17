@@ -59,8 +59,7 @@ function RowActions({ closure, onEdit, onDelete }) {
 }
 
 export default function AdminClosuresPage() {
-  const role = useAuthStore((s) => s.user?.role)
-  const canManage = canManageFiber(role)
+  const canManage = canManageFiber(useAuthStore((s) => s.user))
   const { closures, loading } = useClosures()
   const [listError, setListError] = useState(null)
   // Closures are only ever created from the fiber editor, as a point on a
