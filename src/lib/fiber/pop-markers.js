@@ -29,16 +29,19 @@ export function popMarkerData(pops) {
 
 export const POP_ICON_SIZE = 34
 
+// Where the pin sits on the POP's coordinates: the triangle's centroid (the
+// average of its three corners), so the shape is centred on the site rather
+// than hanging off its apex or its base.
+export const POP_ICON_ANCHOR = { x: 17, y: 21 }
+
 /**
- * The POP pin: Lucide's `server` glyph, white, on a rounded square in the POP
- * colour. A data URL so the map needs no image file and no extra request.
+ * The POP pin: a solid triangle in the POP colour with a white outline, so it
+ * reads against satellite imagery as well as the road map. A data URL so the
+ * map needs no image file and no extra request.
  */
 export function popIconUrl() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${POP_ICON_SIZE}" height="${POP_ICON_SIZE}" viewBox="0 0 34 34">
-<rect x="2" y="2" width="30" height="30" rx="9" fill="${POINT_COLORS.POP}" stroke="#ffffff" stroke-width="2.5"/>
-<g transform="translate(8 8) scale(0.75)" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
-<line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>
-</g></svg>`
+<polygon points="17,4 31,30 3,30" fill="${POINT_COLORS.POP}" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+</svg>`
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
 }

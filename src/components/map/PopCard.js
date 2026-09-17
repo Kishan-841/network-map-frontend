@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { IconClose, IconServer } from '@/components/ui/icons'
+import { IconClose, IconTriangle } from '@/components/ui/icons'
 
 /**
  * A tapped POP, in the same slot as SelectedBuildingCard (the map page shows
@@ -15,7 +15,7 @@ export function PopCard({ pop, canEdit, onClose }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#7c3aed] text-white">
-            <IconServer className="h-5 w-5" strokeWidth={1.8} />
+            <IconTriangle className="h-4.5 w-4.5" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <p className="truncate font-bold">{pop.name}</p>

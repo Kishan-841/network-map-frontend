@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { popIconUrl, popMarkerData, POP_ICON_SIZE } from '@/lib/fiber/pop-markers'
+import { popIconUrl, popMarkerData, POP_ICON_ANCHOR, POP_ICON_SIZE } from '@/lib/fiber/pop-markers'
 
 // On top of everything else on the map. The building clusterer stacks its
 // bubbles from Marker.MAX_ZINDEX upwards, and the fiber overlay draws its own
@@ -10,7 +10,7 @@ import { popIconUrl, popMarkerData, POP_ICON_SIZE } from '@/lib/fiber/pop-marker
 const POP_Z_OFFSET = 100000
 
 /**
- * The POPs layer: one server-icon pin per POP. Never clustered — there are
+ * The POPs layer: one triangle pin per POP. Never clustered — there are
  * few, and a POP is a landmark people navigate by. `pops` is the raw list (or
  * an empty one when the layer is off); the pins are rebuilt when it changes.
  */
@@ -26,7 +26,7 @@ export function usePopMarkers({ map, ready, pops, onPopClick }) {
     const icon = {
       url: popIconUrl(),
       scaledSize: size,
-      anchor: new google.maps.Point(POP_ICON_SIZE / 2, POP_ICON_SIZE / 2),
+      anchor: new google.maps.Point(POP_ICON_ANCHOR.x, POP_ICON_ANCHOR.y),
     }
     const markers = popMarkerData(pops).map((pop) => {
       const marker = new google.maps.Marker({
