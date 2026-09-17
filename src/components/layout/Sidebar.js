@@ -14,6 +14,7 @@ import {
   isSupervisor,
   isPartnerManager,
   isAccounts,
+  fiberNavFor,
   ROLE_LABELS,
 } from '@/lib/roles'
 import {
@@ -93,11 +94,11 @@ const LEAD_NAV = [
  * where you are without hunting — and a group you opened by hand stays open
  * until you close it.
  */
-function NavGroup({ label, items, pathname, collapsed, renderLink }) {
+function NavGroup({ label, items, pathname, collapsed, renderLink, defaultOpen = false }) {
   const holdsCurrent = items.some((item) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href),
   )
-  const [open, setOpen] = useState(holdsCurrent)
+  const [open, setOpen] = useState(holdsCurrent || defaultOpen)
   const wasHolding = useRef(holdsCurrent)
 
   // Navigating INTO the group opens it; navigating away leaves it as the
@@ -181,6 +182,14 @@ export function Sidebar() {
             : role === 'ADMIN'
               ? ADMIN_NAV
               : COVERAGE_NAV
+
+  // Fiber access is granted per user (Users → Assign accesses). Whoever holds
+  // it gets the same two links the admin has, icons and all, in a group of
+  // their own — looked up from NAV_GROUPS so the two can't drift apart.
+  const fiberHrefs = fiberNavFor(user).map((item) => item.href)
+  const FIBER_ITEMS = NAV_GROUPS.flatMap((group) => group.items).filter((item) =>
+    fiberHrefs.includes(item.href),
+  )
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '80px' : '280px')
@@ -282,6 +291,17 @@ export function Sidebar() {
               renderLink={navLink}
             />
           ))}
+        {FIBER_ITEMS.length > 0 && (
+          <NavGroup
+            label="Fiber"
+            items={FIBER_ITEMS}
+            // Two links, and the whole reason this user was ticked — don't hide them.
+            defaultOpen
+            pathname={pathname}
+            collapsed={collapsed}
+            renderLink={navLink}
+          />
+        )}
       </nav>
 
       {/* Bottom: user + theme toggle + logout */}

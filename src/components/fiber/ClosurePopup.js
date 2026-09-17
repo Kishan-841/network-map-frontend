@@ -135,7 +135,7 @@ export default function ClosurePopup({ closureId, onClose, onOpenFiber, readOnly
   const [busyId, setBusyId] = useState(null)
   const [actionError, setActionError] = useState(null)
   const [showForm, setShowForm] = useState(false)
-  const canManage = canManageFiber(useAuthStore((s) => s.user?.role)) && !readOnly
+  const canManage = canManageFiber(useAuthStore((s) => s.user)) && !readOnly
 
   useEffect(() => {
     let alive = true
