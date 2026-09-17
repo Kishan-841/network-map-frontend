@@ -25,8 +25,6 @@ const toForm = (pop) => ({
 const oltSummary = (pop) =>
   pop.olts?.length ? pop.olts.map((o) => `${o.name} (${o.ponPortCount})`).join(' · ') : '—'
 
-const fiberCount = (pop) => pop._count?.points ?? '—'
-
 function RowActions({ pop, onEdit, onDelete }) {
   return (
     <div className="flex justify-end gap-1">
@@ -105,7 +103,6 @@ export default function AdminPopsPage() {
       render: (p) => `${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`,
     },
     { key: 'olts', header: 'OLTs', render: oltSummary },
-    { key: 'fibers', header: 'Fibers', className: 'tabular-nums', render: fiberCount },
     ...(canManage
       ? [
           {
@@ -132,7 +129,7 @@ export default function AdminPopsPage() {
           {p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}
         </p>
         <p className="mt-1 text-sm font-normal text-muted">
-          {oltSummary(p)} · {fiberCount(p)} fiber{fiberCount(p) === 1 ? '' : 's'}
+          {oltSummary(p)}
         </p>
       </div>
       {canManage && (
