@@ -17,7 +17,7 @@ import { useAnnotations } from './useAnnotations'
 import EditorTopBar from './EditorTopBar'
 import EditorBottomBar from './EditorBottomBar'
 import EditorDrawer from './EditorDrawer'
-import EditorSearchButton from './EditorSearchButton'
+import MapSearchButton from '@/components/map/MapSearchButton'
 import EditorToast from './EditorToast'
 import EditorCards from './EditorCards'
 
@@ -303,7 +303,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
           style={frozen ? { touchAction: 'none' } : undefined}
         />
 
-        <EditorSearchButton getCenter={getCenter} onJump={panTo} />
+        <MapSearchButton getCenter={getCenter} onJump={panTo} />
 
         <button
           type="button"
