@@ -9,6 +9,7 @@ export {
   CircleCheck as IconOkCircle,
   Clock as IconClock,
   House as IconHome,
+  Server as IconServer,
   Plus as IconPlus,
   Search as IconSearch,
   Crosshair as IconCrosshair,

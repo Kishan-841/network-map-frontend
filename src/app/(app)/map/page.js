@@ -7,11 +7,13 @@ import { useBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { filterMarkers } from '@/lib/building-filters'
 import { useZones } from '@/hooks/useZones'
 import { useFibers } from '@/hooks/useFibers'
+import { usePops } from '@/hooks/usePops'
 import { useAuthStore } from '@/stores/auth-store'
-import { canManageFiber, isAcquisition } from '@/lib/roles'
+import { canManageFiber, canManagePops, isAcquisition } from '@/lib/roles'
 import { AcquisitionMap } from '@/components/map/AcquisitionMap'
 import { FilterSheet } from '@/components/map/FilterSheet'
 import { SelectedBuildingCard } from '@/components/map/SelectedBuildingCard'
+import { PopCard } from '@/components/map/PopCard'
 import { MapLegend } from '@/components/map/MapLegend'
 import { Fab } from '@/components/ui/Fab'
 import { IconSearch } from '@/components/ui/icons'
@@ -24,6 +26,7 @@ const ClosurePopup = dynamic(() => import('@/components/fiber/ClosurePopup'), { 
 // The fiber overlay rebuilds whenever this array changes identity — one stable
 // empty array for "hidden" keeps a toggled-off layer from rebuilding forever.
 const NO_FIBERS = []
+const NO_POPS = []
 
 export default function MapPage() {
   const role = useAuthStore((s) => s.user?.role)
@@ -67,6 +70,14 @@ function CoverageMapPage() {
     return shown.length > 0 ? shown : NO_FIBERS
   }, [fiberShown, fibers, filters.operatorId])
 
+  // POPs are few and are landmarks, so their layer starts ON (unlike Fiber).
+  const [popsShown, setPopsShown] = useState(true)
+  const { pops } = usePops()
+  const popCount = pops?.length ?? 0
+  const visiblePops = popsShown && popCount > 0 ? pops : NO_POPS
+  // Shares the bottom card slot with the selected building — one or the other.
+  const [selectedPop, setSelectedPop] = useState(null)
+
   // Clicking the map opens exactly one of these — a fiber's detail panel or a
   // closure's popup. Both are right-hand panels, so they are never both open.
   const [panelFiberId, setPanelFiberId] = useState(null)
@@ -100,8 +111,16 @@ function CoverageMapPage() {
         buildings={visibleBuildings}
         zones={zonesShown ? zones : []}
         fibers={visibleFibers}
+        pops={visiblePops}
         selectedId={selected?.id}
-        onSelect={setSelected}
+        onSelect={(building) => {
+          setSelectedPop(null)
+          setSelected(building)
+        }}
+        onPopSelect={(pop) => {
+          setSelected(null)
+          setSelectedPop(pop)
+        }}
         onFiberSelect={(id) => {
           setClosurePopupId(null)
           setPanelFiberId(id)
@@ -161,6 +180,12 @@ function CoverageMapPage() {
         fiberShown={fiberShown}
         fiberCount={visibleFibers.length}
         onToggleFiber={() => setFiberShown((v) => !v)}
+        popsShown={popsShown}
+        popCount={popCount}
+        onTogglePops={() => {
+          setPopsShown((v) => !v)
+          setSelectedPop(null)
+        }}
       />
 
       {panelFiberId && (
@@ -189,13 +214,18 @@ function CoverageMapPage() {
       )}
 
       <SelectedBuildingCard building={selected} onClose={() => setSelected(null)} />
+      <PopCard
+        pop={selectedPop}
+        canEdit={canManagePops(role)}
+        onClose={() => setSelectedPop(null)}
+      />
       <FilterSheet
         open={filtersOpen}
         filters={filters}
         onApply={setFilters}
         onClose={() => setFiltersOpen(false)}
       />
-      {!selected && <Fab href="/buildings/add" label="Add Building" />}
+      {!selected && !selectedPop && <Fab href="/buildings/add" label="Add Building" />}
     </div>
   )
 }

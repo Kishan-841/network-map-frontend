@@ -81,6 +81,7 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
       </div>
 
       <GoogleLocationPicker
+        searchable
         latitude={latitude ?? DEFAULT_CENTER.latitude}
         longitude={longitude ?? DEFAULT_CENTER.longitude}
         onChange={({ latitude, longitude }) =>
