@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
 import { POINT_COLORS } from '@/lib/fiber/constants'
 import { hiddenLayerCount } from '@/lib/map-layers'
-import { IconLayers, IconClose, IconServer } from '@/components/ui/icons'
+import { IconLayers, IconClose, IconTriangle } from '@/components/ui/icons'
 
 /**
  * Map key + declutter control. The Buildings row toggles all pins on/off; the
@@ -119,12 +119,15 @@ export function MapLegend({
             popsShown ? '' : 'opacity-40'
           }`}
         >
-          <span
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] text-white"
-            style={{ backgroundColor: POINT_COLORS.POP }}
-          >
-            <IconServer className="h-2.5 w-2.5" strokeWidth={2.4} />
-          </span>
+          {/* Same shape and colour as the pin on the map. */}
+          <IconTriangle
+            className="h-4 w-4 shrink-0"
+            fill={POINT_COLORS.POP}
+            stroke={POINT_COLORS.POP}
+            strokeWidth={1.5}
+            strokeLinejoin="round"
+            aria-hidden="true"
+          />
           <span className="flex-1 truncate text-sm font-medium">POPs</span>
           <span className="shrink-0 text-xs font-normal tabular-nums text-faint">{popCount}</span>
         </button>
