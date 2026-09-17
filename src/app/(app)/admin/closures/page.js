@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { Button } from '@/components/ui/Button'
 import { DataTable } from '@/components/ui/DataTable'
-import { IconPlus, IconEdit, IconTrash } from '@/components/ui/icons'
+import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useClosures, invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
 import { RATIO_LABELS } from '@/lib/fiber/constants'
@@ -14,8 +13,6 @@ import { useAuthStore } from '@/stores/auth-store'
 import ClosureForm from '@/components/fiber/ClosureForm'
 import ClosurePopup from '@/components/fiber/ClosurePopup'
 import FiberDetailPanel from '@/components/fiber/FiberDetailPanel'
-
-const emptyForm = { latitude: '', longitude: '', kind: '', buildingId: '', notes: '' }
 
 const toForm = (closure) => ({
   latitude: String(closure.latitude),
@@ -66,19 +63,16 @@ export default function AdminClosuresPage() {
   const canManage = canManageFiber(role)
   const { closures, loading } = useClosures()
   const [listError, setListError] = useState(null)
-  // undefined = closed, null = new closure, object = edit that closure.
-  const [editingClosure, setEditingClosure] = useState(undefined)
+  // Closures are only ever created from the fiber editor, as a point on a
+  // line — this page edits and removes them. null = form closed.
+  const [editingClosure, setEditingClosure] = useState(null)
   const [popupClosureId, setPopupClosureId] = useState(null)
   const [panelFiberId, setPanelFiberId] = useState(null)
 
-  const closeForm = () => setEditingClosure(undefined)
+  const closeForm = () => setEditingClosure(null)
 
   async function handleSave(values) {
-    if (editingClosure) {
-      await apiClient.patch(`/closures/${editingClosure.id}`, values)
-    } else {
-      await apiClient.post('/closures', values)
-    }
+    await apiClient.patch(`/closures/${editingClosure.id}`, values)
     invalidateClosures()
     invalidateFibers()
     closeForm()
@@ -153,14 +147,6 @@ export default function AdminClosuresPage() {
         sub="Splice boxes and splitters"
         backHref="/dashboard"
         backLabel="Dashboard"
-        action={
-          canManage && (
-            <Button type="button" onClick={() => setEditingClosure(null)}>
-              <IconPlus className="h-4.5 w-4.5" />
-              New closure
-            </Button>
-          )
-        }
       />
 
       {listError && (
@@ -169,12 +155,12 @@ export default function AdminClosuresPage() {
         </p>
       )}
 
-      {editingClosure !== undefined && (
+      {editingClosure && (
         <div className="mb-4">
           <ClosureForm
-            key={editingClosure?.id ?? 'new'}
-            initial={editingClosure ? toForm(editingClosure) : emptyForm}
-            saveLabel={editingClosure ? 'Save changes' : 'Add closure'}
+            key={editingClosure.id}
+            initial={toForm(editingClosure)}
+            saveLabel="Save changes"
             onCancel={closeForm}
             onSave={handleSave}
           />
@@ -189,7 +175,7 @@ export default function AdminClosuresPage() {
         onRowClick={(row) => setPopupClosureId(row.id)}
         renderCard={renderCard}
         emptyState={
-          <p className="text-sm font-normal text-muted">No closures yet — add the first one.</p>
+          <p className="text-sm font-normal text-muted">No closures yet. Add one by placing it on a fiber line in the fiber editor.</p>
         }
       />
 
