@@ -116,7 +116,7 @@ export default function FiberDetailPanel({ fiberId, onClose, onEdit, onSwap, onC
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [version, setVersion] = useState(0)
-  const canManage = canManageFiber(useAuthStore((s) => s.user?.role)) && !readOnly
+  const canManage = canManageFiber(useAuthStore((s) => s.user)) && !readOnly
 
   useEffect(() => {
     let alive = true

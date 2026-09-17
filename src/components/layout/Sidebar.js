@@ -8,7 +8,7 @@ import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
 import { MANAGE_LINKS } from '@/lib/manage-links'
-import { isAgent, isLead, isSupervisor, ROLE_LABELS } from '@/lib/roles'
+import { isAgent, isLead, isSupervisor, fiberNavFor, ROLE_LABELS } from '@/lib/roles'
 import {
   NodeMark,
   IconDashboard,
@@ -81,6 +81,12 @@ export function Sidebar() {
       : isSupervisor(user?.role)
         ? SUPERVISOR_NAV
         : COVERAGE_NAV
+
+  // Fiber access is granted per user (Users → Assign accesses). Whoever holds
+  // it gets the same two links the admin has, icons and all, in a group of
+  // their own — looked up from MANAGE_LINKS so the two can't drift apart.
+  const fiberHrefs = fiberNavFor(user).map((item) => item.href)
+  const FIBER_ITEMS = MANAGE_LINKS.filter((item) => fiberHrefs.includes(item.href))
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '80px' : '280px')
@@ -181,6 +187,20 @@ export function Sidebar() {
               </p>
             )}
             <div className="flex flex-col gap-1">{MANAGE_LINKS.map((item) => navLink(item))}</div>
+          </>
+        )}
+        {/* Fiber access is per user (Users → Assign accesses): whoever holds
+            it gets the admin's own two links, in the same flat style. */}
+        {FIBER_ITEMS.length > 0 && (
+          <>
+            {collapsed ? (
+              <div className="mx-auto my-3 h-px w-8 bg-neutral-content/15" />
+            ) : (
+              <p className="px-3.5 pb-1 pt-5 text-[11px] font-medium uppercase tracking-wider text-neutral-content/40">
+                Fiber
+              </p>
+            )}
+            <div className="flex flex-col gap-1">{FIBER_ITEMS.map((item) => navLink(item))}</div>
           </>
         )}
       </nav>

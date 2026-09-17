@@ -36,7 +36,7 @@ export default function MapPage() {
 function CoverageMapPage() {
   const router = useRouter()
   const role = useAuthStore((s) => s.user?.role)
-  const readOnlyFiber = !canManageFiber(role)
+  const readOnlyFiber = !canManageFiber(useAuthStore((s) => s.user))
   const [filters, setFilters] = useState({})
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')

@@ -12,6 +12,7 @@ import { invalidateUsers } from '@/hooks/useUsers'
 import { ROLE_LABELS } from '@/lib/roles'
 import { useCities } from '@/hooks/useCities'
 import { BulkAssignZonesModal } from '@/components/admin/BulkAssignZonesModal'
+import { UsersTabs } from '@/components/admin/UsersTabs'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconPlus, IconEdit, IconUpload } from '@/components/ui/icons'
 
@@ -427,6 +428,7 @@ export default function AdminUsersPage() {
           )
         }
       />
+      <UsersTabs />
 
       {(error || listError) && (
         <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">

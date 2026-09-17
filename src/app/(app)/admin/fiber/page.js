@@ -22,8 +22,7 @@ function AdminFiberContent() {
   // The map's fiber panel sends "Edit" here as `?edit=<id>`: the editor is a
   // full-screen tool that only lives on this page.
   const editParamId = useSearchParams().get('edit')
-  const role = useAuthStore((s) => s.user?.role)
-  const canManage = canManageFiber(role)
+  const canManage = canManageFiber(useAuthStore((s) => s.user))
   const { fibers, loading } = useFibers()
   const [panelFiberId, setPanelFiberId] = useState(null)
   // undefined = closed, null = new fiber, object = edit that fiber.
