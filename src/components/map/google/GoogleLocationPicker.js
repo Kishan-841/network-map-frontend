@@ -4,9 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
+import MapSearchButton from '@/components/map/MapSearchButton'
 
-/** Same contract as LeafletLocationPicker — draggable pin on Google Maps JS. */
-export default function GoogleLocationPicker({ latitude, longitude, onChange }) {
+/**
+ * Same contract as LeafletLocationPicker — draggable pin on Google Maps JS.
+ * `searchable` adds a place search (top-left); picking a result moves the pin
+ * there and reports it through `onChange`, exactly as a drag does.
+ */
+export default function GoogleLocationPicker({ latitude, longitude, onChange, searchable = false }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
@@ -66,7 +71,12 @@ export default function GoogleLocationPicker({ latitude, longitude, onChange }) 
 
   useEffect(() => {
     if (ready && markerRef.current) {
-      markerRef.current.setPosition({ lat: latitude, lng: longitude })
+      const position = { lat: latitude, lng: longitude }
+      markerRef.current.setPosition(position)
+      // Follow the pin when it leaves the view (coordinates typed by hand, a
+      // search result) — but not after a drag, which by definition ends in view.
+      const bounds = mapRef.current?.getBounds()
+      if (bounds && !bounds.contains(position)) mapRef.current.panTo(position)
     }
   }, [latitude, longitude, ready])
 
@@ -79,6 +89,21 @@ export default function GoogleLocationPicker({ latitude, longitude, onChange }) 
     <div className="relative h-64 w-full overflow-hidden rounded-xl">
       <div ref={containerRef} className="h-full w-full" />
       <MapLayerControl value={layer} onChange={setLayer} />
+      {searchable && ready && (
+        <MapSearchButton
+          align="left"
+          compact
+          getCenter={() => {
+            const center = mapRef.current?.getCenter()
+            return center ? { latitude: center.lat(), longitude: center.lng() } : {}
+          }}
+          onJump={({ latitude: lat, longitude: lng }) => {
+            mapRef.current?.setCenter({ lat, lng })
+            mapRef.current?.setZoom(18)
+            onChangeRef.current({ latitude: lat, longitude: lng })
+          }}
+        />
+      )}
     </div>
   )
 }

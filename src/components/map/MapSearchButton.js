@@ -9,6 +9,8 @@ import { IconClose, IconSearch } from '@/components/ui/icons'
 const MIN_CHARS = 3
 const DEBOUNCE_MS = 350
 const MAX_RESULTS = 6
+// A small map (the form pickers are 16rem tall) clips a long list — fewer rows.
+const MAX_RESULTS_COMPACT = 4
 
 // Google Places (New) whenever the key is configured — a technician searching
 // an Indian address needs Google's index, whatever NEXT_PUBLIC_MAP_PROVIDER
@@ -19,14 +21,19 @@ const newToken = () =>
   typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
 
 /**
- * Location search, folded away until it is wanted: a round button under the
- * top bar that expands into a full-width field.
+ * Location search, folded away until it is wanted: a round button in a top
+ * corner of the map that expands into a full-width field. Shared by the fiber
+ * editor and the form location pickers.
+ *
+ * `align` picks the corner for the folded button ('right' | 'left') — the
+ * pickers keep their layer switch top-right. `compact` shortens the results
+ * list to fit a small map.
  *
  * One `sessionToken` covers every keystroke of one open-search session plus
  * the final details lookup, which is what keeps Places billing to one session
  * instead of one request per keystroke.
  */
-export default function EditorSearchButton({ getCenter, onJump }) {
+export default function MapSearchButton({ getCenter, onJump, align = 'right', compact = false }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
@@ -71,7 +78,7 @@ export default function EditorSearchButton({ getCenter, onJump }) {
             signal: controller.signal,
           })
           .then((predictions) => {
-            setResults(predictions.slice(0, MAX_RESULTS))
+            setResults(predictions.slice(0, compact ? MAX_RESULTS_COMPACT : MAX_RESULTS))
             setStatus('done')
           })
           .catch((err) => {
@@ -86,7 +93,7 @@ export default function EditorSearchButton({ getCenter, onJump }) {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [query, open, token])
+  }, [query, open, token, compact])
 
   async function pick(prediction) {
     let { latitude, longitude } = prediction
@@ -114,7 +121,9 @@ export default function EditorSearchButton({ getCenter, onJump }) {
           setOpen(true)
         }}
         aria-label="Search for a location"
-        className="absolute right-3 top-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-card text-muted shadow-lift transition-colors hover:text-ink"
+        className={`absolute top-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-card text-muted shadow-lift transition-colors hover:text-ink ${
+          align === 'left' ? 'left-3' : 'right-3'
+        }`}
       >
         <IconSearch className="h-5 w-5" aria-hidden="true" />
       </button>
@@ -124,7 +133,9 @@ export default function EditorSearchButton({ getCenter, onJump }) {
   const tooShort = query.trim().length < MIN_CHARS
 
   return (
-    <div className="absolute inset-x-3 top-3 z-30">
+    // Open, the field spans the map — so it must sit above the layer switch
+    // (z-[500]) that shares the top edge on the form pickers.
+    <div className="absolute inset-x-3 top-3 z-[600]">
       <div className="relative">
         <IconSearch
           className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint"
@@ -152,7 +163,11 @@ export default function EditorSearchButton({ getCenter, onJump }) {
       </div>
 
       {!tooShort && (
-        <div className="mt-1 max-h-72 overflow-y-auto rounded-btn border border-line bg-card shadow-lift">
+        <div
+          className={`mt-1 overflow-y-auto rounded-btn border border-line bg-card shadow-lift ${
+            compact ? 'max-h-44' : 'max-h-72'
+          }`}
+        >
           {status === 'error' && (
             <p className="px-3 py-3 text-sm font-normal text-bad">
               Search is unavailable right now.

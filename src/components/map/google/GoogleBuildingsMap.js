@@ -8,6 +8,7 @@ import { buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/m
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 import { useFiberOverlays } from '@/components/fiber/useFiberOverlays'
+import { usePopMarkers } from '@/components/fiber/usePopMarkers'
 import { coreColor } from '@/lib/fiber/constants'
 
 const polygonCentroid = (points) => ({
@@ -18,6 +19,7 @@ const polygonCentroid = (points) => ({
 // A stable empty array: `useFiberOverlays` rebuilds whenever `fibers` changes
 // identity, so a default of `[]` in the signature would rebuild every render.
 const NO_FIBERS = []
+const NO_POPS = []
 
 const CENTRE_ZOOM = 17 // close enough to see the pole a point sits on
 
@@ -50,10 +52,12 @@ export default function GoogleBuildingsMap({
   buildings,
   zones = [],
   fibers = NO_FIBERS,
+  pops = NO_POPS,
   selectedId,
   onSelect,
   onFiberSelect,
   onClosureSelect,
+  onPopSelect,
   centreRef,
 }) {
   const containerRef = useRef(null)
@@ -250,6 +254,9 @@ export default function GoogleBuildingsMap({
       })
     },
   })
+
+  // POPs: server-icon pins, their own legend layer, independent of Fiber.
+  usePopMarkers({ map, ready, pops, onPopClick: (pop) => onPopSelect?.(pop) })
 
   // Diff markers against the buildings prop — never tear down the world.
   // Selection is handled in its own effect so a tap only re-icons two pins.
