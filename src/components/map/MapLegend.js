@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
+import { POINT_COLORS } from '@/lib/fiber/constants'
 import { IconLayers, IconClose } from '@/components/ui/icons'
 
 /**
@@ -96,7 +97,23 @@ export function MapLegend({
           fiberShown ? '' : 'opacity-40'
         }`}
       >
-        <span className="h-0.5 w-4 shrink-0 rounded-full bg-[#f59e0b]" />
+        {/* The line, then the three typed points it can pass through: POP
+            (square), closure (circle), splitter (diamond). */}
+        <span className="flex shrink-0 items-center gap-1">
+          <span className="h-0.5 w-4 rounded-full bg-[#f59e0b]" />
+          <span
+            className="h-2.5 w-2.5 rounded-[2px]"
+            style={{ backgroundColor: POINT_COLORS.POP }}
+          />
+          <span
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ backgroundColor: POINT_COLORS.CLOSURE }}
+          />
+          <span
+            className="h-2 w-2 rotate-45"
+            style={{ backgroundColor: POINT_COLORS.SPLITTER }}
+          />
+        </span>
         <span className="flex-1 truncate text-sm font-medium">Fiber</span>
         <span className="shrink-0 text-xs font-normal tabular-nums text-faint">
           {fiberShown ? fiberCount : ''}

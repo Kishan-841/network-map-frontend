@@ -19,10 +19,12 @@ import {
   IconBuildings,
   IconUpload,
   IconDownload,
+  IconFilters,
 } from '@/components/ui/icons'
 import { exportBuildings } from '@/lib/export-buildings'
 import { BulkLiveBar } from '@/components/buildings/BulkLiveBar'
 import { ImportBuildingsModal } from '@/components/buildings/ImportBuildingsModal'
+import BuildingFilterSheet from '@/components/buildings/BuildingFilterSheet'
 import { useZones, invalidateZones } from '@/hooks/useZones'
 import { invalidateOperators } from '@/hooks/useOperators'
 import {
@@ -227,6 +229,9 @@ function BuildingsList() {
   // the filter, so this works past the page (and past the 500-row list cap).
   const [selectAllMatching, setSelectAllMatching] = useState(false)
   const [toast, setToast] = useState(null)
+  // Below `lg` the filter strip lives in a bottom sheet instead of a
+  // sideways-scrolling row — see BuildingFilterSheet.
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Server-side search: debounce keystrokes, reset to page 1 on a new query.
   useEffect(() => {
@@ -303,6 +308,135 @@ function BuildingsList() {
     router.replace(qs ? `/buildings?${qs}` : '/buildings')
   }
   const visibleOperators = cityId ? operators.filter((o) => o.city?.id === cityId) : operators
+  // Clearing resets every filter to its default — same setters the controls
+  // themselves call, just with every value emptied at once.
+  const clearFilters = () => {
+    if (isLead(role)) applyAcquisitionFilters('', '')
+    else applyFilters('', '', '', '')
+  }
+  // Mirrors how the map page counts its active filters: every defined,
+  // non-empty value except the free-text search.
+  const activeFilterCount = Object.entries(activeFilter).filter(
+    ([key, value]) => key !== 'search' && value,
+  ).length
+
+  // The select/date controls themselves, defined exactly once. `variant`
+  // only changes each control's id (so the inline copy and the sheet copy
+  // never collide) — the markup, options and change handlers are shared, so
+  // the inline row and the bottom sheet can never drift apart.
+  const buildFilterControls = (variant) => {
+    const idSuffix = variant === 'sheet' ? '-sheet' : ''
+    return [
+      isLead(role) && {
+        key: 'agent',
+        label: 'Agent',
+        className: 'w-40 shrink-0 sm:w-52 lg:ml-auto',
+        control: (
+          <Select
+            id={`buildings-agent${idSuffix}`}
+            value={agentFilter}
+            onChange={(e) => applyAcquisitionFilters(e.target.value, cityId)}
+          >
+            <option value="">All agents</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </Select>
+        ),
+      },
+      isLead(role) && {
+        key: 'acqCity',
+        label: 'City',
+        className: 'w-36 shrink-0 sm:w-44',
+        control: (
+          <Select
+            id={`buildings-acq-city${idSuffix}`}
+            value={cityId}
+            onChange={(e) => applyAcquisitionFilters(agentFilter, e.target.value)}
+          >
+            <option value="">All cities</option>
+            {cities.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        ),
+      },
+      !acquisition &&
+        canFilterOperator &&
+        cities.length > 0 && {
+          key: 'city',
+          label: 'City',
+          className: 'w-36 shrink-0 sm:w-44 lg:ml-auto',
+          control: (
+            <Select id={`buildings-city${idSuffix}`} value={cityId} onChange={(e) => setCity(e.target.value)}>
+              <option value="">All cities</option>
+              {cities.map((city) => (
+                <option key={city.id} value={city.id}>
+                  {city.name}
+                </option>
+              ))}
+            </Select>
+          ),
+        },
+      !acquisition &&
+        canFilterOperator &&
+        operators.length > 0 && {
+          key: 'operator',
+          label: 'Operator',
+          className: `w-44 shrink-0 sm:w-56 ${cities.length > 0 ? '' : 'lg:ml-auto'}`,
+          control: (
+            <Select
+              id={`buildings-operator${idSuffix}`}
+              value={operatorId}
+              onChange={(e) => setOperator(e.target.value)}
+            >
+              <option value="">All operators</option>
+              {visibleOperators.map((operator) => (
+                <option key={operator.id} value={operator.id}>
+                  {operator.name}
+                </option>
+              ))}
+            </Select>
+          ),
+        },
+      !acquisition &&
+        zones.length > 0 && {
+          key: 'zone',
+          label: 'Zone',
+          className: 'w-40 shrink-0 sm:w-48',
+          control: (
+            <Select id={`buildings-zone${idSuffix}`} value={zoneId} onChange={(e) => setZone(e.target.value)}>
+              <option value="">All zones</option>
+              {visibleZones.map((zone) => (
+                <option key={zone.id} value={zone.id}>
+                  {zone.name}
+                </option>
+              ))}
+            </Select>
+          ),
+        },
+      !acquisition && {
+        key: 'tier',
+        label: 'Tier',
+        className: 'w-36 shrink-0 sm:w-44',
+        control: (
+          <Select id={`buildings-tier${idSuffix}`} value={tier} onChange={(e) => setTier(e.target.value)}>
+            <option value="">All tiers</option>
+            {Object.entries(TIER_LABEL).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+            <option value="UNRATED">No home pass</option>
+          </Select>
+        ),
+      },
+    ].filter(Boolean)
+  }
 
   // Names the user recognises, so a bulk confirmation says what it will touch
   // rather than making them trust an opaque count.
@@ -410,9 +544,11 @@ function BuildingsList() {
         }
       />
 
-      {/* Sticky search + operator filter */}
+      {/* Sticky search + filters — below `lg` the filters collapse into a
+          single button that opens BuildingFilterSheet, so the row never has
+          to scroll sideways to reach the far ones. */}
       <div className="sticky top-0 z-30 -mx-4 mb-5 flex items-center gap-3 bg-paper/80 px-4 py-2 backdrop-blur-md lg:static lg:mx-0 lg:mb-5 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-        <div className="relative flex-1 lg:max-w-md">
+        <div className="relative min-w-0 flex-1 lg:max-w-md">
           <IconSearch className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-faint" />
           <input
             value={search}
@@ -421,94 +557,43 @@ function BuildingsList() {
             className="h-12 w-full rounded-full border border-line bg-card pl-11 pr-4 text-[15px] shadow-soft outline-none transition-shadow duration-200 placeholder:text-faint focus:border-fiber focus:ring-2 focus:ring-fiber/15"
           />
         </div>
-        {isLead(role) && (
-          <>
-            <div className="w-40 shrink-0 sm:w-52 lg:ml-auto">
-              <Select
-                id="buildings-agent"
-                value={agentFilter}
-                onChange={(e) => applyAcquisitionFilters(e.target.value, cityId)}
-              >
-                <option value="">All agents</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="w-36 shrink-0 sm:w-44">
-              <Select
-                id="buildings-acq-city"
-                value={cityId}
-                onChange={(e) => applyAcquisitionFilters(agentFilter, e.target.value)}
-              >
-                <option value="">All cities</option>
-                {cities.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </>
-        )}
-        {!acquisition && canFilterOperator && cities.length > 0 && (
-          <div className="w-36 shrink-0 sm:w-44 lg:ml-auto">
-            <Select id="buildings-city" value={cityId} onChange={(e) => setCity(e.target.value)}>
-              <option value="">All cities</option>
-              {cities.map((city) => (
-                <option key={city.id} value={city.id}>
-                  {city.name}
-                </option>
-              ))}
-            </Select>
+
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(true)}
+          className="relative shrink-0 min-h-12 rounded-xl border border-line bg-card px-4 font-medium shadow-md lg:hidden"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <IconFilters className="h-4.5 w-4.5" />
+            Filters
+          </span>
+          {activeFilterCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-fiber text-xs font-bold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+
+        {buildFilterControls('inline').map(({ key, className, control }) => (
+          <div key={key} className={`hidden lg:block ${className}`}>
+            {control}
           </div>
-        )}
-        {!acquisition && canFilterOperator && operators.length > 0 && (
-          <div className={`w-44 shrink-0 sm:w-56 ${cities.length > 0 ? '' : 'lg:ml-auto'}`}>
-            <Select
-              id="buildings-operator"
-              value={operatorId}
-              onChange={(e) => setOperator(e.target.value)}
-            >
-              <option value="">All operators</option>
-              {visibleOperators.map((operator) => (
-                <option key={operator.id} value={operator.id}>
-                  {operator.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        )}
-        {!acquisition && zones.length > 0 && (
-          <div className="w-40 shrink-0 sm:w-48">
-            <Select id="buildings-zone" value={zoneId} onChange={(e) => setZone(e.target.value)}>
-              <option value="">All zones</option>
-              {visibleZones.map((zone) => (
-                <option key={zone.id} value={zone.id}>
-                  {zone.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        )}
-        {!acquisition && (
-          // Arriving from the dashboard sets this — it has to be visible and
-          // clearable, or the list looks short for no stated reason.
-          <div className="w-36 shrink-0 sm:w-44">
-            <Select id="buildings-tier" value={tier} onChange={(e) => setTier(e.target.value)}>
-              <option value="">All tiers</option>
-              {Object.entries(TIER_LABEL).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-              <option value="UNRATED">No home pass</option>
-            </Select>
-          </div>
-        )}
+        ))}
       </div>
+
+      <BuildingFilterSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onClear={clearFilters}
+        activeCount={activeFilterCount}
+      >
+        {buildFilterControls('sheet').map(({ key, label, control }) => (
+          <div key={key}>
+            <label className="mb-1.5 block text-sm font-medium text-muted">{label}</label>
+            {control}
+          </div>
+        ))}
+      </BuildingFilterSheet>
 
       {toast && (
         <div className="mb-3 flex items-center justify-between gap-3 rounded-btn bg-ok-tint px-4 py-3 text-sm font-medium text-ok">

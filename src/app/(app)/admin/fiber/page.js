@@ -1,226 +1,140 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { useSearchParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
-import { Modal } from '@/components/ui/Modal'
-import { IconEdit, IconTrash, IconPlus, IconEye } from '@/components/ui/icons'
-import { fiberTypeColor } from '@/lib/constants'
+import { IconPlus } from '@/components/ui/icons'
+import { useFibers, invalidateFibers } from '@/hooks/useFibers'
+import { canManageFiber } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+import FiberTable from '@/components/fiber/FiberTable'
+import FiberDetailPanel from '@/components/fiber/FiberDetailPanel'
 
 // Client-only: Google Maps JS touches window.
-const GoogleFiberEditor = dynamic(() => import('@/components/map/google/GoogleFiberEditor'), {
+const FiberEditor = dynamic(() => import('@/components/fiber/editor/FiberEditor'), {
   ssr: false,
 })
 
-export default function AdminFiberPage() {
-  const [routes, setRoutes] = useState(null)
+function AdminFiberContent() {
+  // The map's fiber panel sends "Edit" here as `?edit=<id>`: the editor is a
+  // full-screen tool that only lives on this page.
+  const editParamId = useSearchParams().get('edit')
+  const role = useAuthStore((s) => s.user?.role)
+  const canManage = canManageFiber(role)
+  const { fibers, loading } = useFibers()
+  const [panelFiberId, setPanelFiberId] = useState(null)
+  // undefined = closed, null = new fiber, object = edit that fiber.
+  const [editorFiber, setEditorFiber] = useState(undefined)
   const [listError, setListError] = useState(null)
-  // undefined = closed, null = new route, object = edit that route.
-  const [editorRoute, setEditorRoute] = useState(undefined)
-  const [viewRoute, setViewRoute] = useState(null)
 
-  const fetchRoutes = useCallback(
-    () =>
-      apiClient
-        .get('/fiber-routes')
-        .then((res) => setRoutes(res.data.data))
-        // Empty list (not a permanent "Loading…") when the fetch fails.
-        .catch(() => setRoutes([])),
-    [],
-  )
+  // Derived, never stored: the editor opens for `?edit=` as soon as the fibers
+  // list contains that id. Closing records WHICH id was dismissed — dropping
+  // the param is what really closes it, and this covers the render in between
+  // without ever pinning a different `?edit=` shut.
+  const [dismissedEditId, setDismissedEditId] = useState(null)
+  const editParamFiber =
+    editParamId && editParamId !== dismissedEditId && canManage
+      ? fibers.find((f) => f.id === editParamId)
+      : undefined
+  const editorOpen = editorFiber !== undefined || Boolean(editParamFiber)
+  const editorInitialFiber = editorFiber !== undefined ? (editorFiber ?? undefined) : editParamFiber
 
-  useEffect(() => {
-    fetchRoutes()
-  }, [fetchRoutes])
-
-  async function handleDelete(route) {
-    if (!window.confirm(`Delete fiber route "${route.name}"?`)) return
-    setListError(null)
-    try {
-      await apiClient.delete(`/fiber-routes/${route.id}`)
-      fetchRoutes()
-    } catch (err) {
-      setListError(getApiErrorMessage(err))
+  // The editor now closes itself (Done) after it has saved everything it
+  // wanted to save — refresh the table on the way out.
+  const closeEditor = () => {
+    setEditorFiber(undefined)
+    invalidateFibers()
+    if (editParamId) {
+      setDismissedEditId(editParamId)
+      // Tidy `?edit=` out of the address bar. The native History API (which
+      // Next syncs with useSearchParams) rather than router.replace: this is a
+      // UI-only param, and a router navigation re-runs the route for nothing.
+      window.history.replaceState(null, '', '/admin/fiber')
     }
   }
 
-  const segmentCount = (route) => route.segments?.length ?? 0
-  const pointCount = (route) =>
-    (route.segments ?? []).reduce((sum, segment) => sum + (segment.points?.length ?? 0), 0)
-  const typeList = (route) => [...new Set((route.segments ?? []).map((s) => s.fiberType))]
+  async function handleDelete(fiber) {
+    if (!window.confirm(`Delete fiber "${fiber.name}"?`)) return
+    setListError(null)
+    try {
+      await apiClient.delete(`/fibers/${fiber.id}`)
+      invalidateFibers()
+    } catch (err) {
+      setListError(getApiErrorMessage(err, 'Could not delete this fiber'))
+    }
+  }
 
   return (
-    <main className="mx-auto max-w-2xl">
+    <main className="mx-auto max-w-5xl">
       <PageHeader
         eyebrow="Administration"
-        title="Fiber routes"
-        sub="Draw the physical fiber network on the map — trunks and branches"
+        title="Fibers"
+        sub="Cables on the map"
         backHref="/dashboard"
         backLabel="Dashboard"
+        action={
+          canManage && (
+            <Button type="button" onClick={() => setEditorFiber(null)}>
+              <IconPlus className="h-4.5 w-4.5" />
+              Draw new fiber
+            </Button>
+          )
+        }
       />
 
-      <Button onClick={() => setEditorRoute(null)}>
-        <IconPlus className="h-4.5 w-4.5" />
-        Draw new route
-      </Button>
-
       {listError && (
-        <p className="mt-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
+        <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
           {listError}
         </p>
       )}
 
-      <div className="mt-5 flex flex-col gap-3">
-        {routes === null && <p className="text-sm font-normal text-muted">Loading…</p>}
-        {routes?.length === 0 && (
-          <p className="text-sm font-normal text-muted">
-            No fiber routes yet — draw the first one.
-          </p>
-        )}
-        {routes?.map((route) => (
-          <div
-            key={route.id}
-            className="flex items-center justify-between gap-3 rounded-card bg-card p-4 shadow-soft"
-          >
-            <span className="flex shrink-0 -space-x-1.5">
-              {typeList(route)
-                .slice(0, 4)
-                .map((type) => (
-                  <span
-                    key={type}
-                    title={type}
-                    className="h-4 w-4 rounded-full border-2 border-white shadow"
-                    style={{ backgroundColor: fiberTypeColor(type) }}
-                  />
-                ))}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-bold">{route.name}</p>
-              <p className="text-sm font-normal text-muted">
-                {segmentCount(route)} line{segmentCount(route) === 1 ? '' : 's'} ·{' '}
-                {pointCount(route)} points · {typeList(route).join(' + ')}
-                {route.placement && ` · ${route.placement}`}
-                {route.fiberId && ` · ${route.fiberId}`}
-                {route.operator?.name && ` · ${route.operator.name}`}
-              </p>
-            </div>
-            <button
-              aria-label="View"
-              onClick={() => setViewRoute(route)}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-paper hover:text-ink"
-            >
-              <IconEye className="h-4.5 w-4.5" strokeWidth={1.8} />
-            </button>
-            <button
-              aria-label="Edit"
-              onClick={() => setEditorRoute(route)}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-paper hover:text-ink"
-            >
-              <IconEdit className="h-4.5 w-4.5" strokeWidth={1.8} />
-            </button>
-            <button
-              aria-label="Delete"
-              onClick={() => handleDelete(route)}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-bad-tint hover:text-bad"
-            >
-              <IconTrash className="h-4.5 w-4.5" strokeWidth={1.8} />
-            </button>
-          </div>
-        ))}
-      </div>
+      <FiberTable
+        fibers={fibers}
+        loading={loading}
+        canManage={canManage}
+        onRowClick={(row) => setPanelFiberId(row.id)}
+        onEdit={setEditorFiber}
+        onDelete={handleDelete}
+        emptyState={
+          <p className="text-sm font-normal text-muted">No fibers yet — draw the first one.</p>
+        }
+      />
 
-      {/* Route details: everything captured at save time, photos included. */}
-      <Modal
-        open={Boolean(viewRoute)}
-        onClose={() => setViewRoute(null)}
-        title={viewRoute?.name ?? ''}
-      >
-        {viewRoute && (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
-              {typeList(viewRoute).map((type) => (
-                <span
-                  key={type}
-                  className="flex items-center gap-1.5 rounded-full bg-paper px-2.5 py-1 text-muted"
-                >
-                  <span
-                    className="h-2.5 w-2.5 rounded-full border border-white shadow"
-                    style={{ backgroundColor: fiberTypeColor(type) }}
-                  />
-                  {type}
-                </span>
-              ))}
-              {viewRoute.placement && (
-                <span className="rounded-full bg-paper px-2.5 py-1 text-muted">
-                  {viewRoute.placement}
-                </span>
-              )}
-              {viewRoute.operator?.name && (
-                <span className="rounded-full bg-fiber-tint px-2.5 py-1 text-fiber">
-                  {viewRoute.operator.name}
-                </span>
-              )}
-            </div>
-
-            <div className="rounded-card bg-paper px-4 py-1">
-              {[
-                ['Fiber ID', viewRoute.fiberId || '—'],
-                ['Placement', viewRoute.placement || '—'],
-                [
-                  'Lines',
-                  `${segmentCount(viewRoute)} line${segmentCount(viewRoute) === 1 ? '' : 's'} · ${pointCount(viewRoute)} points`,
-                ],
-                ['Remark', viewRoute.remark || '—'],
-              ].map(([label, value], i) => (
-                <div
-                  key={label}
-                  className={`flex items-baseline justify-between gap-4 py-2.5 ${
-                    i > 0 ? 'border-t border-line/60' : ''
-                  }`}
-                >
-                  <span className="shrink-0 text-sm font-normal text-muted">{label}</span>
-                  <span className="text-right text-sm font-medium">{value}</span>
-                </div>
-              ))}
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">
-                Photos {viewRoute.images?.length ? `(${viewRoute.images.length})` : ''}
-              </p>
-              {viewRoute.images?.length ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {viewRoute.images.map((url) => (
-                    <a key={url} href={url} target="_blank" rel="noreferrer" title="Open full size">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url}
-                        alt="Fiber route"
-                        className="aspect-square w-full rounded-btn border border-line object-cover transition-transform hover:scale-[1.03]"
-                      />
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm font-normal text-muted">No photos uploaded.</p>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {editorRoute !== undefined && (
-        <GoogleFiberEditor
-          initialRoute={editorRoute ?? undefined}
-          onClose={() => setEditorRoute(undefined)}
-          onSaved={() => {
-            setEditorRoute(undefined)
-            fetchRoutes()
+      {panelFiberId && (
+        <FiberDetailPanel
+          key={panelFiberId}
+          fiberId={panelFiberId}
+          onClose={() => setPanelFiberId(null)}
+          onEdit={(f) => {
+            setPanelFiberId(null)
+            setEditorFiber(f)
           }}
+          onSwap={setPanelFiberId}
+          onCentre={() => {}}
+        />
+      )}
+
+      {editorOpen && (
+        <FiberEditor
+          initialFiber={editorInitialFiber}
+          onClose={closeEditor}
+          // A save keeps the editor open (it moves on to closures) — the list
+          // behind it just needs to know the row changed.
+          onSaved={() => invalidateFibers()}
         />
       )}
     </main>
+  )
+}
+
+// useSearchParams must sit inside a Suspense boundary in the App Router.
+export default function AdminFiberPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminFiberContent />
+    </Suspense>
   )
 }

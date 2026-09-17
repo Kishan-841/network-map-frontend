@@ -107,7 +107,6 @@ export function AcquisitionMap() {
       <BuildingsMap
         buildings={buildings}
         zones={[]}
-        fiberRoutes={[]}
         selectedId={selected?.id}
         onSelect={setSelected}
       />

@@ -35,7 +35,19 @@ export const buildingColor = (building) => (building?.isLive ? LIVE_COLOR : NOT_
 
 // System log filter options — must match backend module/action names
 // (see backend src/modules/system-logs + route annotations).
-export const SYSTEM_LOG_MODULES = ['Auth', 'User', 'Zone', 'Building', 'BuildingType', 'Upload']
+export const SYSTEM_LOG_MODULES = [
+  'Auth',
+  'User',
+  'Zone',
+  'Building',
+  'BuildingType',
+  'Upload',
+  'FiberRoute',
+  'Fiber',
+  'Closure',
+  'Splitter',
+  'Pop',
+]
 export const SYSTEM_LOG_ACTIONS = [
   'Login',
   'FailedLogin',
@@ -49,4 +61,11 @@ export const SYSTEM_LOG_ACTIONS = [
   'PhotoAdd',
   'PhotoDelete',
   'FileUpload',
+  'Cut',
+  'Restore',
+  'SegmentUpdate',
+  'SplitterAdd',
+  'OltCreate',
+  'OltUpdate',
+  'OltDelete',
 ]
