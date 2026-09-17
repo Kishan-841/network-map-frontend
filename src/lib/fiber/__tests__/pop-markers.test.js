@@ -44,4 +44,12 @@ describe('popIconUrl', () => {
     expect(url.startsWith('data:image/svg+xml;charset=UTF-8,')).toBe(true)
     expect(decodeURIComponent(url)).toContain('#7c3aed')
   })
+
+  it('draws a triangle, not the old server glyph', () => {
+    const svg = decodeURIComponent(popIconUrl())
+    const points = svg.match(/<polygon[^>]*points="([^"]+)"/)
+    expect(points, 'a <polygon> in the icon').not.toBeNull()
+    expect(points[1].trim().split(/\s+/)).toHaveLength(3)
+    expect(svg).not.toContain('<rect')
+  })
 })
