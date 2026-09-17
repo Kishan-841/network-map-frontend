@@ -17,7 +17,7 @@ const FIBER_TYPE_LABELS = { MAIN: 'Main', SUB: 'Sub' }
 
 /**
  * What a node says. A splitter carries everything that distinguishes it —
- * `S1 · 1:4 · Main · WAN`; a closure adds its splitter's ratio or its own kind.
+ * `S1 · 1:4 · Main · S2`; a closure adds its splitter's ratio or its own kind.
  */
 export function nodeLabel(point) {
   if (point.type === 'SPLITTER') {

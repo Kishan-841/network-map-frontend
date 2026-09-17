@@ -196,7 +196,7 @@ describe('payload <-> API point conversion', () => {
         splitter: '1:4',
         splitterId: 's1',
         splitterRatio: 'R1_4',
-        splitterLocation: 'LAN',
+        splitterLocation: 'S2',
         splitterFiberType: 'SUB',
       },
       { type: 'BUILDING', latitude: 3, longitude: 4, buildingId: 'b1', label: 'Bldg A' },
@@ -223,7 +223,7 @@ describe('payload <-> API point conversion', () => {
         splitter: '1:8',
         splitterId: 's9',
         splitterRatio: 'R1_8',
-        splitterLocation: 'WAN',
+        splitterLocation: 'S1',
         splitterFiberType: 'MAIN',
       },
     ])
@@ -233,7 +233,7 @@ describe('payload <-> API point conversion', () => {
       splitter: '1:8',
       splitterId: 's9',
       splitterRatio: 'R1_8',
-      splitterLocation: 'WAN',
+      splitterLocation: 'S1',
       splitterFiberType: 'MAIN',
     })
   })
@@ -249,7 +249,7 @@ describe('payload <-> API point conversion', () => {
         label: 'S3',
         splitter: '1:6',
         splitterRatio: 'R1_6',
-        splitterLocation: 'LAN',
+        splitterLocation: 'S2',
         splitterFiberType: 'SUB',
       },
       { type: 'BUILDING', latitude: 3, longitude: 4, buildingId: 'b1', label: 'Bldg A' },
@@ -262,7 +262,7 @@ describe('payload <-> API point conversion', () => {
         code: 'S3',
         splitter: '1:6',
         splitterRatio: 'R1_6',
-        splitterLocation: 'LAN',
+        splitterLocation: 'S2',
         splitterFiberType: 'SUB',
       },
     })
@@ -281,11 +281,11 @@ describe('payload <-> API point conversion', () => {
       type: 'SPLITTER',
       latitude: 1,
       longitude: 2,
-      ref: { newSplitter: { ratio: 'R1_6', fiberType: 'SUB', location: 'LAN' } },
+      ref: { newSplitter: { ratio: 'R1_6', fiberType: 'SUB', location: 'S2' } },
     }
     expect(isPinned(point)).toBe(false)
     const [payload] = toPayloadPoints([point])
-    expect(payload).toMatchObject({ type: 'SPLITTER', newSplitter: { ratio: 'R1_6', fiberType: 'SUB', location: 'LAN' } })
+    expect(payload).toMatchObject({ type: 'SPLITTER', newSplitter: { ratio: 'R1_6', fiberType: 'SUB', location: 'S2' } })
     expect(payload.splitterId).toBeUndefined()
   })
 

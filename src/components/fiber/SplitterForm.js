@@ -7,7 +7,7 @@ import { Select } from '@/components/ui/Input'
 import { RATIO_LABELS } from '@/lib/fiber/constants'
 
 const RATIOS = Object.keys(RATIO_LABELS)
-const LOCATIONS = ['WAN', 'LAN']
+const LOCATIONS = ['S1', 'S2', 'S3']
 const FIBER_TYPES = ['MAIN', 'SUB']
 const FIBER_TYPE_LABEL = { MAIN: 'Main', SUB: 'Sub' }
 
@@ -40,7 +40,7 @@ function PillGroup({ options, value, onChange, label: labelFor }) {
 export default function SplitterForm({ closureId, endingFibers, onSaved, onCancel }) {
   const [ratio, setRatio] = useState('R1_2')
   const [fiberType, setFiberType] = useState('MAIN')
-  const [location, setLocation] = useState('WAN')
+  const [location, setLocation] = useState('S1')
   const [inputFiberId, setInputFiberId] = useState(() =>
     endingFibers.length === 1 ? endingFibers[0].id : '',
   )
@@ -81,10 +81,18 @@ export default function SplitterForm({ closureId, endingFibers, onSaved, onCance
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-ink">Location</span>
-        <PillGroup options={LOCATIONS} value={location} onChange={setLocation} />
-      </div>
+      <Select
+        id="splitter"
+        label="Splitter type"
+        value={location}
+        onChange={(e) => setLocation(e.target.value)}
+      >
+        {LOCATIONS.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </Select>
 
       <Select
         id="splitter-input-fiber"

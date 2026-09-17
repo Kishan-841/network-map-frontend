@@ -4,11 +4,10 @@ import { useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { uploadFile } from '@/lib/upload'
 import { Button } from '@/components/ui/Button'
-import { Input, Select, Textarea } from '@/components/ui/Input'
+import { Input, Textarea } from '@/components/ui/Input'
 import { useFibers, invalidateFibers } from '@/hooks/useFibers'
 import { invalidatePops } from '@/hooks/usePops'
 import { invalidateClosures } from '@/hooks/useClosures'
-import { useOperators } from '@/hooks/useOperators'
 import { toPayloadPoints } from '@/lib/fiber/draft'
 import { coreColor } from '@/lib/fiber/constants'
 import BottomSheet, { SHEET_DIALOG } from './BottomSheet'
@@ -20,20 +19,18 @@ const PLACEMENT_CHOICES = [
 ]
 
 /**
- * The short "Save fiber" form: route name, fiber ID, IN/OUT, operator, remark
- * and photos — everything a surveyor knows at the moment the line is drawn.
+ * The short "Save fiber" form: route name, fiber ID, IN/OUT, remark and
+ * photos — everything a surveyor knows at the moment the line is drawn.
  * Creating sends the drawn points with it; editing only touches the details
  * (the editor's own "Save changes" owns the point list). OLT / PON port /
  * status / cable type stay in the database and out of this dialog.
  */
 export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved, onBack }) {
   const { fibers } = useFibers()
-  const { operators } = useOperators()
 
   const [name, setName] = useState(() => fiber?.name ?? '')
   const [cableTag, setCableTag] = useState(() => fiber?.cableTag ?? '')
   const [placement, setPlacement] = useState(() => fiber?.placement ?? null)
-  const [operatorId, setOperatorId] = useState(() => fiber?.operatorId ?? '')
   const [notes, setNotes] = useState(() => fiber?.notes ?? '')
   const [images, setImages] = useState(() => fiber?.images ?? [])
   const [uploading, setUploading] = useState(false)
@@ -67,7 +64,6 @@ export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved
       const payload = {
         coreCount,
         cableTag: cableTag.trim() || null,
-        operatorId: operatorId || null,
         notes: notes.trim() || null,
         images,
         placement,
@@ -133,20 +129,6 @@ export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved
           ))}
         </div>
       </div>
-
-      <Select
-        id="fiber-operator"
-        label="Operator"
-        value={operatorId}
-        onChange={(e) => setOperatorId(e.target.value)}
-      >
-        <option value="">No operator</option>
-        {operators.map((operator) => (
-          <option key={operator.id} value={operator.id}>
-            {operator.name}
-          </option>
-        ))}
-      </Select>
 
       <Textarea
         id="fiber-notes"
