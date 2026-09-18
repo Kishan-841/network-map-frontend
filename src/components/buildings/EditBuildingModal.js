@@ -47,8 +47,14 @@ const strOrNull = (value) => {
 }
 const dateInput = (value) => (value ? String(value).slice(0, 10) : '')
 
-/** Admin/Manager edit for everything except location. One save, one audit entry. */
-export function EditBuildingModal({ building, onClose, onSaved }) {
+/**
+ * Edit for everything except location. One save, one audit entry.
+ *
+ * `restricted` is the granted surveyor's version: the building's own details,
+ * without the permission record or the live flag. Hiding them is a courtesy —
+ * the API refuses those fields from a surveyor whatever the form sends.
+ */
+export function EditBuildingModal({ building, onClose, onSaved, restricted = false }) {
   const { zones, loading: zonesLoading } = useZones()
   const { types: buildingTypes } = useBuildingTypes()
   const [busy, setBusy] = useState(false)
@@ -83,7 +89,7 @@ export function EditBuildingModal({ building, onClose, onSaved }) {
         buildingName: form.buildingName.trim(),
         formattedAddress: form.formattedAddress.trim(),
         zoneId: form.zoneId,
-        isLive: form.isLive,
+        ...(restricted ? {} : { isLive: form.isLive }),
         details: {
           wings: numOrNull(form.wings),
           floors: numOrNull(form.floors),
@@ -91,14 +97,18 @@ export function EditBuildingModal({ building, onClose, onSaved }) {
           buildingType: strOrNull(form.buildingType),
           remarks: strOrNull(form.remarks),
         },
-        permission: {
-          amountPaid: numOrNull(form.amountPaid),
-          permissionStatus: strOrNull(form.permissionStatus),
-          permissionDate: strOrNull(form.permissionDate),
-          renewalDate: strOrNull(form.renewalDate),
-          ownerName: strOrNull(form.ownerName),
-          ownerMobile: strOrNull(form.ownerMobile),
-        },
+        ...(restricted
+          ? {}
+          : {
+              permission: {
+                amountPaid: numOrNull(form.amountPaid),
+                permissionStatus: strOrNull(form.permissionStatus),
+                permissionDate: strOrNull(form.permissionDate),
+                renewalDate: strOrNull(form.renewalDate),
+                ownerName: strOrNull(form.ownerName),
+                ownerMobile: strOrNull(form.ownerMobile),
+              },
+            }),
       })
       // Name, zone and live flag all show on the map marker.
       invalidateBuildingMarkers()
@@ -130,11 +140,13 @@ export function EditBuildingModal({ building, onClose, onSaved }) {
           disabled={zonesLoading}
           onChange={(zoneId) => setForm((prev) => ({ ...prev, zoneId }))}
         />
-        <YesNo
-          label="Building RFS"
-          value={form.isLive}
-          onChange={(isLive) => setForm((prev) => ({ ...prev, isLive }))}
-        />
+        {!restricted && (
+          <YesNo
+            label="Building RFS"
+            value={form.isLive}
+            onChange={(isLive) => setForm((prev) => ({ ...prev, isLive }))}
+          />
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <Input id="eb-wings" label="Wings" type="number" value={form.wings} onChange={set('wings')} />
@@ -153,18 +165,22 @@ export function EditBuildingModal({ building, onClose, onSaved }) {
         </div>
         <Textarea id="eb-remarks" label="Remarks" rows={2} value={form.remarks} onChange={set('remarks')} />
 
-        <div className="grid grid-cols-2 gap-3">
-          <Input id="eb-amount" label="Permission amount" type="number" value={form.amountPaid} onChange={set('amountPaid')} />
-          <Input id="eb-status" label="Permission status" value={form.permissionStatus} onChange={set('permissionStatus')} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Input id="eb-pdate" label="Permission date" type="date" value={form.permissionDate} onChange={set('permissionDate')} />
-          <Input id="eb-rdate" label="Renewal date" type="date" value={form.renewalDate} onChange={set('renewalDate')} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Input id="eb-owner" label="Owner name" value={form.ownerName} onChange={set('ownerName')} />
-          <Input id="eb-mobile" label="Owner mobile" value={form.ownerMobile} onChange={set('ownerMobile')} />
-        </div>
+        {!restricted && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Input id="eb-amount" label="Permission amount" type="number" value={form.amountPaid} onChange={set('amountPaid')} />
+              <Input id="eb-status" label="Permission status" value={form.permissionStatus} onChange={set('permissionStatus')} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input id="eb-pdate" label="Permission date" type="date" value={form.permissionDate} onChange={set('permissionDate')} />
+              <Input id="eb-rdate" label="Renewal date" type="date" value={form.renewalDate} onChange={set('renewalDate')} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input id="eb-owner" label="Owner name" value={form.ownerName} onChange={set('ownerName')} />
+              <Input id="eb-mobile" label="Owner mobile" value={form.ownerMobile} onChange={set('ownerMobile')} />
+            </div>
+          </>
+        )}
 
         {error && (
           <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>

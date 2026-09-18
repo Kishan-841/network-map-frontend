@@ -27,6 +27,22 @@ export const isSupervisor = (role) => role === 'SUPERVISOR'
 export const canManageBuildings = (role) => ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)
 
 /**
+ * May edit THIS building. The roles above may edit any of them; a SURVEYOR
+ * needs the per-user grant an ADMIN ticks on Users → Assign accesses, and then
+ * only for what they logged themselves. Takes the whole user and the building,
+ * because ownership is half the answer. Mirrors `mayEditBuildings` in the
+ * API's middleware/auth.js, which also re-checks the creator server-side.
+ */
+export const BUILDING_EDIT_ROLES = ['SURVEYOR']
+export const canEditBuilding = (user, building) =>
+  canManageBuildings(user?.role) ||
+  (user?.canEditBuildings === true &&
+    BUILDING_EDIT_ROLES.includes(user?.role) &&
+    Boolean(building?.createdById) &&
+    building.createdById === user?.id)
+
+
+/**
  * May build and edit the fiber network — draw routes, add closures and
  * splitters, mark a fiber cut or restored. A per-user grant, not a role
  * privilege: an ADMIN ticks the user on Users → Assign accesses. Takes the
@@ -37,6 +53,12 @@ export const FIBER_ACCESS_ROLES = ['MANAGER', 'SURVEYOR', 'SUPERVISOR']
 export const canManageFiber = (user) =>
   user?.role === 'ADMIN' ||
   (user?.canManageFiber === true && FIBER_ACCESS_ROLES.includes(user?.role))
+/** Which per-user ticks a role can hold at all — drives Assign accesses. */
+export const ACCESS_ROLES = {
+  canManageFiber: FIBER_ACCESS_ROLES,
+  canEditBuildings: BUILDING_EDIT_ROLES,
+}
+export const mayHoldAccess = (role, access) => (ACCESS_ROLES[access] ?? []).includes(role)
 
 /** POPs were not opened up with fiber access — still the API's ADMIN / MANAGER. */
 export const canManagePops = (role) => ['ADMIN', 'MANAGER'].includes(role)
