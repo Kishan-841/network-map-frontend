@@ -8,7 +8,15 @@ import { IconSearch } from '@/components/ui/icons'
  * Searchable single-select for the building form's zone field.
  * Focus opens the list; typing filters by zone name or city; picking closes.
  */
-export function ZoneSearchSelect({ zones, value, onChange, error, disabled, label = 'Zone' }) {
+export function ZoneSearchSelect({
+  zones,
+  value,
+  onChange,
+  error,
+  disabled,
+  label = 'Zone',
+  id = 'zone-search-select',
+}) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const wrapRef = useRef(null)
@@ -35,11 +43,11 @@ export function ZoneSearchSelect({ zones, value, onChange, error, disabled, labe
 
   return (
     <div ref={wrapRef} className="relative">
-      <Field label={label} error={error} htmlFor="zone-search-select">
+      <Field label={label} error={error} htmlFor={id}>
         <div className="relative">
           <IconSearch className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
           <input
-            id="zone-search-select"
+            id={id}
             value={displayValue}
             disabled={disabled}
             placeholder={disabled ? 'Loading zones…' : 'Search zone or city…'}
