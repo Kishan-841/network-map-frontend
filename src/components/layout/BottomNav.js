@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
 import { isAgent, isLead, isSupervisor, isPartnerManager, isAccounts } from '@/lib/roles'
+import { MANAGE_LINKS } from '@/lib/manage-links'
+import { pickExtraNav } from '@/lib/nav-extras'
 import { MoreSheet, splitNav } from '@/components/layout/MoreSheet'
 
 const COVERAGE_NAV = [
@@ -74,8 +76,9 @@ const LEAD_NAV = [
 /** Mobile-only bottom bar (72px, blurred). Hidden at lg — Sidebar takes over. */
 export function BottomNav() {
   const pathname = usePathname()
-  const role = useAuthStore((s) => s.user?.role)
-  const NAV_ITEMS = isAgent(role)
+  const user = useAuthStore((s) => s.user)
+  const role = user?.role
+  const ROLE_NAV = isAgent(role)
     ? AGENT_NAV
     : isLead(role)
       ? LEAD_NAV
@@ -88,6 +91,14 @@ export function BottomNav() {
             : role === 'ADMIN'
               ? ADMIN_NAV
               : COVERAGE_NAV
+
+  // The admin pages a phone could not reach at all — every Manage link for an
+  // admin, the fiber pages for whoever was ticked. They go after the role's
+  // own tabs, so what a thumb reaches first never changes.
+  const NAV_ITEMS = [
+    ...ROLE_NAV,
+    ...pickExtraNav(MANAGE_LINKS, user, ROLE_NAV.map((item) => item.href)),
+  ]
 
   const [moreOpen, setMoreOpen] = useState(false)
   const { visible, overflow } = splitNav(NAV_ITEMS)

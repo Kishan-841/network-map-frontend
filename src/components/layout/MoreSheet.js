@@ -9,6 +9,9 @@ import { IconClose } from '@/components/ui/icons'
  * A sheet rather than a menu: it comes from the bar it belongs to, and a
  * thumb reaching the bottom of a phone is already there. Tapping the backdrop
  * closes it, so escaping never needs a second precise tap.
+ *
+ * An admin's overflow runs to a dozen or more links, so the list scrolls
+ * rather than growing past the top of the screen.
  */
 export function MoreSheet({ items, pathname, onClose, isActive }) {
   return (
@@ -31,7 +34,7 @@ export function MoreSheet({ items, pathname, onClose, isActive }) {
             <IconClose className="h-5 w-5" />
           </button>
         </div>
-        <ul className="pb-3">
+        <ul className="max-h-[65vh] overflow-y-auto overscroll-contain pb-3">
           {items.map((item) => {
             const active = isActive(item, pathname)
             const Icon = item.icon
