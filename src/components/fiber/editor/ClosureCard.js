@@ -26,12 +26,12 @@ const SHEET_AT_PIXEL =
  *    it off the line (the point stays as a plain bend) via `onRemove`.
  */
 export default function ClosureCard({ mode = 'create', initial, splitter, at, bounds, saving, error, onSave, onRemove, onRemoveSplitter, onCancel }) {
-  const [kind, setKind] = useState(() => initial?.kind || CLOSURE_KINDS[0])
+  const [kind, setKind] = useState(() => initial?.kind || CLOSURE_KINDS[0].value)
   const [notes, setNotes] = useState(() => initial?.notes ?? '')
 
   // A closure saved before these three were the only choices keeps its own
   // wording, shown as a chip it cannot be put back to once it is changed.
-  const legacyKind = CLOSURE_KINDS.includes(kind) ? null : kind
+  const legacyKind = CLOSURE_KINDS.some((option) => option.value === kind) ? null : kind
 
   const pixelPositioned = mode === 'create'
   const left = pixelPositioned && bounds ? Math.max(8, Math.min(at.x, bounds.width - (CARD_WIDTH + 12))) : at?.x
@@ -91,17 +91,17 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
         )}
         {CLOSURE_KINDS.map((option) => (
           <button
-            key={option}
+            key={option.value}
             type="button"
-            aria-pressed={kind === option}
-            onClick={() => setKind(option)}
+            aria-pressed={kind === option.value}
+            onClick={() => setKind(option.value)}
             className={`min-h-11 flex-1 rounded-btn border px-2 text-sm font-medium transition-colors ${
-              kind === option
+              kind === option.value
                 ? 'border-fiber bg-fiber text-white'
                 : 'border-line bg-card text-muted hover:text-ink'
             }`}
           >
-            {option}
+            {option.label}
           </button>
         ))}
       </div>
