@@ -61,6 +61,7 @@ function DetailsBlock({ fiber }) {
     ['Cable tag', fiber.cableTag],
     ['Placement', fiber.placement],
     ['Operator', fiber.operator?.name],
+    ['Zone', fiber.zone?.name],
     ['Notes', fiber.notes],
   ].filter(([, value]) => value)
   const images = fiber.images ?? []

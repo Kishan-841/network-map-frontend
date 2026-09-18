@@ -1,15 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { uploadFile } from '@/lib/upload'
 import { Button } from '@/components/ui/Button'
-import { Input, Textarea } from '@/components/ui/Input'
+import { Input, Select, Textarea } from '@/components/ui/Input'
+import { ZoneSearchSelect } from '@/components/buildings/ZoneSearchSelect'
 import { useFibers, invalidateFibers } from '@/hooks/useFibers'
+import { useZones } from '@/hooks/useZones'
+import { useOperators } from '@/hooks/useOperators'
 import { invalidatePops } from '@/hooks/usePops'
 import { invalidateClosures } from '@/hooks/useClosures'
 import { toPayloadPoints } from '@/lib/fiber/draft'
 import { coreColor } from '@/lib/fiber/constants'
+import { guessZoneId } from '@/lib/fiber/zone-guess'
 import BottomSheet, { SHEET_DIALOG } from './BottomSheet'
 
 const PLACEMENT_CHOICES = [
@@ -19,14 +23,36 @@ const PLACEMENT_CHOICES = [
 ]
 
 /**
- * The short "Save fiber" form: route name, fiber ID, IN/OUT, remark and
- * photos — everything a surveyor knows at the moment the line is drawn.
+ * The short "Save fiber" form: zone, operator, route name, fiber ID, IN/OUT,
+ * remark and photos — everything a surveyor knows at the moment the line is
+ * drawn.
+ *
+ * The zone is required: the map's zone filter can only be trusted if every
+ * fiber carries one. It is pre-filled from where the line starts, and the
+ * operator from that zone's operator — both stay editable, and the API
+ * re-checks whatever is sent (a surveyor may only use their own zones).
  * Creating sends the drawn points with it; editing only touches the details
  * (the editor's own "Save changes" owns the point list). OLT / PON port /
  * status / cable type stay in the database and out of this dialog.
  */
 export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved, onBack }) {
   const { fibers } = useFibers()
+  // Already scoped by the API: a surveyor's list is their assigned zones.
+  const { zones, loading: zonesLoading } = useZones()
+  const { operators } = useOperators()
+
+  // null means "nothing chosen yet, use the suggestion"; '' means the reader
+  // deliberately cleared it. Derived rather than set in an effect, so the
+  // suggestion can appear the moment the zones land without a second render.
+  const [zonePick, setZonePick] = useState(() => fiber?.zoneId ?? null)
+  const [operatorPick, setOperatorPick] = useState(() => fiber?.operatorId ?? null)
+  const suggestedZoneId = useMemo(
+    () => (mode === 'edit' ? null : guessZoneId(zones, draftPoints)),
+    [mode, zones, draftPoints],
+  )
+  const zoneId = zonePick ?? suggestedZoneId ?? ''
+  const zoneOperatorId = zones.find((zone) => zone.id === zoneId)?.operatorId ?? null
+  const operatorId = operatorPick ?? zoneOperatorId ?? ''
 
   const [name, setName] = useState(() => fiber?.name ?? '')
   const [cableTag, setCableTag] = useState(() => fiber?.cableTag ?? '')
@@ -67,6 +93,8 @@ export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved
         notes: notes.trim() || null,
         images,
         placement,
+        zoneId,
+        operatorId: operatorId || null,
       }
       const trimmedName = name.trim()
       if (trimmedName) payload.name = trimmedName
@@ -90,10 +118,40 @@ export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved
   }
 
   const nameBlank = name.length > 0 && !name.trim()
+  // A new fiber must say which zone it runs in; an edit keeps whatever it has.
+  const zoneMissing = mode !== 'edit' && !zoneId
 
   return (
     <BottomSheet desktop={SHEET_DIALOG} backdrop onBackdropClick={saving ? undefined : onBack} className="gap-4">
       <h2 className="text-base font-bold">{mode === 'edit' ? 'Fiber details' : 'Save fiber'}</h2>
+
+      <ZoneSearchSelect
+        id="fiber-zone"
+        zones={zones}
+        value={zoneId}
+        disabled={zonesLoading}
+        onChange={(id) => {
+          setZonePick(id)
+          // Follow the new zone's operator unless one was picked by hand.
+          if (operatorPick === null) setOperatorPick(null)
+        }}
+      />
+
+      {operators.length > 0 && (
+        <Select
+          id="fiber-operator"
+          label="Operator"
+          value={operatorId}
+          onChange={(e) => setOperatorPick(e.target.value)}
+        >
+          <option value="">No operator</option>
+          {operators.map((operator) => (
+            <option key={operator.id} value={operator.id}>
+              {operator.name}
+            </option>
+          ))}
+        </Select>
+      )}
 
       <Input
         id="fiber-name"
@@ -198,7 +256,7 @@ export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved
           type="button"
           className="flex-1"
           loading={saving}
-          disabled={uploading || nameBlank}
+          disabled={uploading || nameBlank || zoneMissing}
           onClick={handleSubmit}
         >
           {mode === 'edit' ? 'Save details' : 'Save fiber'}
