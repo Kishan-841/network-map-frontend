@@ -5,6 +5,10 @@ import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Input'
+import { ZoneSearchSelect } from '@/components/buildings/ZoneSearchSelect'
+import { BuildingSearchField } from '@/components/fiber/BuildingSearchField'
+import { useZones } from '@/hooks/useZones'
+import { DEFAULT_CENTRE, parseLatitude, parseLongitude } from '@/lib/fiber/coords'
 
 // Client-only: Google Maps JS touches window.
 const GoogleLocationPicker = dynamic(
@@ -12,27 +16,24 @@ const GoogleLocationPicker = dynamic(
   { ssr: false },
 )
 
-// India, country-level fallback — same default used by every other map here.
-const DEFAULT_CENTER = { latitude: 20.5937, longitude: 78.9629 }
-
-function parseCoord(value, min, max) {
-  const n = Number(value)
-  return Number.isFinite(n) && n >= min && n <= max ? n : null
-}
-
 /**
- * Create/edit form for a POP: name, position (typed or picked on the map),
- * and notes. `initial` is only ever read once — the mount site keys this
- * component fresh per edit target.
+ * Create/edit form for a POP: name, the zone it sits in, position (searched,
+ * typed, or picked on the map) and notes. `initial` is only ever read once —
+ * the mount site keys this component fresh per edit target.
+ *
+ * The zone decides who can see the site afterwards, so it is required; the
+ * list comes from the API already scoped, which is what limits a surveyor to
+ * the zones they are assigned to.
  */
 export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
   const [form, setForm] = useState(() => initial)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const { zones, loading: zonesLoading } = useZones()
 
-  const latitude = parseCoord(form.latitude, -90, 90)
-  const longitude = parseCoord(form.longitude, -180, 180)
-  const canSave = form.name.trim() && latitude !== null && longitude !== null
+  const latitude = parseLatitude(form.latitude)
+  const longitude = parseLongitude(form.longitude)
+  const canSave = form.name.trim() && form.zoneId && latitude !== null && longitude !== null
 
   async function handleSave() {
     setBusy(true)
@@ -40,6 +41,7 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
     try {
       await onSave({
         name: form.name.trim(),
+        zoneId: form.zoneId,
         latitude,
         longitude,
         notes: form.notes.trim() || null,
@@ -59,6 +61,27 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
         placeholder="POP name e.g. Wakad POP-1"
         value={form.name}
         onChange={(e) => setForm({ ...form, name: e.target.value })}
+      />
+
+      <ZoneSearchSelect
+        id="pop-zone"
+        zones={zones}
+        value={form.zoneId}
+        disabled={zonesLoading}
+        onChange={(zoneId) => setForm((f) => ({ ...f, zoneId }))}
+      />
+
+      {/* Most POPs sit in or beside a building somebody has already surveyed —
+          picking it drops the pin on coordinates that were checked on site. */}
+      <BuildingSearchField
+        onPick={({ latitude: lat, longitude: lng, name }) =>
+          setForm((f) => ({
+            ...f,
+            latitude: String(lat),
+            longitude: String(lng),
+            name: f.name.trim() ? f.name : name,
+          }))
+        }
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -82,8 +105,8 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
 
       <GoogleLocationPicker
         searchable
-        latitude={latitude ?? DEFAULT_CENTER.latitude}
-        longitude={longitude ?? DEFAULT_CENTER.longitude}
+        latitude={latitude ?? DEFAULT_CENTRE.latitude}
+        longitude={longitude ?? DEFAULT_CENTRE.longitude}
         onChange={({ latitude, longitude }) =>
           setForm((f) => ({ ...f, latitude: String(latitude), longitude: String(longitude) }))
         }

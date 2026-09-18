@@ -13,10 +13,11 @@ import { useAuthStore } from '@/stores/auth-store'
 import PopForm from '@/components/fiber/PopForm'
 import OltList from '@/components/fiber/OltList'
 
-const emptyForm = { name: '', latitude: '', longitude: '', notes: '' }
+const emptyForm = { name: '', zoneId: '', latitude: '', longitude: '', notes: '' }
 
 const toForm = (pop) => ({
   name: pop.name,
+  zoneId: pop.zoneId ?? '',
   latitude: String(pop.latitude),
   longitude: String(pop.longitude),
   notes: pop.notes ?? '',
@@ -96,6 +97,11 @@ export default function AdminPopsPage() {
   const columns = [
     { key: 'name', header: 'Name', render: (p) => <span className="font-bold">{p.name}</span> },
     {
+      key: 'zone',
+      header: 'Zone',
+      render: (p) => p.zone?.name ?? <span className="text-faint">No zone</span>,
+    },
+    {
       key: 'position',
       header: 'Position',
       className: 'font-mono text-xs text-muted',
@@ -128,7 +134,7 @@ export default function AdminPopsPage() {
           {p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}
         </p>
         <p className="mt-1 text-sm font-normal text-muted">
-          {oltSummary(p)}
+          {p.zone?.name ?? 'No zone'} · {oltSummary(p)}
         </p>
       </div>
       {canManage && (
