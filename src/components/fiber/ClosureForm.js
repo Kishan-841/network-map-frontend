@@ -6,20 +6,13 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { CLOSURE_KINDS } from '@/lib/fiber/constants'
+import { DEFAULT_CENTRE, parseLatitude, parseLongitude } from '@/lib/fiber/coords'
 
 // Client-only: Google Maps JS touches window.
 const GoogleLocationPicker = dynamic(
   () => import('@/components/map/google/GoogleLocationPicker'),
   { ssr: false },
 )
-
-// India, country-level fallback — same default used by every other map here.
-const DEFAULT_CENTER = { latitude: 20.5937, longitude: 78.9629 }
-
-function parseCoord(value, min, max) {
-  const n = Number(value)
-  return Number.isFinite(n) && n >= min && n <= max ? n : null
-}
 
 /**
  * Create/edit form for a closure: position (typed or picked on the map),
@@ -43,8 +36,8 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
     }
   }, [])
 
-  const latitude = parseCoord(form.latitude, -90, 90)
-  const longitude = parseCoord(form.longitude, -180, 180)
+  const latitude = parseLatitude(form.latitude)
+  const longitude = parseLongitude(form.longitude)
   const canSave = latitude !== null && longitude !== null
 
   async function handleSave() {
@@ -87,8 +80,8 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
       </div>
 
       <GoogleLocationPicker
-        latitude={latitude ?? DEFAULT_CENTER.latitude}
-        longitude={longitude ?? DEFAULT_CENTER.longitude}
+        latitude={latitude ?? DEFAULT_CENTRE.latitude}
+        longitude={longitude ?? DEFAULT_CENTRE.longitude}
         onChange={({ latitude, longitude }) =>
           setForm((f) => ({ ...f, latitude: String(latitude), longitude: String(longitude) }))
         }
