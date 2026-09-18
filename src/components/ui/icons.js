@@ -30,6 +30,7 @@ export {
   PanelLeftOpen as IconExpand,
   Layers as IconLayers,
   X as IconClose,
+  Ellipsis as IconMore,
   Palette as IconPalette,
   ScrollText as IconLogs,
   Upload as IconUpload,
