@@ -4,19 +4,48 @@ import { DataTable } from '@/components/ui/DataTable'
 import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { coreColor } from '@/lib/fiber/constants'
 
+/**
+ * Zone and operator, changeable without opening the editor — they are one
+ * choice each, and walking a surveyor through the drawing tool to correct a
+ * dropdown is a poor trade. Saves on change; puts the old value back if the
+ * server refuses (a surveyor may only use a zone they are assigned to).
+ */
+function InlineSelect({ value, options, disabled, busy, label, placeholder, onChange }) {
+  if (disabled) {
+    return (
+      <span className="truncate text-muted">
+        {options.find((o) => o.id === value)?.name ?? '—'}
+      </span>
+    )
+  }
+  return (
+    <select
+      value={value ?? ''}
+      disabled={busy}
+      aria-label={label}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        e.stopPropagation()
+        onChange(e.target.value || null)
+      }}
+      className="min-h-11 w-full max-w-[180px] truncate rounded-btn border border-line bg-card px-2 text-sm font-normal outline-none transition-colors hover:border-fiber/50 focus:border-fiber focus:ring-2 focus:ring-fiber/15 disabled:opacity-50"
+    >
+      <option value="">{placeholder}</option>
+      {options.map((option) => (
+        <option key={option.id} value={option.id}>
+          {option.name}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 const CoreDot = ({ coreCount }) => (
   <span
     className="h-2.5 w-2.5 shrink-0 rounded-full"
     style={{ backgroundColor: coreColor(coreCount) }}
   />
 )
-
-/** OLT feed, upstream splitter, or nothing — one line, no interactivity here. */
-function feedLine(fiber) {
-  if (fiber.olt) return `${fiber.olt.pop.name} · ${fiber.olt.name} · port ${fiber.ponPort}`
-  if (fiber.fedBy) return `⤷ ${fiber.fedBy.splitter.closure.code} · out ${fiber.fedBy.portNo}`
-  return '—'
-}
 
 function RowActions({ fiber, onEdit, onDelete }) {
   return (
@@ -48,7 +77,42 @@ function RowActions({ fiber, onEdit, onDelete }) {
 }
 
 /** Fiber list: gridded table ≥lg, stacked cards below. */
-export default function FiberTable({ fibers, loading, canManage, onRowClick, onEdit, onDelete, emptyState }) {
+export default function FiberTable({
+  fibers,
+  loading,
+  canManage,
+  zones = [],
+  operators = [],
+  busyId,
+  onFieldChange,
+  onRowClick,
+  onEdit,
+  onDelete,
+  emptyState,
+}) {
+  const zoneCell = (f) => (
+    <InlineSelect
+      value={f.zoneId}
+      options={zones}
+      disabled={!canManage || !onFieldChange}
+      busy={busyId === f.id}
+      label={`Zone for ${f.name}`}
+      placeholder="No zone"
+      onChange={(zoneId) => onFieldChange(f, { zoneId })}
+    />
+  )
+  const operatorCell = (f) => (
+    <InlineSelect
+      value={f.operatorId}
+      options={operators}
+      disabled={!canManage || !onFieldChange}
+      busy={busyId === f.id}
+      label={`Operator for ${f.name}`}
+      placeholder="No operator"
+      onChange={(operatorId) => onFieldChange(f, { operatorId })}
+    />
+  )
+
   const columns = [
     {
       key: 'name',
@@ -61,7 +125,8 @@ export default function FiberTable({ fibers, loading, canManage, onRowClick, onE
       ),
     },
     { key: 'cores', header: 'Cores', render: (f) => `${f.coreCount} core` },
-    { key: 'feed', header: 'Feed', render: feedLine, className: 'text-muted' },
+    { key: 'zone', header: 'Zone', render: zoneCell },
+    { key: 'operator', header: 'Operator', render: operatorCell },
     { key: 'closures', header: 'Closures', render: (f) => f.totals.closureCount },
     { key: 'splitters', header: 'Splitters', render: (f) => f.totals.splitterCount ?? 0 },
     {
@@ -94,12 +159,18 @@ export default function FiberTable({ fibers, loading, canManage, onRowClick, onE
           <span className="truncate font-bold">{f.name}</span>
         </span>
       </div>
-      <p className="mt-1 truncate text-sm font-normal text-muted">{feedLine(f)}</p>
       <p className="mt-1 text-sm font-normal text-muted">
         {Math.round(f.totals.mapMeters || f.totals.pathMeters)} m · {f.totals.closureCount} closure
         {f.totals.closureCount === 1 ? '' : 's'} · {f.totals.splitterCount ?? 0} splitter
         {f.totals.splitterCount === 1 ? '' : 's'}
       </p>
+      <div
+        className="mt-3 flex flex-col gap-2 border-t border-line/60 pt-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {zoneCell(f)}
+        {operatorCell(f)}
+      </div>
       {canManage && (
         <div className="mt-3 border-t border-line/60 pt-3">
           <RowActions fiber={f} onEdit={onEdit} onDelete={onDelete} />
