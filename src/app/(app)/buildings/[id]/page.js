@@ -13,7 +13,7 @@ import { EditBuildingModal } from '@/components/buildings/EditBuildingModal'
 import { Button } from '@/components/ui/Button'
 import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
-import { canManageBuildings } from '@/lib/roles'
+import { canEditBuilding, canManageBuildings } from '@/lib/roles'
 
 /** Card section of label/value rows. Hides rows without values, and itself when empty. */
 function Section({ title, rows }) {
@@ -41,14 +41,20 @@ function Section({ title, rows }) {
 
 export default function BuildingDetailPage({ params }) {
   const { id } = use(params)
-  const role = useAuthStore((s) => s.user?.role)
-  const canEdit = canManageBuildings(role)
+  const user = useAuthStore((s) => s.user)
+  const role = user?.role
   const isAdmin = role === 'ADMIN'
   const router = useRouter()
   const [building, setBuilding] = useState(null)
   const [error, setError] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Depends on the building too: a granted surveyor edits only what they
+  // logged, so this is false until the row has loaded.
+  const canEdit = canEditBuilding(user, building)
+  // A surveyor's grant covers the building's own details, never the legal
+  // permission record or the live flag — the API refuses those outright.
+  const editRestricted = !canManageBuildings(role)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
 
@@ -161,6 +167,7 @@ export default function BuildingDetailPage({ params }) {
       {editOpen && (
         <EditBuildingModal
           building={building}
+          restricted={editRestricted}
           onClose={() => setEditOpen(false)}
           onSaved={fetchBuilding}
         />

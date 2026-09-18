@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { canManageFiber, fiberNavFor, isForbiddenPath, mayOpenAdminPath } from '../roles'
+import {
+  canEditBuilding,
+  canManageFiber,
+  fiberNavFor,
+  isForbiddenPath,
+  mayHoldAccess,
+  mayOpenAdminPath,
+} from '../roles'
 
 const user = (role, canManageFiber = false) => ({ role, canManageFiber })
 
@@ -74,3 +81,40 @@ describe('fiberNavFor', () => {
     expect(fiberNavFor(user('ADMIN'))).toEqual([])
   })
 })
+
+describe('canEditBuilding', () => {
+  const building = (createdById) => ({ id: 'b1', createdById })
+
+  it('lets the roles that always could edit anyone\'s building', () => {
+    for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR']) {
+      expect(canEditBuilding(user(role), building('someone-else'))).toBe(true)
+    }
+  })
+
+  it('lets a ticked surveyor edit the building they logged', () => {
+    expect(canEditBuilding({ id: 'u1', role: 'SURVEYOR', canEditBuildings: true }, building('u1'))).toBe(true)
+  })
+
+  it('stops a ticked surveyor on someone else\'s building', () => {
+    expect(canEditBuilding({ id: 'u1', role: 'SURVEYOR', canEditBuildings: true }, building('u2'))).toBe(false)
+  })
+
+  it('stops an unticked surveyor on their own building', () => {
+    expect(canEditBuilding({ id: 'u1', role: 'SURVEYOR' }, building('u1'))).toBe(false)
+  })
+
+  it('is false while either the user or the building is still loading', () => {
+    expect(canEditBuilding(undefined, building('u1'))).toBe(false)
+    expect(canEditBuilding({ id: 'u1', role: 'SURVEYOR', canEditBuildings: true }, null)).toBe(false)
+  })
+})
+
+describe('mayHoldAccess', () => {
+  it('says which ticks a role can hold', () => {
+    expect(mayHoldAccess('SURVEYOR', 'canEditBuildings')).toBe(true)
+    expect(mayHoldAccess('MANAGER', 'canEditBuildings')).toBe(false)
+    expect(mayHoldAccess('MANAGER', 'canManageFiber')).toBe(true)
+    expect(mayHoldAccess('ADMIN', 'canManageFiber')).toBe(false)
+  })
+})
+
