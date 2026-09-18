@@ -57,18 +57,23 @@ function CoverageMapPage() {
   const [liveShown, setLiveShown] = useState(true)
   const [notLiveShown, setNotLiveShown] = useState(true)
   // Fiber layer is lazy: nothing is fetched until first toggled on. The
-  // operator filter scopes it — fibers without an operator always show.
+  // operator and zone filters scope it the way they scope buildings — filter
+  // to a zone and you see that zone's cables, not every cable in the city.
+  // A fiber with no zone (drawn before fibers recorded one) drops out of a
+  // zone-filtered view rather than pretending to belong.
   const [fiberShown, setFiberShown] = useState(false)
   const { fibers } = useFibers(fiberShown)
   const visibleFibers = useMemo(() => {
     if (!fiberShown) return NO_FIBERS
-    const shown = filters.operatorId
-      ? fibers.filter((fiber) => fiber.operatorId === filters.operatorId)
-      : fibers
+    const shown = fibers.filter(
+      (fiber) =>
+        (!filters.operatorId || fiber.operatorId === filters.operatorId) &&
+        (!filters.zoneId || fiber.zoneId === filters.zoneId),
+    )
     // `fibers` is a fresh [] on every render until the fetch lands — map any
     // empty result onto the stable array so the overlay never rebuilds.
     return shown.length > 0 ? shown : NO_FIBERS
-  }, [fiberShown, fibers, filters.operatorId])
+  }, [fiberShown, fibers, filters.operatorId, filters.zoneId])
 
   // POPs are few and are landmarks, so their layer starts ON (unlike Fiber).
   const [popsShown, setPopsShown] = useState(true)
