@@ -170,7 +170,7 @@ export default function AssignAccessesPage() {
 
       <p className="mb-4 text-sm font-normal text-muted">
         <strong className="font-medium text-ink">Fiber drawing</strong> gives a manager, surveyor or
-        supervisor the Fibers and Closures pages and lets them draw.{' '}
+        supervisor the Fibers, POPs and Closures pages and lets them draw.{' '}
         <strong className="font-medium text-ink">Edit own buildings</strong>{' '}
         lets a surveyor correct
         the buildings they added themselves — not anyone else&apos;s, and not the permission details.

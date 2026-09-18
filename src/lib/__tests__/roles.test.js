@@ -37,8 +37,9 @@ describe('mayOpenAdminPath', () => {
     const ticked = user('SURVEYOR', true)
     expect(mayOpenAdminPath(ticked, '/admin/fiber')).toBe(true)
     expect(mayOpenAdminPath(ticked, '/admin/closures')).toBe(true)
+    expect(mayOpenAdminPath(ticked, '/admin/pops')).toBe(true)
     expect(mayOpenAdminPath(ticked, '/admin/users')).toBe(false)
-    expect(mayOpenAdminPath(ticked, '/admin/pops')).toBe(false)
+    expect(mayOpenAdminPath(ticked, '/admin/zones')).toBe(false)
   })
 
   it('keeps an unticked manager out of the fiber pages but in the rest', () => {
@@ -73,6 +74,7 @@ describe('fiberNavFor', () => {
     expect(fiberNavFor(user('SURVEYOR', true)).map((item) => item.href)).toEqual([
       '/admin/fiber',
       '/admin/closures',
+      '/admin/pops',
     ])
   })
 
