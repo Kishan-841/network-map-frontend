@@ -7,7 +7,7 @@ import { DataTable } from '@/components/ui/DataTable'
 import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useClosures, invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
-import { RATIO_LABELS } from '@/lib/fiber/constants'
+import { RATIO_LABELS, closureKindLabel } from '@/lib/fiber/constants'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import ClosureForm from '@/components/fiber/ClosureForm'
@@ -97,7 +97,7 @@ export default function AdminClosuresPage() {
       className: 'font-mono text-xs text-muted',
       render: (c) => `${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}`,
     },
-    { key: 'kind', header: 'Kind', render: (c) => c.kind || '—' },
+    { key: 'kind', header: 'Kind', render: (c) => closureKindLabel(c.kind) || '—' },
     { key: 'building', header: 'Building', render: (c) => c.building?.buildingName ?? '—' },
     { key: 'fibers', header: 'Fibers', className: 'tabular-nums', render: fiberCount },
     { key: 'splitters', header: 'Splitters', render: splitterLabel },
@@ -121,7 +121,9 @@ export default function AdminClosuresPage() {
     >
       <div className="flex items-start justify-between gap-3">
         <span className="truncate font-mono font-bold">{c.code}</span>
-        <span className="shrink-0 text-xs font-medium text-muted">{c.kind || '—'}</span>
+        <span className="shrink-0 text-xs font-medium text-muted">
+          {closureKindLabel(c.kind) || '—'}
+        </span>
       </div>
       <p className="mt-1 font-mono text-xs text-muted">
         {c.latitude.toFixed(5)}, {c.longitude.toFixed(5)}

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
+import { CLOSURE_KINDS } from '@/lib/fiber/constants'
 
 // Client-only: Google Maps JS touches window.
 const GoogleLocationPicker = dynamic(
@@ -93,13 +94,25 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
         }
       />
 
-      <Input
+      {/* The same three the editor offers, so a closure cannot end up with a
+          kind nobody else uses. A closure recorded with an older word keeps it
+          as its own option rather than being silently renamed. */}
+      <Select
         id="closure-kind"
         label="Kind"
-        placeholder="e.g. handhole, pole, pedestal"
         value={form.kind}
         onChange={(e) => setForm({ ...form, kind: e.target.value })}
-      />
+      >
+        <option value="">No kind</option>
+        {CLOSURE_KINDS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+        {form.kind && !CLOSURE_KINDS.some((option) => option.value === form.kind) && (
+          <option value={form.kind}>{form.kind}</option>
+        )}
+      </Select>
 
       <Select
         id="closure-building"

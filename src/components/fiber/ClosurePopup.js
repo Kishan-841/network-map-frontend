@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
-import { coreColor, RATIO_LABELS } from '@/lib/fiber/constants'
+import { RATIO_LABELS, closureKindLabel, coreColor } from '@/lib/fiber/constants'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/Button'
@@ -245,7 +245,9 @@ export default function ClosurePopup({ closureId, onClose, onOpenFiber, readOnly
           <>
             <div className="flex flex-col gap-1.5">
               {closure.kind && (
-                <span className={`${CHIP} w-fit bg-fiber-tint text-fiber`}>{closure.kind} closure</span>
+                <span className={`${CHIP} w-fit bg-fiber-tint text-fiber`}>
+                  {closureKindLabel(closure.kind)} closure
+                </span>
               )}
               {closure.notes && <p className="text-sm text-muted">{closure.notes}</p>}
               <div className="flex flex-wrap items-center gap-1.5">
