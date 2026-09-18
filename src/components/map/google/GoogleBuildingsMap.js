@@ -9,6 +9,7 @@ import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 import { useFiberOverlays } from '@/components/fiber/useFiberOverlays'
 import { usePopMarkers } from '@/components/fiber/usePopMarkers'
+import { focusPoints } from '@/lib/fiber/focus-target'
 import { coreColor } from '@/lib/fiber/constants'
 
 const polygonCentroid = (points) => ({
@@ -22,6 +23,7 @@ const NO_FIBERS = []
 const NO_POPS = []
 
 const CENTRE_ZOOM = 17 // close enough to see the pole a point sits on
+const FIT_PADDING = 64 // px of breathing room when framing a whole fiber
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 } // country-level fallback
 const DEFAULT_ZOOM = 5
@@ -68,6 +70,9 @@ export default function GoogleBuildingsMap({
   // the same tap opens the detail panel, which says more than a card could.
   const [hover, setHover] = useState(null)
   const clustererRef = useRef(null)
+  // "Frame this" — one handle used by every click on the map, and published
+  // to the parent through centreRef for the detail panels.
+  const focusRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   const selectedIdRef = useRef(selectedId)
   const prevSelectedRef = useRef(null)
@@ -107,13 +112,26 @@ export default function GoogleBuildingsMap({
       // The panel's "centre on this point" handle. Published here rather than
       // from an effect so no render is involved — the parent only ever calls
       // it from an event.
-      if (centreRef) {
-        centreRef.current = (point) => {
-          if (point?.latitude == null || point?.longitude == null) return
-          pooledMap.panTo({ lat: point.latitude, lng: point.longitude })
+      const focus = (target) => {
+        const points = focusPoints(target)
+        if (points.length === 0) return
+        if (points.length === 1) {
+          pooledMap.panTo(points[0])
           if ((pooledMap.getZoom() ?? 0) < CENTRE_ZOOM) pooledMap.setZoom(CENTRE_ZOOM)
+          return
         }
+        // A fiber is a line, so frame the whole run rather than centring on
+        // wherever the tap landed. fitBounds settles asynchronously, hence the
+        // one-shot idle listener to stop a short cable filling the screen.
+        const bounds = new google.maps.LatLngBounds()
+        points.forEach((point) => bounds.extend(point))
+        pooledMap.fitBounds(bounds, FIT_PADDING)
+        google.maps.event.addListenerOnce(pooledMap, 'idle', () => {
+          if ((pooledMap.getZoom() ?? 0) > CENTRE_ZOOM) pooledMap.setZoom(CENTRE_ZOOM)
+        })
       }
+      focusRef.current = focus
+      if (centreRef) centreRef.current = focus
       clustererRef.current = new MarkerClusterer({
         map: mapRef.current,
         markers: [],
@@ -128,6 +146,7 @@ export default function GoogleBuildingsMap({
       clustererRef.current = null
       markersRef.current.forEach((marker) => marker.setMap(null))
       markersRef.current.clear()
+      focusRef.current = null
       if (centreRef) centreRef.current = null
       zoneOverlaysRef.current.forEach((overlay) => overlay.setMap(null))
       zoneOverlaysRef.current = []
@@ -236,12 +255,17 @@ export default function GoogleBuildingsMap({
     fibers,
     dim: false,
     cluster: true,
-    onFiberClick: (fiber) => onFiberSelect?.(fiber.id),
+    onFiberClick: (fiber) => {
+      onFiberSelect?.(fiber.id)
+      // The whole cable, not the spot that was tapped.
+      focusRef.current?.(fiber.points)
+    },
     onPointClick: (point, fiber) => {
       // A closure — splitter icon or not — opens the closure popup; a splitter
       // that IS a point on the line belongs to the fiber, so open that.
       if (point.type === 'CLOSURE' && point.closureId) onClosureSelect?.(point.closureId)
       else if (point.type === 'SPLITTER' && fiber) onFiberSelect?.(fiber.id)
+      focusRef.current?.(point)
     },
     onFiberHover: (fiber, domEvent) => {
       if (!fiber || !domEvent) return setHover(null)
@@ -256,7 +280,15 @@ export default function GoogleBuildingsMap({
   })
 
   // POPs: server-icon pins, their own legend layer, independent of Fiber.
-  usePopMarkers({ map, ready, pops, onPopClick: (pop) => onPopSelect?.(pop) })
+  usePopMarkers({
+    map,
+    ready,
+    pops,
+    onPopClick: (pop) => {
+      onPopSelect?.(pop)
+      focusRef.current?.(pop.position)
+    },
+  })
 
   // Diff markers against the buildings prop — never tear down the world.
   // Selection is handled in its own effect so a tap only re-icons two pins.
@@ -283,8 +315,7 @@ export default function GoogleBuildingsMap({
         })
         marker.addListener('click', () => {
           onSelectRef.current(marker.buildingData)
-          map.panTo(marker.getPosition())
-          if (map.getZoom() < 17) map.setZoom(17) // zoom in to the tapped building
+          focusRef.current?.(marker.buildingData)
         })
         marker.pinKey = key
         marker.buildingData = building
