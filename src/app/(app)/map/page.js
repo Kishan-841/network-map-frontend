@@ -8,7 +8,7 @@ import { useZones } from '@/hooks/useZones'
 import { useFibers } from '@/hooks/useFibers'
 import { usePops } from '@/hooks/usePops'
 import { useAuthStore } from '@/stores/auth-store'
-import { canManageFiber, canManagePops, isAcquisition } from '@/lib/roles'
+import { canManageFiber, isAcquisition } from '@/lib/roles'
 import { AcquisitionMap } from '@/components/map/AcquisitionMap'
 import { FilterSheet } from '@/components/map/FilterSheet'
 import { SelectedBuildingCard } from '@/components/map/SelectedBuildingCard'
@@ -38,7 +38,8 @@ export default function MapPage() {
 function CoverageMapPage() {
   const router = useRouter()
   const role = useAuthStore((s) => s.user?.role)
-  const readOnlyFiber = !canManageFiber(useAuthStore((s) => s.user))
+  const user = useAuthStore((s) => s.user)
+  const readOnlyFiber = !canManageFiber(user)
   const [filters, setFilters] = useState({})
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -217,7 +218,7 @@ function CoverageMapPage() {
       <SelectedBuildingCard building={selected} onClose={() => setSelected(null)} />
       <PopCard
         pop={selectedPop}
-        canEdit={canManagePops(role)}
+        canEdit={canManageFiber(user)}
         onClose={() => setSelectedPop(null)}
       />
       <FilterSheet

@@ -22,6 +22,7 @@ const PREF_KEYS = {
   buildings: 'fiber-buildings-shown',
   zones: 'fiber-zones-shown',
   others: 'fiber-others-shown',
+  pops: 'fiber-pops-shown',
 }
 
 // Overlay choices persist across sessions (same idea as useMapLayer).
@@ -41,7 +42,7 @@ const writePref = (key, value) => {
   }
 }
 
-/** Remembered Buildings / Zones / Other-fiber toggles. */
+/** Remembered Buildings / Zones / POPs / Other-fiber toggles. */
 export function useOverlayToggles() {
   const [overlays, setOverlays] = useState(() => ({
     buildings: readPref(PREF_KEYS.buildings, false),
@@ -49,6 +50,9 @@ export function useOverlayToggles() {
     // Saved fiber is context by default — the whole point is seeing what is
     // already there so a new line does not duplicate it.
     others: readPref(PREF_KEYS.others, true),
+    // POPs are where the network starts — worth seeing while you draw towards
+    // one, so they are on unless the reader turns them off.
+    pops: readPref(PREF_KEYS.pops, true),
   }))
   const toggleOverlay = useCallback((key, value) => {
     writePref(PREF_KEYS[key], value)

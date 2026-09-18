@@ -5,9 +5,11 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { emptyDraft, reduce, draftErrors, fromApiPoints, toPayloadPoints } from '@/lib/fiber/draft'
 import { useFibers, invalidateFibers } from '@/hooks/useFibers'
+import { usePops } from '@/hooks/usePops'
 import { invalidateClosures } from '@/hooks/useClosures'
 import { IconLocate } from '@/components/ui/icons'
 import { useFiberOverlays } from '../useFiberOverlays'
+import { usePopMarkers } from '../usePopMarkers'
 import { useDraftPolyline, pixelToLatLng } from './useDraftPolyline'
 import { useSnapTargets } from './useSnapTargets'
 import { useEditorOverlays, useOverlayToggles } from './useEditorOverlays'
@@ -23,6 +25,7 @@ import EditorCards from './EditorCards'
 
 const MAX_POINTS = 200 // matches the API cap (fiber.schemas.js)
 const NO_FIBERS = [] // stable identity — useFiberOverlays rebuilds on a new array
+const NO_POPS = []
 
 // Ignore Google's own controls (zoom buttons, attribution links).
 const isMapSurface = (event) => !event.target.closest('button, a, .gmnoprint, .gm-style-cc')
@@ -188,6 +191,12 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   // window onto the stable empty array so the overlay does not rebuild.
   const otherFibers = overlays.others && fibers.length > 0 ? fibers : NO_FIBERS
   useFiberOverlays({ map, ready, fibers: otherFibers, exclude: fiber?.id, dim: true, cluster: false })
+
+  // Every saved POP, so a surveyor can see the site they are drawing towards.
+  // Not clickable here — taps belong to the line being drawn.
+  const { pops } = usePops()
+  const visiblePops = overlays.pops && pops.length > 0 ? pops : NO_POPS
+  usePopMarkers({ map, ready, pops: visiblePops, clickable: false })
 
   // ---- map taps on the container (never the map's own click event) ----------
   useEffect(() => {
