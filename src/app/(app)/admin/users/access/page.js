@@ -9,26 +9,40 @@ import { DataTable } from '@/components/ui/DataTable'
 import { UsersTabs } from '@/components/admin/UsersTabs'
 import { invalidateUsers } from '@/hooks/useUsers'
 import { accessCandidates } from '@/lib/access'
-import { ROLE_LABELS } from '@/lib/roles'
+import { mayHoldAccess, ROLE_LABELS } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
+
+// The accesses this page hands out, in column order. `roles` decides which
+// rows can hold each one — a role that cannot shows a dash, not a dead box.
+const ACCESSES = [
+  { key: 'canManageFiber', label: 'Fiber drawing' },
+  { key: 'canEditBuildings', label: 'Edit own buildings' },
+]
 
 /**
  * One tick = one access, saved the moment it changes. There is no Save
  * button on purpose: each change is its own audit row ("Fiber access given
  * to …"), and nobody walks away with unsaved ticks on the screen.
  */
-function AccessCheckbox({ user, busy, onChange }) {
+function AccessCheckbox({ user, access, busy, onChange }) {
+  if (!mayHoldAccess(user.role, access.key)) {
+    return (
+      <span className="text-sm font-normal text-faint">
+        <span className="lg:hidden">{access.label}: </span>—
+      </span>
+    )
+  }
   return (
     <label className="inline-flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
       <input
         type="checkbox"
         className="checkbox checkbox-sm"
-        checked={user.canManageFiber === true}
+        checked={user[access.key] === true}
         disabled={busy || !user.isActive}
-        onChange={(e) => onChange(user, e.target.checked)}
-        aria-label={`Fiber drawing for ${user.name}`}
+        onChange={(e) => onChange(user, access.key, e.target.checked)}
+        aria-label={`${access.label} for ${user.name}`}
       />
-      <span className="lg:hidden">Fiber drawing</span>
+      <span className="lg:hidden">{access.label}</span>
     </label>
   )
 }
@@ -63,20 +77,20 @@ export default function AssignAccessesPage() {
     }
   }, [isAdmin])
 
-  async function setFiberAccess(user, canManageFiber) {
+  async function setAccess(user, key, value) {
     setError(null)
     setBusyId(user.id)
-    const patch = (value) =>
+    const patch = (next) =>
       setResult((current) => ({
         ...current,
-        users: current.users.map((u) => (u.id === user.id ? { ...u, canManageFiber: value } : u)),
+        users: current.users.map((u) => (u.id === user.id ? { ...u, [key]: next } : u)),
       }))
-    patch(canManageFiber) // show the tick at once; put it back if the server says no
+    patch(value) // show the tick at once; put it back if the server says no
     try {
-      await apiClient.patch(`/users/${user.id}/access`, { canManageFiber })
+      await apiClient.patch(`/users/${user.id}/access`, { [key]: value })
       invalidateUsers()
     } catch (err) {
-      patch(!canManageFiber)
+      patch(!value)
       setError(getApiErrorMessage(err, `Could not change access for ${user.name}`))
     } finally {
       setBusyId(null)
@@ -108,11 +122,13 @@ export default function AssignAccessesPage() {
         </span>
       ),
     },
-    {
-      key: 'fiber',
-      header: 'Fiber drawing',
-      render: (u) => <AccessCheckbox user={u} busy={busyId === u.id} onChange={setFiberAccess} />,
-    },
+    ...ACCESSES.map((access) => ({
+      key: access.key,
+      header: access.label,
+      render: (u) => (
+        <AccessCheckbox user={u} access={access} busy={busyId === u.id} onChange={setAccess} />
+      ),
+    })),
   ]
 
   const renderCard = (u) => (
@@ -122,8 +138,16 @@ export default function AssignAccessesPage() {
         {ROLE_LABELS[u.role] ?? u.role}
         {!u.isActive && ' · Inactive'}
       </p>
-      <div className="mt-2 border-t border-line/60 pt-2">
-        <AccessCheckbox user={u} busy={busyId === u.id} onChange={setFiberAccess} />
+      <div className="mt-2 flex flex-col gap-1 border-t border-line/60 pt-2">
+        {ACCESSES.map((access) => (
+          <AccessCheckbox
+            key={access.key}
+            user={u}
+            access={access}
+            busy={busyId === u.id}
+            onChange={setAccess}
+          />
+        ))}
       </div>
     </div>
   )
@@ -132,7 +156,7 @@ export default function AssignAccessesPage() {
     <main className="mx-auto max-w-3xl">
       <PageHeader
         title="Users"
-        sub="Choose who can see the Fiber tab and draw fiber"
+        sub="Choose what each person may do beyond their role"
         backHref="/dashboard"
         backLabel="Dashboard"
       />
@@ -145,9 +169,13 @@ export default function AssignAccessesPage() {
       )}
 
       <p className="mb-4 text-sm font-normal text-muted">
-        Tick a manager, surveyor or supervisor to give them the Fibers and Closures pages and let
-        them draw. Admins always have it. A change saves straight away and reaches the user the next
-        time they open or return to the app.
+        <strong className="font-medium text-ink">Fiber drawing</strong> gives a manager, surveyor or
+        supervisor the Fibers and Closures pages and lets them draw.{' '}
+        <strong className="font-medium text-ink">Edit own buildings</strong>{' '}
+        lets a surveyor correct
+        the buildings they added themselves — not anyone else&apos;s, and not the permission details.
+        Admins have both anyway. A change saves straight away and reaches the user the next time they
+        open or return to the app.
       </p>
 
       <div className="mb-4">
