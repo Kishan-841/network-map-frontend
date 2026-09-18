@@ -8,6 +8,8 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { IconPlus } from '@/components/ui/icons'
 import { useFibers, invalidateFibers } from '@/hooks/useFibers'
+import { useZones } from '@/hooks/useZones'
+import { useOperators } from '@/hooks/useOperators'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import FiberTable from '@/components/fiber/FiberTable'
@@ -24,6 +26,10 @@ function AdminFiberContent() {
   const editParamId = useSearchParams().get('edit')
   const canManage = canManageFiber(useAuthStore((s) => s.user))
   const { fibers, loading } = useFibers()
+  // Both lists arrive role-scoped from the API: a surveyor's zones are theirs.
+  const { zones } = useZones()
+  const { operators } = useOperators()
+  const [busyId, setBusyId] = useState(null)
   const [panelFiberId, setPanelFiberId] = useState(null)
   // undefined = closed, null = new fiber, object = edit that fiber.
   const [editorFiber, setEditorFiber] = useState(undefined)
@@ -43,6 +49,22 @@ function AdminFiberContent() {
 
   // The editor now closes itself (Done) after it has saved everything it
   // wanted to save — refresh the table on the way out.
+  // Zone and operator are editable straight from the table. The list is a
+  // session cache, so the save invalidates it rather than patching a copy —
+  // and a refusal (a zone a surveyor does not hold) surfaces as the list error.
+  async function handleFieldChange(fiber, patch) {
+    setListError(null)
+    setBusyId(fiber.id)
+    try {
+      await apiClient.patch(`/fibers/${fiber.id}`, patch)
+      invalidateFibers()
+    } catch (err) {
+      setListError(getApiErrorMessage(err, `Could not update ${fiber.name}`))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const closeEditor = () => {
     setEditorFiber(undefined)
     invalidateFibers()
@@ -94,6 +116,10 @@ function AdminFiberContent() {
         fibers={fibers}
         loading={loading}
         canManage={canManage}
+        zones={zones}
+        operators={operators}
+        busyId={busyId}
+        onFieldChange={handleFieldChange}
         onRowClick={(row) => setPanelFiberId(row.id)}
         onEdit={setEditorFiber}
         onDelete={handleDelete}
