@@ -14,17 +14,19 @@ const LINKS = [
 const user = (role, canManageFiber = false) => ({ role, canManageFiber })
 
 describe('pickExtraNav', () => {
-  it('gives a ticked surveyor the two fiber pages, in the order they are listed', () => {
+  it('gives a ticked surveyor the fiber pages, in the order they are listed', () => {
     expect(pickExtraNav(LINKS, user('SURVEYOR', true)).map((i) => i.href)).toEqual([
       '/admin/fiber',
+      '/admin/pops',
       '/admin/closures',
     ])
   })
 
-  it('gives a ticked supervisor or manager the same two', () => {
+  it('gives a ticked supervisor or manager the same pages', () => {
     for (const role of ['SUPERVISOR', 'MANAGER']) {
       expect(pickExtraNav(LINKS, user(role, true)).map((i) => i.href)).toEqual([
         '/admin/fiber',
+        '/admin/pops',
         '/admin/closures',
       ])
     }

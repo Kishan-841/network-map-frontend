@@ -18,6 +18,7 @@ const MAP_TYPES = [
 const LAYERS = [
   { key: 'buildings', label: 'Buildings' },
   { key: 'zones', label: 'Zones' },
+  { key: 'pops', label: 'POPs' },
   { key: 'others', label: 'Other fiber' },
 ]
 

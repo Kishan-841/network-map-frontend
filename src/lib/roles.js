@@ -43,8 +43,8 @@ export const canEditBuilding = (user, building) =>
 
 
 /**
- * May build and edit the fiber network — draw routes, add closures and
- * splitters, mark a fiber cut or restored. A per-user grant, not a role
+ * May build and edit the fiber network — draw routes, add closures, splitters
+ * and POPs, mark a fiber cut or restored. A per-user grant, not a role
  * privilege: an ADMIN ticks the user on Users → Assign accesses. Takes the
  * whole USER, not the role. Mirrors `mayManageFiber` in the API's
  * middleware/auth.js — the role list applies to a ticked user too.
@@ -60,13 +60,14 @@ export const ACCESS_ROLES = {
 }
 export const mayHoldAccess = (role, access) => (ACCESS_ROLES[access] ?? []).includes(role)
 
-/** POPs were not opened up with fiber access — still the API's ADMIN / MANAGER. */
-export const canManagePops = (role) => ['ADMIN', 'MANAGER'].includes(role)
-
-/** The two admin pages fiber access opens. */
+/**
+ * The admin pages fiber access opens. POPs belong here too: a POP is where the
+ * network starts, so whoever draws the cable records the site it runs from.
+ */
 const FIBER_PAGES = [
   { href: '/admin/fiber', label: 'Fibers' },
   { href: '/admin/closures', label: 'Closures' },
+  { href: '/admin/pops', label: 'POPs' },
 ]
 export const FIBER_PAGE_HREFS = FIBER_PAGES.map(({ href }) => href)
 const isFiberPage = (pathname) =>

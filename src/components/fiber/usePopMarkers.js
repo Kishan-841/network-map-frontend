@@ -14,7 +14,7 @@ const POP_Z_OFFSET = 100000
  * few, and a POP is a landmark people navigate by. `pops` is the raw list (or
  * an empty one when the layer is off); the pins are rebuilt when it changes.
  */
-export function usePopMarkers({ map, ready, pops, onPopClick }) {
+export function usePopMarkers({ map, ready, pops, onPopClick, clickable = true }) {
   const onPopClickRef = useRef(onPopClick)
   useEffect(() => {
     onPopClickRef.current = onPopClick
@@ -35,10 +35,13 @@ export function usePopMarkers({ map, ready, pops, onPopClick }) {
         icon,
         title: pop.name, // native hover tooltip
         zIndex: Number(google.maps.Marker.MAX_ZINDEX) + POP_Z_OFFSET,
+        // In the editor the map surface is a drawing canvas: a pin must not
+        // swallow the tap that adds the next point.
+        clickable,
       })
-      marker.addListener('click', () => onPopClickRef.current?.(pop))
+      if (clickable) marker.addListener('click', () => onPopClickRef.current?.(pop))
       return marker
     })
     return () => markers.forEach((marker) => marker.setMap(null))
-  }, [map, ready, pops])
+  }, [map, ready, pops, clickable])
 }
