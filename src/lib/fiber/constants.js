@@ -6,7 +6,21 @@ export const coreColor = (n) => FIBER_TYPE_COLORS[`${n} core`] ?? FIBER_TYPE_COL
 
 export const RATIO_LABELS = { R1_2: '1:2', R1_4: '1:4', R1_6: '1:6', R1_8: '1:8', R1_16: '1:16' }
 /** The closure bodies actually used in the field — the only three offered. */
-export const CLOSURE_KINDS = ['Jumbo', 'Tiffin', 'Compass']
+/**
+ * Closure types, by the names the field uses. A tiffin takes 2 ways and a
+ * compass 4, so the label says so — that is what decides which box goes on a
+ * pole. The stored value stays the plain name: closures recorded before this
+ * keep reading correctly, and nothing had to be migrated.
+ */
+export const CLOSURE_KINDS = [
+  { value: 'Jumbo', label: 'Jumbo' },
+  { value: 'Tiffin', label: '2 way tiffin' },
+  { value: 'Compass', label: '4 way compass' },
+]
+
+/** A stored kind as it should read on screen; anything unknown reads as it is. */
+export const closureKindLabel = (kind) =>
+  kind ? (CLOSURE_KINDS.find((k) => k.value === kind)?.label ?? kind) : null
 export const FIBER_TYPE_LABELS = { MAIN: 'Main', SUB: 'Sub' }
 /** Marker colours are fixed per point type — never by core count. */
 export const POINT_COLORS = { POP: '#7c3aed', CLOSURE: '#0e7569', SPLITTER: '#f97316', WAYPOINT: '#64748b', BUILDING: '#22c55e' }
