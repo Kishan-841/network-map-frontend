@@ -15,9 +15,9 @@ const BODIES = { pop: PopDetails, fiber: FiberDetails, closure: ClosureDetails }
  * The one place a POP, fiber or closure is read in full — on the map and on
  * the Fibers, POPs and Closures pages alike.
  *
- * It opens from the left, beside the sidebar, so the map stays visible to its
- * right on a desktop; on a phone it covers most of the screen over a dimmed
- * backdrop that closes it. `stack` comes from `lib/fiber/detail-stack.js`:
+ * It opens from the right edge, so the map stays visible to its left on a
+ * desktop; on a phone it covers most of the screen over a dimmed backdrop
+ * that closes it. `stack` comes from `lib/fiber/detail-stack.js`:
  * the last entry is shown, and Back steps to the one before.
  */
 export default function DetailDrawer({ stack, onOpen, onBack, onClose, onCentre, onEditFiber, onEditPop, readOnly = false }) {
@@ -43,7 +43,7 @@ export default function DetailDrawer({ stack, onOpen, onBack, onClose, onCentre,
       <aside
         role="dialog"
         aria-label={TITLES[entry.kind]}
-        className="fixed inset-y-0 left-0 z-[60] flex w-[min(92vw,440px)] flex-col border-r border-line bg-card shadow-lift transition-transform duration-200 ease-out starting:-translate-x-full lg:left-[var(--sidebar-w)]"
+        className="fixed inset-y-0 right-0 z-[60] flex w-[min(92vw,440px)] flex-col border-l border-line bg-card shadow-lift transition-transform duration-200 ease-out starting:translate-x-full"
       >
         <header className="flex items-center gap-1 border-b border-line px-2 py-2">
           {stack.length > 1 ? (

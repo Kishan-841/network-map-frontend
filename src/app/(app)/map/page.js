@@ -80,7 +80,7 @@ function CoverageMapPage() {
   const { pops } = usePops()
   const popCount = pops?.length ?? 0
   const visiblePops = popsShown && popCount > 0 ? pops : NO_POPS
-  // A POP, fiber or closure clicked on the map opens in the left drawer; a
+  // A POP, fiber or closure clicked on the map opens in the right-hand drawer; a
   // building keeps its own bottom card. One or the other, never both.
   const details = useDetailStack()
   // Filled by the map once it is live: centre the view on one point.
