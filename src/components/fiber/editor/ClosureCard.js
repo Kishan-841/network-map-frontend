@@ -2,17 +2,25 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input, Select } from '@/components/ui/Input'
 import { IconTrash } from '@/components/ui/icons'
-import { CLOSURE_KINDS, FIBER_TYPE_LABELS, POINT_COLORS, RATIO_LABELS } from '@/lib/fiber/constants'
+import {
+  CLOSURE_KINDS,
+  CORE_COUNTS,
+  FIBER_TYPE_LABELS,
+  FIBER_TYPES,
+  POINT_COLORS,
+  RATIO_LABELS,
+  TUBE_COUNTS,
+} from '@/lib/fiber/constants'
 import BottomSheet, { SHEET_ANCHORED } from './BottomSheet'
 
-const CARD_WIDTH = 248
-const CARD_HEIGHT = 230
+const CARD_WIDTH = 320
+const CARD_HEIGHT = 320
 // `create` still lands on the pixel that was tapped — but only from `lg` up,
 // where there is room beside the line. On a phone it is a bottom sheet.
 const SHEET_AT_PIXEL =
-  'lg:absolute lg:bottom-auto lg:right-auto lg:left-[var(--card-x)] lg:top-[var(--card-y)] lg:w-[248px] lg:max-h-none lg:rounded-card lg:p-3 lg:pb-3'
+  'lg:absolute lg:bottom-auto lg:right-auto lg:left-[var(--card-x)] lg:top-[var(--card-y)] lg:w-[320px] lg:max-h-none lg:rounded-card lg:p-3 lg:pb-3'
 
 /**
  * The card for a closure on the draft line, in two modes that share the same
@@ -28,6 +36,17 @@ const SHEET_AT_PIXEL =
 export default function ClosureCard({ mode = 'create', initial, splitter, at, bounds, saving, error, onSave, onRemove, onRemoveSplitter, onCancel }) {
   const [kind, setKind] = useState(() => initial?.kind || CLOSURE_KINDS[0].value)
   const [notes, setNotes] = useState(() => initial?.notes ?? '')
+  // The survey sheet: which cable this sits on, its tubes, and the cores in
+  // and out. All optional — a closure dropped while drawing is often recorded
+  // before anyone has opened it.
+  const [sheet, setSheet] = useState(() => ({
+    fiberType: initial?.fiberType ?? '',
+    tubeCount: initial?.tubeCount ?? '',
+    inCoreCount: initial?.inCoreCount ?? '',
+    outCoreCount: initial?.outCoreCount ?? '',
+  }))
+  const setField = (key) => (e) => setSheet((s) => ({ ...s, [key]: e.target.value }))
+  const numberOrNull = (v) => (v === '' || v === null ? null : Number(v))
 
   // A closure saved before these three were the only choices keeps its own
   // wording, shown as a chip it cannot be put back to once it is changed.
@@ -106,6 +125,40 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
         ))}
       </div>
 
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] font-medium text-muted">Cable type</span>
+        <Select id="closure-fiber-type" value={sheet.fiberType} onChange={setField('fiberType')}>
+          <option value="">Not recorded</option>
+          {FIBER_TYPES.map((type) => (
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
+          ))}
+        </Select>
+      </label>
+
+      {/* Labelled above rather than crammed into the option text: three
+          side-by-side dropdowns truncate to "0 ·", "In", "Ou" otherwise. */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { id: 'closure-tubes', key: 'tubeCount', label: 'Tubes', values: TUBE_COUNTS },
+          { id: 'closure-in-core', key: 'inCoreCount', label: 'Core in', values: CORE_COUNTS },
+          { id: 'closure-out-core', key: 'outCoreCount', label: 'Core out', values: CORE_COUNTS },
+        ].map((field) => (
+          <label key={field.id} className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11px] font-medium text-muted">{field.label}</span>
+            <Select id={field.id} value={sheet[field.key]} onChange={setField(field.key)}>
+              <option value="">—</option>
+              {field.values.map((count) => (
+                <option key={count} value={count}>
+                  {count}
+                </option>
+              ))}
+            </Select>
+          </label>
+        ))}
+      </div>
+
       <Input
         id="closure-note"
         placeholder="Note (optional)"
@@ -125,7 +178,16 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
           className="flex-1 min-h-11"
           loading={saving}
           disabled={saving}
-          onClick={() => onSave({ kind: kind || null, notes: notes.trim() || null })}
+          onClick={() =>
+            onSave({
+              kind: kind || null,
+              notes: notes.trim() || null,
+              fiberType: sheet.fiberType || null,
+              tubeCount: numberOrNull(sheet.tubeCount),
+              inCoreCount: numberOrNull(sheet.inCoreCount),
+              outCoreCount: numberOrNull(sheet.outCoreCount),
+            })
+          }
         >
           Save
         </Button>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
-import { coreColor } from '@/lib/fiber/constants'
+import { coreColor, fiberTypeLabel } from '@/lib/fiber/constants'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconClose } from '@/components/ui/icons'
@@ -57,7 +57,7 @@ function FeedChip({ fiber, onSwap }) {
 
 function DetailsBlock({ fiber }) {
   const rows = [
-    ['Cable type', fiber.cableType],
+    ['Fiber type', fiberTypeLabel(fiber.cableType)],
     ['Cable tag', fiber.cableTag],
     ['Placement', fiber.placement],
     ['Operator', fiber.operator?.name],
