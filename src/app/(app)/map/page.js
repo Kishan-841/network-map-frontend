@@ -13,15 +13,14 @@ import { canManageFiber, isAcquisition } from '@/lib/roles'
 import { AcquisitionMap } from '@/components/map/AcquisitionMap'
 import { FilterSheet } from '@/components/map/FilterSheet'
 import { SelectedBuildingCard } from '@/components/map/SelectedBuildingCard'
-import { PopCard } from '@/components/map/PopCard'
+import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 import { MapLegend } from '@/components/map/MapLegend'
 import { Fab } from '@/components/ui/Fab'
 import { IconSearch } from '@/components/ui/icons'
 
 const BuildingsMap = dynamic(() => import('@/components/map/BuildingsMap'), { ssr: false })
 // Client-only, and only ever mounted once something on the map is clicked.
-const FiberDetailPanel = dynamic(() => import('@/components/fiber/FiberDetailPanel'), { ssr: false })
-const ClosurePopup = dynamic(() => import('@/components/fiber/ClosurePopup'), { ssr: false })
+const DetailDrawer = dynamic(() => import('@/components/fiber/details/DetailDrawer'), { ssr: false })
 
 // The fiber overlay rebuilds whenever this array changes identity — one stable
 // empty array for "hidden" keeps a toggled-off layer from rebuilding forever.
@@ -81,13 +80,9 @@ function CoverageMapPage() {
   const { pops } = usePops()
   const popCount = pops?.length ?? 0
   const visiblePops = popsShown && popCount > 0 ? pops : NO_POPS
-  // Shares the bottom card slot with the selected building — one or the other.
-  const [selectedPop, setSelectedPop] = useState(null)
-
-  // Clicking the map opens exactly one of these — a fiber's detail panel or a
-  // closure's popup. Both are right-hand panels, so they are never both open.
-  const [panelFiberId, setPanelFiberId] = useState(null)
-  const [closurePopupId, setClosurePopupId] = useState(null)
+  // A POP, fiber or closure clicked on the map opens in the left drawer; a
+  // building keeps its own bottom card. One or the other, never both.
+  const details = useDetailStack()
   // Filled by the map once it is live: centre the view on one point.
   const centreRef = useRef(null)
 
@@ -120,20 +115,20 @@ function CoverageMapPage() {
         pops={visiblePops}
         selectedId={selected?.id}
         onSelect={(building) => {
-          setSelectedPop(null)
+          details.close()
           setSelected(building)
         }}
         onPopSelect={(pop) => {
           setSelected(null)
-          setSelectedPop(pop)
+          details.open('pop', pop.id)
         }}
         onFiberSelect={(id) => {
-          setClosurePopupId(null)
-          setPanelFiberId(id)
+          setSelected(null)
+          details.open('fiber', id)
         }}
         onClosureSelect={(id) => {
-          setPanelFiberId(null)
-          setClosurePopupId(id)
+          setSelected(null)
+          details.open('closure', id)
         }}
         centreRef={centreRef}
       />
@@ -188,50 +183,28 @@ function CoverageMapPage() {
         onToggleFiber={() => setFiberShown((v) => !v)}
         popsShown={popsShown}
         popCount={popCount}
-        onTogglePops={() => {
-          setPopsShown((v) => !v)
-          setSelectedPop(null)
-        }}
+        onTogglePops={() => setPopsShown((v) => !v)}
       />
 
-      {panelFiberId && (
-        <FiberDetailPanel
-          key={panelFiberId}
-          fiberId={panelFiberId}
-          readOnly={readOnlyFiber}
-          onClose={() => setPanelFiberId(null)}
-          onSwap={setPanelFiberId}
-          onCentre={(point) => centreRef.current?.(point)}
-          onEdit={(fiber) => router.push(`/admin/fiber?edit=${fiber.id}`)}
-        />
-      )}
-
-      {closurePopupId && (
-        <ClosurePopup
-          key={closurePopupId}
-          closureId={closurePopupId}
-          readOnly={readOnlyFiber}
-          onClose={() => setClosurePopupId(null)}
-          onOpenFiber={(id) => {
-            setClosurePopupId(null)
-            setPanelFiberId(id)
-          }}
-        />
-      )}
+      <DetailDrawer
+        stack={details.stack}
+        readOnly={readOnlyFiber}
+        onOpen={details.push}
+        onBack={details.back}
+        onClose={details.close}
+        onCentre={(point) => centreRef.current?.(point)}
+        onEditFiber={(fiber) => router.push(`/admin/fiber?edit=${fiber.id}`)}
+        onEditPop={(pop) => router.push(`/admin/pops?edit=${pop.id}`)}
+      />
 
       <SelectedBuildingCard building={selected} onClose={() => setSelected(null)} />
-      <PopCard
-        pop={selectedPop}
-        canEdit={canManageFiber(user)}
-        onClose={() => setSelectedPop(null)}
-      />
       <FilterSheet
         open={filtersOpen}
         filters={filters}
         onApply={setFilters}
         onClose={() => setFiltersOpen(false)}
       />
-      {!selected && !selectedPop && <Fab href="/buildings/add" label="Add Building" />}
+      {!selected && !details.current && <Fab href="/buildings/add" label="Add Building" />}
     </div>
   )
 }
