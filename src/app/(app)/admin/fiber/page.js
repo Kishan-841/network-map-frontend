@@ -24,7 +24,10 @@ function AdminFiberContent() {
   // The map's fiber panel sends "Edit" here as `?edit=<id>`: the editor is a
   // full-screen tool that only lives on this page.
   const editParamId = useSearchParams().get('edit')
-  const canManage = canManageFiber(useAuthStore((s) => s.user))
+  const user = useAuthStore((s) => s.user)
+  const canManage = canManageFiber(user)
+  // Only the maker and an ADMIN see a row, so say whose list this is.
+  const isAdmin = user?.role === 'ADMIN'
   const { fibers, loading } = useFibers()
   // Both lists arrive role-scoped from the API: a surveyor's zones are theirs.
   const { zones } = useZones()
@@ -93,7 +96,7 @@ function AdminFiberContent() {
       <PageHeader
         eyebrow="Administration"
         title="Fibers"
-        sub="Cables on the map"
+        sub={isAdmin ? 'Every cable on the map' : 'The cables you drew — only you and admins see them'}
         backHref="/dashboard"
         backLabel="Dashboard"
         action={
