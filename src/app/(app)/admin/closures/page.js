@@ -20,6 +20,10 @@ const toForm = (closure) => ({
   kind: closure.kind ?? '',
   buildingId: closure.building?.id ?? '',
   notes: closure.notes ?? '',
+  fiberType: closure.fiberType ?? '',
+  tubeCount: closure.tubeCount == null ? '' : String(closure.tubeCount),
+  inCoreCount: closure.inCoreCount == null ? '' : String(closure.inCoreCount),
+  outCoreCount: closure.outCoreCount == null ? '' : String(closure.outCoreCount),
 })
 
 const splitterLabel = (closure) =>

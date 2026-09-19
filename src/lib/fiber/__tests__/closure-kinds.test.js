@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { CLOSURE_KINDS, closureKindLabel } from '../constants'
 
 describe('closure kinds', () => {
-  it('offers Jumbo, Tiffin and Compass, storing the plain name', () => {
-    expect(CLOSURE_KINDS.map((k) => k.value)).toEqual(['Jumbo', 'Tiffin', 'Compass'])
+  it('stores the plain name for every kind it offers', () => {
+    expect(CLOSURE_KINDS.every((k) => typeof k.value === 'string' && k.value === k.value.trim())).toBe(true)
   })
 
   it('names the two by how many ways they take', () => {
@@ -24,5 +24,45 @@ describe('closure kinds', () => {
     expect(closureKindLabel('handhole')).toBe('handhole')
     expect(closureKindLabel(null)).toBe(null)
     expect(closureKindLabel('')).toBe(null)
+  })
+})
+
+describe('fiber types', () => {
+  it('names the three kinds of cable the sheet asks for', async () => {
+    const { FIBER_TYPES, fiberTypeLabel } = await import('../constants')
+    expect(FIBER_TYPES.map((t) => t.value)).toEqual(['MAIN_SF', 'SUB_SF', 'DROP_CABLE'])
+    expect(fiberTypeLabel('MAIN_SF')).toBe('Main SF')
+    expect(fiberTypeLabel('SUB_SF')).toBe('Sub-SF')
+    expect(fiberTypeLabel('DROP_CABLE')).toBe('Drop cable')
+  })
+
+  it('reads an unknown value back and says nothing for none', async () => {
+    const { fiberTypeLabel } = await import('../constants')
+    expect(fiberTypeLabel('ribbon')).toBe('ribbon')
+    expect(fiberTypeLabel(null)).toBeNull()
+  })
+})
+
+describe('the closure survey sheet', () => {
+  it('offers the five boxes the field fits', async () => {
+    const { CLOSURE_KINDS } = await import('../constants')
+    expect(CLOSURE_KINDS.map((k) => k.value)).toEqual([
+      'Jumbo',
+      'Tiffin',
+      'Compass',
+      'FDC',
+      'PatchPanel',
+    ])
+  })
+
+  it('labels the two newcomers plainly', async () => {
+    const { closureKindLabel } = await import('../constants')
+    expect(closureKindLabel('FDC')).toBe('FDC')
+    expect(closureKindLabel('PatchPanel')).toBe('Patch panel')
+  })
+
+  it('counts tubes from none to four', async () => {
+    const { TUBE_COUNTS } = await import('../constants')
+    expect(TUBE_COUNTS).toEqual([0, 1, 2, 3, 4])
   })
 })

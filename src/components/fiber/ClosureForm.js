@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
-import { CLOSURE_KINDS } from '@/lib/fiber/constants'
+import { CLOSURE_KINDS, CORE_COUNTS, FIBER_TYPES, TUBE_COUNTS } from '@/lib/fiber/constants'
 import { DEFAULT_CENTRE, parseLatitude, parseLongitude } from '@/lib/fiber/coords'
 
 // Client-only: Google Maps JS touches window.
@@ -50,6 +50,12 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
         kind: form.kind.trim() || null,
         buildingId: form.buildingId || null,
         notes: form.notes.trim() || null,
+        fiberType: form.fiberType || null,
+        tubeCount: form.tubeCount === '' || form.tubeCount == null ? null : Number(form.tubeCount),
+        inCoreCount:
+          form.inCoreCount === '' || form.inCoreCount == null ? null : Number(form.inCoreCount),
+        outCoreCount:
+          form.outCoreCount === '' || form.outCoreCount == null ? null : Number(form.outCoreCount),
       })
     } catch (err) {
       setError(getApiErrorMessage(err))
@@ -106,6 +112,64 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
           <option value={form.kind}>{form.kind}</option>
         )}
       </Select>
+
+      {/* The survey sheet: the cable this closure sits on, and what runs
+          through it. All optional — often filled in on a later visit. */}
+      <Select
+        id="closure-fiber-type"
+        label="Cable type"
+        value={form.fiberType ?? ''}
+        onChange={(e) => setForm({ ...form, fiberType: e.target.value })}
+      >
+        <option value="">Not recorded</option>
+        {FIBER_TYPES.map((type) => (
+          <option key={type.value} value={type.value}>
+            {type.label}
+          </option>
+        ))}
+      </Select>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Select
+          id="closure-tubes"
+          label="Tubes"
+          value={form.tubeCount ?? ''}
+          onChange={(e) => setForm({ ...form, tubeCount: e.target.value })}
+        >
+          <option value="">Not recorded</option>
+          {TUBE_COUNTS.map((count) => (
+            <option key={count} value={count}>
+              {count}
+            </option>
+          ))}
+        </Select>
+        <Select
+          id="closure-in-core"
+          label="Core in"
+          value={form.inCoreCount ?? ''}
+          onChange={(e) => setForm({ ...form, inCoreCount: e.target.value })}
+        >
+          <option value="">Not recorded</option>
+          {CORE_COUNTS.map((count) => (
+            <option key={count} value={count}>
+              {count} core
+            </option>
+          ))}
+        </Select>
+        <Select
+          id="closure-out-core"
+          label="Core out"
+          value={form.outCoreCount ?? ''}
+          onChange={(e) => setForm({ ...form, outCoreCount: e.target.value })}
+        >
+          <option value="">Not recorded</option>
+          {CORE_COUNTS.map((count) => (
+            <option key={count} value={count}>
+              {count} core
+            </option>
+          ))}
+        </Select>
+      </div>
 
       <Select
         id="closure-building"

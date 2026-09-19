@@ -12,7 +12,7 @@ import { useOperators } from '@/hooks/useOperators'
 import { invalidatePops } from '@/hooks/usePops'
 import { invalidateClosures } from '@/hooks/useClosures'
 import { toPayloadPoints } from '@/lib/fiber/draft'
-import { coreColor } from '@/lib/fiber/constants'
+import { coreColor, FIBER_TYPES } from '@/lib/fiber/constants'
 import { guessZoneId } from '@/lib/fiber/zone-guess'
 import BottomSheet, { SHEET_DIALOG } from './BottomSheet'
 
@@ -23,7 +23,8 @@ const PLACEMENT_CHOICES = [
 ]
 
 /**
- * The short "Save fiber" form: zone, operator, route name, fiber ID, IN/OUT,
+ * The short "Save fiber" form: zone, operator, route name, fiber ID, type,
+ * IN/OUT,
  * remark and photos — everything a surveyor knows at the moment the line is
  * drawn.
  *
@@ -56,6 +57,7 @@ export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved
 
   const [name, setName] = useState(() => fiber?.name ?? '')
   const [cableTag, setCableTag] = useState(() => fiber?.cableTag ?? '')
+  const [cableType, setCableType] = useState(() => fiber?.cableType ?? '')
   const [placement, setPlacement] = useState(() => fiber?.placement ?? null)
   const [notes, setNotes] = useState(() => fiber?.notes ?? '')
   const [images, setImages] = useState(() => fiber?.images ?? [])
@@ -90,6 +92,7 @@ export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved
       const payload = {
         coreCount,
         cableTag: cableTag.trim() || null,
+        cableType: cableType || null,
         notes: notes.trim() || null,
         images,
         placement,
@@ -168,6 +171,20 @@ export default function SavePanel({ mode, fiber, draftPoints, coreCount, onSaved
         value={cableTag}
         onChange={(e) => setCableTag(e.target.value)}
       />
+
+      <Select
+        id="fiber-type"
+        label="Fiber type"
+        value={cableType}
+        onChange={(e) => setCableType(e.target.value)}
+      >
+        <option value="">Not recorded</option>
+        {FIBER_TYPES.map((type) => (
+          <option key={type.value} value={type.value}>
+            {type.label}
+          </option>
+        ))}
+      </Select>
 
       <div className="flex items-center justify-between gap-3 rounded-btn border border-line bg-card px-4 py-3">
         <span className="text-sm font-medium text-ink">IN / OUT</span>
