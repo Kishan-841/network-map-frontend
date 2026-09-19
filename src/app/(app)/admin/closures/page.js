@@ -63,7 +63,10 @@ function RowActions({ closure, onEdit, onDelete }) {
 }
 
 export default function AdminClosuresPage() {
-  const canManage = canManageFiber(useAuthStore((s) => s.user))
+  const user = useAuthStore((s) => s.user)
+  const canManage = canManageFiber(user)
+  // Only the maker and an ADMIN see a row, so say whose list this is.
+  const isAdmin = user?.role === 'ADMIN'
   const { closures, loading } = useClosures()
   const [listError, setListError] = useState(null)
   // Closures are only ever created from the fiber editor, as a point on a
@@ -149,7 +152,7 @@ export default function AdminClosuresPage() {
       <PageHeader
         eyebrow="Administration"
         title="Closures"
-        sub="Splice boxes and splitters"
+        sub={isAdmin ? 'Every splice box and splitter' : 'The ones on your own cables — only you and admins see them'}
         backHref="/dashboard"
         backLabel="Dashboard"
       />

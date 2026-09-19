@@ -157,7 +157,10 @@ function RowActions({ pop, onEdit, onDelete }) {
 }
 
 export default function AdminPopsPage() {
-  const canManage = canManageFiber(useAuthStore((s) => s.user))
+  const user = useAuthStore((s) => s.user)
+  const canManage = canManageFiber(user)
+  // Only the maker and an ADMIN see a row, so say whose list this is.
+  const isAdmin = user?.role === 'ADMIN'
   const { pops, loading } = usePops()
   const [listError, setListError] = useState(null)
   // undefined = closed, null = new POP, object = edit that POP.
@@ -258,7 +261,7 @@ export default function AdminPopsPage() {
       <PageHeader
         eyebrow="Administration"
         title="POPs"
-        sub="Sites and OLTs"
+        sub={isAdmin ? 'Every site and its OLTs' : 'The sites you added — only you and admins see them'}
         backHref="/dashboard"
         backLabel="Dashboard"
         action={
