@@ -11,9 +11,22 @@ import { invalidateFibers } from '@/hooks/useFibers'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import PopForm from '@/components/fiber/PopForm'
-import OltList from '@/components/fiber/OltList'
+import { rackSummary } from '@/lib/fiber/pop-sheet'
 
-const emptyForm = { name: '', zoneId: '', latitude: '', longitude: '', notes: '' }
+const emptyForm = {
+  name: '',
+  zoneId: '',
+  latitude: '',
+  longitude: '',
+  notes: '',
+  serverLocation: '',
+  rackSize: '',
+  rackCondition: '',
+  upsBatteryCount: '',
+  images: [],
+  olts: [],
+  devices: [],
+}
 
 const toForm = (pop) => ({
   name: pop.name,
@@ -21,7 +34,95 @@ const toForm = (pop) => ({
   latitude: String(pop.latitude),
   longitude: String(pop.longitude),
   notes: pop.notes ?? '',
+  serverLocation: pop.serverLocation ?? '',
+  rackSize: pop.rackSize ?? '',
+  rackCondition: pop.rackCondition ?? '',
+  upsBatteryCount: pop.upsBatteryCount == null ? '' : String(pop.upsBatteryCount),
+  images: pop.images ?? [],
+  olts: (pop.olts ?? []).map((olt) => ({
+    id: olt.id,
+    name: olt.name,
+    ponPortCount: String(olt.ponPortCount),
+    ipAddress: olt.ipAddress ?? '',
+    type: olt.type ?? '',
+    model: olt.model ?? '',
+  })),
+  devices: (pop.devices ?? []).map((device) => ({
+    id: device.id,
+    kind: device.kind,
+    label: device.label ?? '',
+    ipAddress: device.ipAddress ?? '',
+    portCount: device.portCount ?? undefined,
+    speed: device.speed ?? '',
+    model: device.model ?? '',
+  })),
 })
+
+const DEVICE_SECTIONS = [
+  { kind: 'SWITCH', title: 'Switches' },
+  { kind: 'MIKROTIK', title: 'Mikrotiks' },
+  { kind: 'FMS', title: 'FMS units' },
+]
+
+const deviceLine = (device) =>
+  [
+    device.label,
+    device.speed,
+    device.model,
+    device.ipAddress,
+    device.portCount != null ? `${device.portCount} port` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+/**
+ * What is in the rack, read-only. Editing happens in the POP form, where the
+ * whole site is recorded in one save — a second place to change the same rows
+ * would be two sources of truth for one rack.
+ */
+function PopEquipment({ pop }) {
+  const sections = [
+    {
+      title: 'OLTs',
+      lines: (pop.olts ?? []).map((olt) =>
+        [
+          olt.name,
+          olt.type,
+          olt.model,
+          `${olt.ponPortCount} ports`,
+          olt.ipAddress,
+          `${olt._count?.fibers ?? 0} fibers`,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      ),
+    },
+    ...DEVICE_SECTIONS.map(({ kind, title }) => ({
+      title,
+      lines: (pop.devices ?? []).filter((d) => d.kind === kind).map(deviceLine),
+    })),
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+      {sections.map((section) => (
+        <div key={section.title} className="flex flex-col gap-1">
+          <p className="text-xs font-medium uppercase tracking-wide text-faint">{section.title}</p>
+          {section.lines.length === 0 ? (
+            <p className="text-sm font-normal text-muted">None recorded.</p>
+          ) : (
+            section.lines.map((line) => (
+              <p key={line} className="text-sm font-normal">
+                {line}
+              </p>
+            ))
+          )}
+        </div>
+      ))}
+      <p className="text-xs font-normal text-faint">Use Edit to change any of this.</p>
+    </div>
+  )
+}
 
 const oltSummary = (pop) =>
   pop.olts?.length ? pop.olts.map((o) => `${o.name} (${o.ponPortCount})`).join(' · ') : '—'
@@ -65,11 +166,6 @@ export default function AdminPopsPage() {
 
   const closeForm = () => setEditingPop(undefined)
   const toggleExpand = (pop) => setExpandedId((id) => (id === pop.id ? null : pop.id))
-  const onOltsMutated = () => {
-    invalidatePops()
-    invalidateFibers()
-  }
-
   async function handleSave(values) {
     if (editingPop) {
       await apiClient.patch(`/pops/${editingPop.id}`, values)
@@ -100,6 +196,11 @@ export default function AdminPopsPage() {
       key: 'zone',
       header: 'Zone',
       render: (p) => p.zone?.name ?? <span className="text-faint">No zone</span>,
+    },
+    {
+      key: 'rack',
+      header: 'Rack',
+      render: (p) => rackSummary(p) ?? <span className="text-faint">—</span>,
     },
     {
       key: 'position',
@@ -144,7 +245,7 @@ export default function AdminPopsPage() {
       )}
       {expandedId === p.id && (
         <div className="mt-3 border-t border-line/60 pt-3">
-          <OltList key={p.id} popId={p.id} olts={p.olts} canManage={canManage} onMutated={onOltsMutated} />
+          <PopEquipment key={p.id} pop={p} />
         </div>
       )}
     </div>
@@ -201,14 +302,8 @@ export default function AdminPopsPage() {
       {/* Desktop-only — the mobile card above renders its sub-table inline. */}
       {expandedPop && (
         <div className="mt-4 hidden rounded-card bg-card p-5 shadow-soft lg:block">
-          <h3 className="mb-3 text-sm font-bold text-ink">{expandedPop.name} · OLTs</h3>
-          <OltList
-            key={expandedPop.id}
-            popId={expandedPop.id}
-            olts={expandedPop.olts}
-            canManage={canManage}
-            onMutated={onOltsMutated}
-          />
+          <h3 className="mb-3 text-sm font-bold text-ink">{expandedPop.name} · equipment</h3>
+          <PopEquipment key={expandedPop.id} pop={expandedPop} />
         </div>
       )}
     </main>
