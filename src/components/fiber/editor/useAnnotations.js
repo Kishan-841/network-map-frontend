@@ -65,9 +65,12 @@ export function useAnnotations({ draft, dispatch, patchPoints, reloadFiber, onOp
     setSplitterPoint({ key, latitude: hit.latitude, longitude: hit.longitude, type: 'SPLITTER', ref: null })
   }
 
-  async function handleClosureSave({ kind, notes }) {
+  async function handleClosureSave(values) {
     const { key } = closureCard
-    const ref = { newClosure: { kind, notes } }
+    // Whatever the card collected, verbatim: the sheet (cable type, tubes,
+    // cores) rides along with the kind, or it is lost when the fiber mints
+    // the closure.
+    const ref = { newClosure: { ...values } }
     // The reducer's update lands next render — PATCH the list we just built.
     const points = draft.points.map((p) => (p.key === key ? { ...p, type: 'CLOSURE', ref } : p))
     dispatch({ type: 'setType', key, pointType: 'CLOSURE', ref })

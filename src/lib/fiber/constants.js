@@ -12,11 +12,28 @@ export const RATIO_LABELS = { R1_2: '1:2', R1_4: '1:4', R1_6: '1:6', R1_8: '1:8'
  * pole. The stored value stays the plain name: closures recorded before this
  * keep reading correctly, and nothing had to be migrated.
  */
+/**
+ * What kind of cable a route is, in the field's words. Stored in `cableType`;
+ * the label is what the sheet calls it.
+ */
+export const FIBER_TYPES = [
+  { value: 'MAIN_SF', label: 'Main SF' },
+  { value: 'SUB_SF', label: 'Sub-SF' },
+  { value: 'DROP_CABLE', label: 'Drop cable' },
+]
+export const fiberTypeLabel = (value) =>
+  value ? (FIBER_TYPES.find((t) => t.value === value)?.label ?? value) : null
+
 export const CLOSURE_KINDS = [
   { value: 'Jumbo', label: 'Jumbo' },
   { value: 'Tiffin', label: '2 way tiffin' },
   { value: 'Compass', label: '4 way compass' },
+  { value: 'FDC', label: 'FDC' },
+  { value: 'PatchPanel', label: 'Patch panel' },
 ]
+
+/** Tubes in the cable a closure sits on. 0 is a real answer. */
+export const TUBE_COUNTS = [0, 1, 2, 3, 4]
 
 /** A stored kind as it should read on screen; anything unknown reads as it is. */
 export const closureKindLabel = (kind) =>
