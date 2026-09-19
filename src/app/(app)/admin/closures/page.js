@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { DataTable } from '@/components/ui/DataTable'
@@ -11,8 +12,8 @@ import { RATIO_LABELS, closureKindLabel } from '@/lib/fiber/constants'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import ClosureForm from '@/components/fiber/ClosureForm'
-import ClosurePopup from '@/components/fiber/ClosurePopup'
-import FiberDetailPanel from '@/components/fiber/FiberDetailPanel'
+import DetailDrawer from '@/components/fiber/details/DetailDrawer'
+import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 
 const toForm = (closure) => ({
   latitude: String(closure.latitude),
@@ -72,8 +73,9 @@ export default function AdminClosuresPage() {
   // Closures are only ever created from the fiber editor, as a point on a
   // line — this page edits and removes them. null = form closed.
   const [editingClosure, setEditingClosure] = useState(null)
-  const [popupClosureId, setPopupClosureId] = useState(null)
-  const [panelFiberId, setPanelFiberId] = useState(null)
+  const router = useRouter()
+  // A row opens the left detail drawer; links inside it walk the network.
+  const details = useDetailStack()
 
   const closeForm = () => setEditingClosure(null)
 
@@ -180,33 +182,21 @@ export default function AdminClosuresPage() {
         rows={closures}
         loading={loading}
         keyField="id"
-        onRowClick={(row) => setPopupClosureId(row.id)}
+        onRowClick={(row) => details.open('closure', row.id)}
         renderCard={renderCard}
         emptyState={
           <p className="text-sm font-normal text-muted">No closures yet. Add one by placing it on a fiber line in the fiber editor.</p>
         }
       />
 
-      {popupClosureId && (
-        <ClosurePopup
-          key={popupClosureId}
-          closureId={popupClosureId}
-          onClose={() => setPopupClosureId(null)}
-          onOpenFiber={(fiberId) => {
-            setPopupClosureId(null)
-            setPanelFiberId(fiberId)
-          }}
-        />
-      )}
-
-      {panelFiberId && (
-        <FiberDetailPanel
-          key={panelFiberId}
-          fiberId={panelFiberId}
-          onClose={() => setPanelFiberId(null)}
-          onSwap={setPanelFiberId}
-        />
-      )}
+      <DetailDrawer
+        stack={details.stack}
+        onOpen={details.push}
+        onBack={details.back}
+        onClose={details.close}
+        onEditFiber={(fiber) => router.push(`/admin/fiber?edit=${fiber.id}`)}
+        onEditPop={(pop) => router.push(`/admin/pops?edit=${pop.id}`)}
+      />
     </main>
   )
 }
