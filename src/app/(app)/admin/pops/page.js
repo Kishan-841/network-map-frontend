@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -12,6 +13,8 @@ import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import PopForm from '@/components/fiber/PopForm'
 import { rackSummary } from '@/lib/fiber/pop-sheet'
+import DetailDrawer from '@/components/fiber/details/DetailDrawer'
+import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 
 const emptyForm = {
   name: '',
@@ -58,72 +61,6 @@ const toForm = (pop) => ({
   })),
 })
 
-const DEVICE_SECTIONS = [
-  { kind: 'SWITCH', title: 'Switches' },
-  { kind: 'MIKROTIK', title: 'Mikrotiks' },
-  { kind: 'FMS', title: 'FMS units' },
-]
-
-const deviceLine = (device) =>
-  [
-    device.label,
-    device.speed,
-    device.model,
-    device.ipAddress,
-    device.portCount != null ? `${device.portCount} port` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
-
-/**
- * What is in the rack, read-only. Editing happens in the POP form, where the
- * whole site is recorded in one save — a second place to change the same rows
- * would be two sources of truth for one rack.
- */
-function PopEquipment({ pop }) {
-  const sections = [
-    {
-      title: 'OLTs',
-      lines: (pop.olts ?? []).map((olt) =>
-        [
-          olt.name,
-          olt.type,
-          olt.model,
-          `${olt.ponPortCount} ports`,
-          olt.ipAddress,
-          `${olt._count?.fibers ?? 0} fibers`,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-      ),
-    },
-    ...DEVICE_SECTIONS.map(({ kind, title }) => ({
-      title,
-      lines: (pop.devices ?? []).filter((d) => d.kind === kind).map(deviceLine),
-    })),
-  ]
-
-  return (
-    <div className="flex flex-col gap-4">
-      {sections.map((section) => (
-        <div key={section.title} className="flex flex-col gap-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-faint">{section.title}</p>
-          {section.lines.length === 0 ? (
-            <p className="text-sm font-normal text-muted">None recorded.</p>
-          ) : (
-            section.lines.map((line) => (
-              <p key={line} className="text-sm font-normal">
-                {line}
-              </p>
-            ))
-          )}
-        </div>
-      ))}
-      <p className="text-xs font-normal text-faint">Use Edit to change any of this.</p>
-    </div>
-  )
-}
-
 const oltSummary = (pop) =>
   pop.olts?.length ? pop.olts.map((o) => `${o.name} (${o.ponPortCount})`).join(' · ') : '—'
 
@@ -156,7 +93,7 @@ function RowActions({ pop, onEdit, onDelete }) {
   )
 }
 
-export default function AdminPopsPage() {
+function AdminPopsPage() {
   const user = useAuthStore((s) => s.user)
   const canManage = canManageFiber(user)
   // Only the maker and an ADMIN see a row, so say whose list this is.
@@ -164,11 +101,34 @@ export default function AdminPopsPage() {
   const { pops, loading } = usePops()
   const [listError, setListError] = useState(null)
   // undefined = closed, null = new POP, object = edit that POP.
-  const [editingPop, setEditingPop] = useState(undefined)
-  const [expandedId, setExpandedId] = useState(null)
+  const [chosenPop, setChosenPop] = useState(undefined)
+  // A row opens the left detail drawer; links inside it walk the network.
+  const details = useDetailStack()
+  const router = useRouter()
 
-  const closeForm = () => setEditingPop(undefined)
-  const toggleExpand = (pop) => setExpandedId((id) => (id === pop.id ? null : pop.id))
+  // The map's drawer sends "Edit POP" here as `?edit=<id>`. Derived rather than
+  // copied into state in an effect: the form opens once the list holds that
+  // POP, and closing it dismisses that id so it does not spring back open.
+  const editParamId = useSearchParams().get('edit')
+  const [dismissedEditId, setDismissedEditId] = useState(null)
+  const editParamPop =
+    editParamId && editParamId !== dismissedEditId && canManage
+      ? pops.find((p) => p.id === editParamId)
+      : undefined
+  const editingPop = chosenPop !== undefined ? chosenPop : editParamPop
+  const setEditingPop = (pop) => {
+    setChosenPop(pop)
+    if (pop !== undefined) window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const closeForm = () => {
+    setChosenPop(undefined)
+    if (editParamId) {
+      setDismissedEditId(editParamId)
+      // Tidy `?edit=` out of the address bar without re-running the route.
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }
   async function handleSave(values) {
     if (editingPop) {
       await apiClient.patch(`/pops/${editingPop.id}`, values)
@@ -187,7 +147,7 @@ export default function AdminPopsPage() {
       await apiClient.delete(`/pops/${pop.id}`)
       invalidatePops()
       invalidateFibers()
-      if (expandedId === pop.id) setExpandedId(null)
+      details.close()
     } catch (err) {
       setListError(getApiErrorMessage(err, 'Could not delete this POP'))
     }
@@ -228,7 +188,7 @@ export default function AdminPopsPage() {
   const renderCard = (p) => (
     <div className="rounded-card bg-card p-4 shadow-soft">
       <div
-        onClick={() => toggleExpand(p)}
+        onClick={() => details.open('pop', p.id)}
         className="cursor-pointer transition-transform active:scale-[0.99]"
       >
         <div className="flex items-start justify-between gap-3">
@@ -246,15 +206,8 @@ export default function AdminPopsPage() {
           <RowActions pop={p} onEdit={setEditingPop} onDelete={handleDelete} />
         </div>
       )}
-      {expandedId === p.id && (
-        <div className="mt-3 border-t border-line/60 pt-3">
-          <PopEquipment key={p.id} pop={p} />
-        </div>
-      )}
     </div>
   )
-
-  const expandedPop = pops.find((p) => p.id === expandedId) ?? null
 
   return (
     <main className="mx-auto max-w-5xl">
@@ -297,18 +250,31 @@ export default function AdminPopsPage() {
         rows={pops}
         loading={loading}
         keyField="id"
-        onRowClick={toggleExpand}
+        onRowClick={(row) => details.open('pop', row.id)}
         renderCard={renderCard}
         emptyState={<p className="text-sm font-normal text-muted">No POPs yet — add the first one.</p>}
       />
 
-      {/* Desktop-only — the mobile card above renders its sub-table inline. */}
-      {expandedPop && (
-        <div className="mt-4 hidden rounded-card bg-card p-5 shadow-soft lg:block">
-          <h3 className="mb-3 text-sm font-bold text-ink">{expandedPop.name} · equipment</h3>
-          <PopEquipment key={expandedPop.id} pop={expandedPop} />
-        </div>
-      )}
+      <DetailDrawer
+        stack={details.stack}
+        onOpen={details.push}
+        onBack={details.back}
+        onClose={details.close}
+        onEditPop={(pop) => {
+          details.close()
+          setEditingPop(pops.find((p) => p.id === pop.id) ?? pop)
+        }}
+        onEditFiber={(fiber) => router.push(`/admin/fiber?edit=${fiber.id}`)}
+      />
     </main>
+  )
+}
+
+// useSearchParams must sit inside a Suspense boundary in the App Router.
+export default function AdminPopsPageWithParams() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPopsPage />
+    </Suspense>
   )
 }

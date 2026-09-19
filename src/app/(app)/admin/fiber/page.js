@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -13,7 +13,8 @@ import { useOperators } from '@/hooks/useOperators'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import FiberTable from '@/components/fiber/FiberTable'
-import FiberDetailPanel from '@/components/fiber/FiberDetailPanel'
+import DetailDrawer from '@/components/fiber/details/DetailDrawer'
+import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 
 // Client-only: Google Maps JS touches window.
 const FiberEditor = dynamic(() => import('@/components/fiber/editor/FiberEditor'), {
@@ -33,7 +34,9 @@ function AdminFiberContent() {
   const { zones } = useZones()
   const { operators } = useOperators()
   const [busyId, setBusyId] = useState(null)
-  const [panelFiberId, setPanelFiberId] = useState(null)
+  const router = useRouter()
+  // A row opens the left detail drawer; links inside it walk the network.
+  const details = useDetailStack()
   // undefined = closed, null = new fiber, object = edit that fiber.
   const [editorFiber, setEditorFiber] = useState(undefined)
   const [listError, setListError] = useState(null)
@@ -123,7 +126,7 @@ function AdminFiberContent() {
         operators={operators}
         busyId={busyId}
         onFieldChange={handleFieldChange}
-        onRowClick={(row) => setPanelFiberId(row.id)}
+        onRowClick={(row) => details.open('fiber', row.id)}
         onEdit={setEditorFiber}
         onDelete={handleDelete}
         emptyState={
@@ -131,19 +134,17 @@ function AdminFiberContent() {
         }
       />
 
-      {panelFiberId && (
-        <FiberDetailPanel
-          key={panelFiberId}
-          fiberId={panelFiberId}
-          onClose={() => setPanelFiberId(null)}
-          onEdit={(f) => {
-            setPanelFiberId(null)
-            setEditorFiber(f)
-          }}
-          onSwap={setPanelFiberId}
-          onCentre={() => {}}
-        />
-      )}
+      <DetailDrawer
+        stack={details.stack}
+        onOpen={details.push}
+        onBack={details.back}
+        onClose={details.close}
+        onEditFiber={(f) => {
+          details.close()
+          setEditorFiber(f)
+        }}
+        onEditPop={(pop) => router.push(`/admin/pops?edit=${pop.id}`)}
+      />
 
       {editorOpen && (
         <FiberEditor
