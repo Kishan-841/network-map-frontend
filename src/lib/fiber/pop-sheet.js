@@ -39,15 +39,29 @@ export function equipmentPayload({ olts, devices }) {
         model: String(olt.model ?? '').trim() || null,
       })),
     devices: devices
-      .filter((device) =>
-        device.kind === 'FMS' ? device.portCount != null : String(device.ipAddress ?? '').trim(),
-      )
+      // Keep a device the moment it carries anything at all — a name, an IP, a
+      // model, a speed or a port count. No single field is required: a switch
+      // known only by its model is real kit, and dropping it silently is how a
+      // survey loses data. Only a wholly blank row (an "Add" click, then a
+      // change of mind) falls away.
+      .filter((device) => {
+        const has = (v) => String(v ?? '').trim() !== ''
+        return (
+          has(device.label) ||
+          has(device.ipAddress) ||
+          has(device.model) ||
+          has(device.speed) ||
+          device.portCount != null
+        )
+      })
       .map((device) => ({
         ...(device.id && { id: device.id }),
         kind: device.kind,
         label: String(device.label ?? '').trim() || null,
-        ipAddress: device.kind === 'FMS' ? null : String(device.ipAddress).trim(),
-        portCount: device.kind === 'FMS' ? Number(device.portCount) : null,
+        // An FMS has no address; a switch/Mikrotik may simply not have one yet.
+        // `?? ''` guards the empty case — String(undefined) would send "undefined".
+        ipAddress: device.kind === 'FMS' ? null : String(device.ipAddress ?? '').trim() || null,
+        portCount: device.kind === 'FMS' && device.portCount != null ? Number(device.portCount) : null,
         // Speed is a switch's business; the model is anyone's.
         speed: device.kind === 'SWITCH' ? device.speed || null : null,
         model: device.kind === 'FMS' ? null : String(device.model ?? '').trim() || null,
