@@ -44,6 +44,35 @@ describe('equipmentPayload', () => {
     })
   })
 
+  it('keeps a switch with only a model — no IP is not a reason to drop it', () => {
+    const out = equipmentPayload({
+      olts: [],
+      devices: [{ kind: 'SWITCH', label: 'Core', model: 'CRS326', speed: '10G' }],
+    })
+    expect(out.devices).toEqual([
+      { kind: 'SWITCH', label: 'Core', ipAddress: null, portCount: null, speed: '10G', model: 'CRS326' },
+    ])
+  })
+
+  it('keeps a Mikrotik known only by name, and an FMS without a port count', () => {
+    const out = equipmentPayload({
+      olts: [],
+      devices: [
+        { kind: 'MIKROTIK', label: 'RB by the door' },
+        { kind: 'FMS', label: 'FMS A' },
+      ],
+    })
+    expect(out.devices).toEqual([
+      { kind: 'MIKROTIK', label: 'RB by the door', ipAddress: null, portCount: null, speed: null, model: null },
+      { kind: 'FMS', label: 'FMS A', ipAddress: null, portCount: null, speed: null, model: null },
+    ])
+  })
+
+  it('never sends the literal string "undefined" for a missing IP', () => {
+    const out = equipmentPayload({ olts: [], devices: [{ kind: 'SWITCH', model: 'X' }] })
+    expect(out.devices[0].ipAddress).toBeNull()
+  })
+
   it('drops a row somebody added and left blank rather than failing the save', () => {
     const out = equipmentPayload({
       olts: [{ name: '   ', ponPortCount: 8 }],
