@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { DataTable } from '@/components/ui/DataTable'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { Pagination } from '@/components/ui/Pagination'
+import { useClientTable } from '@/hooks/useClientTable'
+
+// A closure has no zone of its own — search its code and the building it sits on.
+const closureSearchText = (closure) => [closure.code, closure.building?.buildingName]
 import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useClosures, invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
@@ -70,6 +76,7 @@ export default function AdminClosuresPage() {
   const isAdmin = user?.role === 'ADMIN'
   const { closures, loading } = useClosures()
   const [listError, setListError] = useState(null)
+  const table = useClientTable(closures, { getSearchText: closureSearchText })
   // Closures are only ever created from the fiber editor, as a point on a
   // line — this page edits and removes them. null = form closed.
   const [editingClosure, setEditingClosure] = useState(null)
@@ -177,9 +184,16 @@ export default function AdminClosuresPage() {
         </div>
       )}
 
+      <SearchInput
+        value={table.search}
+        onChange={table.onSearchChange}
+        placeholder="Search closures by code or building…"
+        className="mb-4"
+      />
+
       <DataTable
         columns={columns}
-        rows={closures}
+        rows={table.rows}
         loading={loading}
         keyField="id"
         onRowClick={(row) => details.open('closure', row.id)}
@@ -188,6 +202,8 @@ export default function AdminClosuresPage() {
           <p className="text-sm font-normal text-muted">No closures yet. Add one by placing it on a fiber line in the fiber editor.</p>
         }
       />
+
+      <Pagination pagination={table.pagination} onChange={table.onPageChange} />
 
       <DetailDrawer
         stack={details.stack}
