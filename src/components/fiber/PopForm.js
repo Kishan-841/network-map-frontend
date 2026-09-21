@@ -24,9 +24,9 @@ const GoogleLocationPicker = dynamic(
  * typed, or picked on the map) and notes. `initial` is only ever read once —
  * the mount site keys this component fresh per edit target.
  *
- * The zone is required and recorded, but it does not decide who sees the
- * site — only whoever adds it and an ADMIN do. The zone list comes from the
- * API already scoped, which is what limits a surveyor to their own zones.
+ * The zone decides who sees the site afterwards — everyone assigned to that
+ * zone does, as does whoever adds it — so it is required. The zone list comes
+ * from the API already scoped, which is what limits a surveyor to their own.
  */
 export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
   const [form, setForm] = useState(() => initial)
