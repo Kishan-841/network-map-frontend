@@ -185,7 +185,8 @@ export default function FiberTable({
   const renderCard = (f) => (
     <div
       onClick={() => onRowClick(f)}
-      className="cursor-pointer rounded-card bg-card p-4 shadow-soft transition-transform active:scale-[0.99]"
+      className="cursor-pointer rounded-card border-l-4 bg-card p-4 shadow-soft transition-transform active:scale-[0.99]"
+      style={{ borderLeftColor: coreColor(f.coreCount) }}
     >
       <div className="flex items-start justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2">
