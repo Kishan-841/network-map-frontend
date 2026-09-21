@@ -5,6 +5,12 @@ import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { Pagination } from '@/components/ui/Pagination'
+import { useClientTable } from '@/hooks/useClientTable'
+
+// Search a fiber by its name or the zone it runs in.
+const fiberSearchText = (fiber) => [fiber.name, fiber.zone?.name]
 import { Button } from '@/components/ui/Button'
 import { IconPlus } from '@/components/ui/icons'
 import { useFibers, invalidateFibers } from '@/hooks/useFibers'
@@ -40,6 +46,7 @@ function AdminFiberContent() {
   // undefined = closed, null = new fiber, object = edit that fiber.
   const [editorFiber, setEditorFiber] = useState(undefined)
   const [listError, setListError] = useState(null)
+  const table = useClientTable(fibers, { getSearchText: fiberSearchText })
 
   // Derived, never stored: the editor opens for `?edit=` as soon as the fibers
   // list contains that id. Closing records WHICH id was dismissed — dropping
@@ -118,8 +125,15 @@ function AdminFiberContent() {
         </p>
       )}
 
+      <SearchInput
+        value={table.search}
+        onChange={table.onSearchChange}
+        placeholder="Search fibers by name or zone…"
+        className="mb-4"
+      />
+
       <FiberTable
-        fibers={fibers}
+        fibers={table.rows}
         loading={loading}
         canManage={canManage}
         zones={zones}
@@ -133,6 +147,8 @@ function AdminFiberContent() {
           <p className="text-sm font-normal text-muted">No fibers yet — draw the first one.</p>
         }
       />
+
+      <Pagination pagination={table.pagination} onChange={table.onPageChange} />
 
       <DetailDrawer
         stack={details.stack}
