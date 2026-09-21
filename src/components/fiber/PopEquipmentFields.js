@@ -61,7 +61,7 @@ function Section({ title, children }) {
   )
 }
 
-export function PopEquipmentFields({ olts, devices, onChange }) {
+export function PopEquipmentFields({ olts, devices, onChange, errors = { olts: [], devices: [] } }) {
   const setOlts = (next) => onChange({ olts: next, devices })
   const setDevices = (next) => onChange({ olts, devices: next })
 
@@ -84,6 +84,7 @@ export function PopEquipmentFields({ olts, devices, onChange }) {
               id={`olt-name-${index}`}
               placeholder="OLT name e.g. OLT-1"
               value={olt.name ?? ''}
+              error={errors.olts?.[index]?.name}
               onChange={(e) => setOlts(patchAt(olts, index, { name: e.target.value }))}
             />
             <Input
@@ -93,12 +94,14 @@ export function PopEquipmentFields({ olts, devices, onChange }) {
               max={256}
               placeholder="PON ports"
               value={olt.ponPortCount ?? ''}
+              error={errors.olts?.[index]?.ponPortCount}
               onChange={(e) => setOlts(patchAt(olts, index, { ponPortCount: e.target.value }))}
             />
             <Input
               id={`olt-ip-${index}`}
               placeholder="IP e.g. 10.0.1.1"
               value={olt.ipAddress ?? ''}
+              error={errors.olts?.[index]?.ipAddress}
               onChange={(e) => setOlts(patchAt(olts, index, { ipAddress: e.target.value }))}
             />
             <Select
@@ -173,12 +176,14 @@ export function PopEquipmentFields({ olts, devices, onChange }) {
                     id={`device-ip-${kind}-${nth}`}
                     placeholder="IP e.g. 10.0.0.1"
                     value={device.ipAddress ?? ''}
+                    error={errors.devices?.[index]?.ipAddress}
                     onChange={(e) => setDevices(patchAt(devices, index, { ipAddress: e.target.value }))}
                   />
                 ) : (
                   <Select
                     id={`device-ports-${kind}-${nth}`}
                     value={device.portCount ?? FMS_PORT_COUNTS[0]}
+                    error={errors.devices?.[index]?.portCount}
                     onChange={(e) => setDevices(patchAt(devices, index, { portCount: e.target.value }))}
                   >
                     {FMS_PORT_COUNTS.map((count) => (

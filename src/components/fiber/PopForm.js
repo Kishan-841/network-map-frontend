@@ -10,7 +10,7 @@ import { BuildingSearchField } from '@/components/fiber/BuildingSearchField'
 import { useZones } from '@/hooks/useZones'
 import { uploadFile } from '@/lib/upload'
 import { DEFAULT_CENTRE, parseLatitude, parseLongitude } from '@/lib/fiber/coords'
-import { equipmentPayload, RACK_SIZES, UPS_BATTERY_COUNTS } from '@/lib/fiber/pop-sheet'
+import { equipmentPayload, popFormErrors, RACK_SIZES, UPS_BATTERY_COUNTS } from '@/lib/fiber/pop-sheet'
 import { PopEquipmentFields } from '@/components/fiber/PopEquipmentFields'
 
 // Client-only: Google Maps JS touches window.
@@ -33,7 +33,15 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [uploading, setUploading] = useState(false)
+  // Errors are held back until the first Save attempt, then shown live as the
+  // fields are fixed — the form does not scold a sheet nobody has finished yet.
+  const [attempted, setAttempted] = useState(false)
   const { zones, loading: zonesLoading } = useZones()
+
+  // Mirrors the API's own rules, so nothing the user typed is dropped in
+  // silence and nothing the server would reject is sent blind.
+  const validation = popFormErrors(form)
+  const show = attempted ? validation : { fields: {}, equipment: { olts: [], devices: [] } }
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -57,9 +65,13 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
 
   const latitude = parseLatitude(form.latitude)
   const longitude = parseLongitude(form.longitude)
-  const canSave = form.name.trim() && form.zoneId && latitude !== null && longitude !== null
 
   async function handleSave() {
+    if (!validation.ok) {
+      setAttempted(true)
+      setError('Fix the highlighted fields before saving.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -92,16 +104,20 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
         label="Name"
         placeholder="POP name e.g. Wakad POP-1"
         value={form.name}
+        error={show.fields.name}
         onChange={(e) => setForm({ ...form, name: e.target.value })}
       />
 
-      <ZoneSearchSelect
-        id="pop-zone"
-        zones={zones}
-        value={form.zoneId}
-        disabled={zonesLoading}
-        onChange={(zoneId) => setForm((f) => ({ ...f, zoneId }))}
-      />
+      <div>
+        <ZoneSearchSelect
+          id="pop-zone"
+          zones={zones}
+          value={form.zoneId}
+          disabled={zonesLoading}
+          onChange={(zoneId) => setForm((f) => ({ ...f, zoneId }))}
+        />
+        {show.fields.zoneId && <p className="mt-1 text-sm font-normal text-bad">{show.fields.zoneId}</p>}
+      </div>
 
       {/* Most POPs sit in or beside a building somebody has already surveyed —
           picking it drops the pin on coordinates that were checked on site. */}
@@ -123,6 +139,7 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
           inputMode="decimal"
           placeholder="e.g. 18.6018"
           value={form.latitude}
+          error={show.fields.latitude}
           onChange={(e) => setForm({ ...form, latitude: e.target.value })}
         />
         <Input
@@ -131,6 +148,7 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
           inputMode="decimal"
           placeholder="e.g. 73.7542"
           value={form.longitude}
+          error={show.fields.longitude}
           onChange={(e) => setForm({ ...form, longitude: e.target.value })}
         />
       </div>
@@ -233,6 +251,7 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
         <PopEquipmentFields
           olts={form.olts ?? []}
           devices={form.devices ?? []}
+          errors={show.equipment}
           onChange={({ olts, devices }) => setForm((f) => ({ ...f, olts, devices }))}
         />
       </div>
@@ -254,13 +273,7 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
             Cancel
           </Button>
         )}
-        <Button
-          type="button"
-          className="flex-1"
-          disabled={!canSave}
-          loading={busy}
-          onClick={handleSave}
-        >
+        <Button type="button" className="flex-1" loading={busy} onClick={handleSave}>
           {saveLabel}
         </Button>
       </div>
