@@ -107,12 +107,6 @@ export default function AdminClosuresPage() {
 
   const columns = [
     { key: 'code', header: 'Code', render: (c) => <span className="font-mono font-bold">{c.code}</span> },
-    {
-      key: 'position',
-      header: 'Position',
-      className: 'font-mono text-xs text-muted',
-      render: (c) => `${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}`,
-    },
     { key: 'kind', header: 'Kind', render: (c) => closureKindLabel(c.kind) || '—' },
     { key: 'building', header: 'Building', render: (c) => c.building?.buildingName ?? '—' },
     { key: 'fibers', header: 'Fibers', className: 'tabular-nums', render: fiberCount },
@@ -132,7 +126,7 @@ export default function AdminClosuresPage() {
 
   const renderCard = (c) => (
     <div
-      onClick={() => setPopupClosureId(c.id)}
+      onClick={() => details.open('closure', c.id)}
       className="cursor-pointer rounded-card bg-card p-4 shadow-soft transition-transform active:scale-[0.99]"
     >
       <div className="flex items-start justify-between gap-3">
@@ -141,9 +135,6 @@ export default function AdminClosuresPage() {
           {closureKindLabel(c.kind) || '—'}
         </span>
       </div>
-      <p className="mt-1 font-mono text-xs text-muted">
-        {c.latitude.toFixed(5)}, {c.longitude.toFixed(5)}
-      </p>
       <p className="mt-1 text-sm font-normal text-muted">
         {c.building?.buildingName ?? 'No building'} · {fiberCount(c)} fiber
         {fiberCount(c) === 1 ? '' : 's'} · {splitterLabel(c)}
