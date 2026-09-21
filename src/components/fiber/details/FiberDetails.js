@@ -1,8 +1,16 @@
 'use client'
 
+import { useState } from 'react'
 import dynamic from 'next/dynamic'
+import { apiClient, getApiErrorMessage } from '@/lib/api-client'
+import { invalidateFibers } from '@/hooks/useFibers'
+import { useZones } from '@/hooks/useZones'
+import { useOperators } from '@/hooks/useOperators'
 import { closureKindLabel, coreColor, fiberTypeLabel, POINT_COLORS, RATIO_LABELS } from '@/lib/fiber/constants'
-import { IconRoute } from '@/components/ui/icons'
+import { IconEdit, IconRoute } from '@/components/ui/icons'
+import { Button } from '@/components/ui/Button'
+import { Select } from '@/components/ui/Input'
+import { ZoneSearchSelect } from '@/components/buildings/ZoneSearchSelect'
 import SegmentList from '@/components/fiber/SegmentList'
 import FiberActions from '@/components/fiber/FiberActions'
 import {
@@ -79,9 +87,87 @@ function FeedRows({ fiber, onOpen }) {
   return <EmptyLine>No feed recorded — neither an OLT port nor a splitter.</EmptyLine>
 }
 
+/**
+ * Zone and operator, changed here in the drawer rather than in the table. One
+ * choice each, saved the moment it changes; a refusal (a zone a surveyor does
+ * not hold) shows here rather than as a raw error. Read-only for a reader.
+ */
+function ZoneOperatorSection({ fiber, canManage, onSaved }) {
+  const { zones } = useZones()
+  const { operators } = useOperators()
+  const [editing, setEditing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  const save = async (patch) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await apiClient.patch(`/fibers/${fiber.id}`, patch)
+      invalidateFibers()
+      onSaved()
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Could not update this fiber'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Read-only by default — for a reader always, and for a manager until they
+  // press Change. A picker only opens on purpose, so a stray click or a scroll
+  // over a focused select can never quietly re-zone a fiber.
+  if (!canManage || !editing) {
+    return (
+      <Section title="Zone & operator">
+        <FieldList rows={[['Zone', fiber.zone?.name], ['Operator', fiber.operator?.name]]} />
+        {canManage && (
+          <Button type="button" variant="secondary" className="h-11 min-h-11 w-fit" onClick={() => setEditing(true)}>
+            <IconEdit className="h-4 w-4" strokeWidth={1.8} />
+            Change zone or operator
+          </Button>
+        )}
+      </Section>
+    )
+  }
+
+  return (
+    <Section title="Zone & operator">
+      <ZoneSearchSelect
+        id={`fiber-zone-${fiber.id}`}
+        zones={zones}
+        value={fiber.zoneId ?? ''}
+        disabled={busy}
+        onChange={(zoneId) => (zoneId || null) !== (fiber.zoneId ?? null) && save({ zoneId: zoneId || null })}
+      />
+      {operators.length > 0 && (
+        <Select
+          id={`fiber-operator-${fiber.id}`}
+          value={fiber.operatorId ?? ''}
+          disabled={busy}
+          onChange={(e) => {
+            const next = e.target.value || null
+            if (next !== (fiber.operatorId ?? null)) save({ operatorId: next })
+          }}
+        >
+          <option value="">No operator</option>
+          {operators.map((op) => (
+            <option key={op.id} value={op.id}>
+              {op.name}
+            </option>
+          ))}
+        </Select>
+      )}
+      {error && <p className="rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">{error}</p>}
+      <Button type="button" variant="ghost" className="h-11 min-h-11 w-fit" onClick={() => setEditing(false)}>
+        Done
+      </Button>
+    </Section>
+  )
+}
+
 /** One fiber in full: the cable sheet, its route stop by stop, segments, splitters and photos. */
 export default function FiberDetails({ id, canManage, onOpen, onCentre, onEdit }) {
-  const { data: fiber, loading, error, retry } = useDetail(`/fibers/${id}`, 'Could not load this fiber')
+  const { data: fiber, loading, error, retry, refresh } = useDetail(`/fibers/${id}`, 'Could not load this fiber')
 
   if (loading) return <Skeleton />
   if (error) return <LoadError error={error} onRetry={retry} />
@@ -133,14 +219,14 @@ export default function FiberDetails({ id, canManage, onOpen, onCentre, onEdit }
             ['Fiber type', fiberTypeLabel(fiber.cableType)],
             ['Core count', `${fiber.coreCount} core`],
             ['IN / OUT', fiber.placement],
-            ['Zone', fiber.zone?.name],
-            ['Operator', fiber.operator?.name],
             ['Status', STATUS_LABEL[fiber.status] ?? fiber.status],
             ['Laid length', laid > 0 ? metres(laid) : null],
             ['Remark', fiber.notes],
           ]}
         />
       </Section>
+
+      <ZoneOperatorSection fiber={fiber} canManage={canManage} onSaved={refresh} />
 
       <Section title="Feed">
         <FeedRows fiber={fiber} onOpen={onOpen} />
