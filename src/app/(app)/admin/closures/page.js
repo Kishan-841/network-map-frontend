@@ -154,7 +154,7 @@ export default function AdminClosuresPage() {
       <PageHeader
         eyebrow="Administration"
         title="Closures"
-        sub={isAdmin ? 'Every splice box and splitter' : 'The ones on your own cables — only you and admins see them'}
+        sub={isAdmin ? 'Every splice box and splitter' : "Boxes on your zones' cables, and any you added"}
         backHref="/dashboard"
         backLabel="Dashboard"
       />

@@ -99,7 +99,7 @@ function AdminFiberContent() {
       <PageHeader
         eyebrow="Administration"
         title="Fibers"
-        sub={isAdmin ? 'Every cable on the map' : 'The cables you drew — only you and admins see them'}
+        sub={isAdmin ? 'Every cable on the map' : 'Cables in the zones you are assigned, and any you drew'}
         backHref="/dashboard"
         backLabel="Dashboard"
         action={

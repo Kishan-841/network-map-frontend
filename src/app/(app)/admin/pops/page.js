@@ -214,7 +214,7 @@ function AdminPopsPage() {
       <PageHeader
         eyebrow="Administration"
         title="POPs"
-        sub={isAdmin ? 'Every site and its OLTs' : 'The sites you added — only you and admins see them'}
+        sub={isAdmin ? 'Every site and its OLTs' : 'Sites in the zones you are assigned, and any you added'}
         backHref="/dashboard"
         backLabel="Dashboard"
         action={
