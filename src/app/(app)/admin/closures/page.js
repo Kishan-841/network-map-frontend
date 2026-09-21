@@ -160,38 +160,39 @@ export default function AdminClosuresPage() {
         </p>
       )}
 
-      {editingClosure && (
-        <div className="mb-4">
-          <ClosureForm
-            key={editingClosure.id}
-            initial={toForm(editingClosure)}
-            saveLabel="Save changes"
-            onCancel={closeForm}
-            onSave={handleSave}
+      {editingClosure ? (
+        // Editing takes over the page — the list is hidden until Cancel/save.
+        <ClosureForm
+          key={editingClosure.id}
+          initial={toForm(editingClosure)}
+          saveLabel="Save changes"
+          onCancel={closeForm}
+          onSave={handleSave}
+        />
+      ) : (
+        <>
+          <SearchInput
+            value={table.search}
+            onChange={table.onSearchChange}
+            placeholder="Search closures by code or building…"
+            className="mb-4"
           />
-        </div>
+
+          <DataTable
+            columns={columns}
+            rows={table.rows}
+            loading={loading}
+            keyField="id"
+            onRowClick={(row) => details.open('closure', row.id)}
+            renderCard={renderCard}
+            emptyState={
+              <p className="text-sm font-normal text-muted">No closures yet. Add one by placing it on a fiber line in the fiber editor.</p>
+            }
+          />
+
+          <Pagination pagination={table.pagination} onChange={table.onPageChange} />
+        </>
       )}
-
-      <SearchInput
-        value={table.search}
-        onChange={table.onSearchChange}
-        placeholder="Search closures by code or building…"
-        className="mb-4"
-      />
-
-      <DataTable
-        columns={columns}
-        rows={table.rows}
-        loading={loading}
-        keyField="id"
-        onRowClick={(row) => details.open('closure', row.id)}
-        renderCard={renderCard}
-        emptyState={
-          <p className="text-sm font-normal text-muted">No closures yet. Add one by placing it on a fiber line in the fiber editor.</p>
-        }
-      />
-
-      <Pagination pagination={table.pagination} onChange={table.onPageChange} />
 
       <DetailDrawer
         stack={details.stack}

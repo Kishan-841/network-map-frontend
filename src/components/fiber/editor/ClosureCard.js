@@ -16,11 +16,11 @@ import {
 import BottomSheet, { SHEET_ANCHORED } from './BottomSheet'
 
 const CARD_WIDTH = 320
-const CARD_HEIGHT = 320
+const CARD_HEIGHT = 500
 // `create` still lands on the pixel that was tapped — but only from `lg` up,
 // where there is room beside the line. On a phone it is a bottom sheet.
 const SHEET_AT_PIXEL =
-  'lg:absolute lg:bottom-auto lg:right-auto lg:left-[var(--card-x)] lg:top-[var(--card-y)] lg:w-[320px] lg:max-h-none lg:rounded-card lg:p-3 lg:pb-3'
+  'lg:absolute lg:bottom-auto lg:right-auto lg:left-[var(--card-x)] lg:top-[var(--card-y)] lg:w-[320px] lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:rounded-card lg:p-3 lg:pb-3'
 
 /**
  * The card for a closure on the draft line, in two modes that share the same
