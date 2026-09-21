@@ -16,6 +16,7 @@ import { IconPlus, IconEdit, IconTrash } from '@/components/ui/icons'
 import { usePops, invalidatePops } from '@/hooks/usePops'
 import { invalidateFibers } from '@/hooks/useFibers'
 import { canManageFiber } from '@/lib/roles'
+import { POINT_COLORS } from '@/lib/fiber/constants'
 import { useAuthStore } from '@/stores/auth-store'
 import PopForm from '@/components/fiber/PopForm'
 import DetailDrawer from '@/components/fiber/details/DetailDrawer'
@@ -186,21 +187,21 @@ function AdminPopsPage() {
   ]
 
   const renderCard = (p) => (
-    <div className="rounded-card bg-card p-4 shadow-soft">
-      <div
+    <div
+      className="flex items-center gap-2 rounded-card border-l-4 bg-card p-3 shadow-soft"
+      style={{ borderLeftColor: POINT_COLORS.POP }}
+    >
+      <button
+        type="button"
         onClick={() => details.open('pop', p.id)}
-        className="cursor-pointer transition-transform active:scale-[0.99]"
+        className="min-w-0 flex-1 text-left transition-transform active:scale-[0.99]"
       >
         <span className="block truncate font-bold">{p.name}</span>
-        <p className="mt-1 text-sm font-normal text-muted">
+        <span className="block truncate text-sm font-normal text-muted">
           {p.zone?.name ?? 'No zone'} · {oltCount(p)} OLT{oltCount(p) === 1 ? '' : 's'}
-        </p>
-      </div>
-      {canManage && (
-        <div className="mt-3 border-t border-line/60 pt-3">
-          <RowActions pop={p} onEdit={setEditingPop} onDelete={handleDelete} />
-        </div>
-      )}
+        </span>
+      </button>
+      {canManage && <RowActions pop={p} onEdit={setEditingPop} onDelete={handleDelete} />}
     </div>
   )
 

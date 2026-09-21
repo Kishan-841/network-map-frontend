@@ -14,7 +14,7 @@ const closureSearchText = (closure) => [closure.code, closure.building?.building
 import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useClosures, invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
-import { RATIO_LABELS, closureKindLabel } from '@/lib/fiber/constants'
+import { RATIO_LABELS, POINT_COLORS, closureKindLabel } from '@/lib/fiber/constants'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import ClosureForm from '@/components/fiber/ClosureForm'
@@ -126,24 +126,21 @@ export default function AdminClosuresPage() {
 
   const renderCard = (c) => (
     <div
-      onClick={() => details.open('closure', c.id)}
-      className="cursor-pointer rounded-card bg-card p-4 shadow-soft transition-transform active:scale-[0.99]"
+      className="flex items-center gap-2 rounded-card border-l-4 bg-card p-3 shadow-soft"
+      style={{ borderLeftColor: POINT_COLORS.CLOSURE }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className="truncate font-mono font-bold">{c.code}</span>
-        <span className="shrink-0 text-xs font-medium text-muted">
-          {closureKindLabel(c.kind) || '—'}
+      <button
+        type="button"
+        onClick={() => details.open('closure', c.id)}
+        className="min-w-0 flex-1 text-left transition-transform active:scale-[0.99]"
+      >
+        <span className="block truncate font-mono font-bold">{c.code}</span>
+        <span className="block truncate text-sm font-normal text-muted">
+          {closureKindLabel(c.kind) || '—'} · {c.building?.buildingName ?? 'No building'} · {fiberCount(c)} fiber
+          {fiberCount(c) === 1 ? '' : 's'}
         </span>
-      </div>
-      <p className="mt-1 text-sm font-normal text-muted">
-        {c.building?.buildingName ?? 'No building'} · {fiberCount(c)} fiber
-        {fiberCount(c) === 1 ? '' : 's'} · {splitterLabel(c)}
-      </p>
-      {canManage && (
-        <div className="mt-3 border-t border-line/60 pt-3">
-          <RowActions closure={c} onEdit={setEditingClosure} onDelete={handleDelete} />
-        </div>
-      )}
+      </button>
+      {canManage && <RowActions closure={c} onEdit={setEditingClosure} onDelete={handleDelete} />}
     </div>
   )
 
