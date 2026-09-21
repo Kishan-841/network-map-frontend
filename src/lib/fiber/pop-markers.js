@@ -45,3 +45,30 @@ export function popIconUrl() {
 </svg>`
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
 }
+
+
+/**
+ * POP clusters, the same idea as the building clusterer but in the POP colour:
+ * a count bubble when the pins would overlap, which the map zooms into on a
+ * click, spreading the pins out. Sits above the building clusters — a POP is a
+ * landmark — via the same `MAX_ZINDEX + 100000` offset the individual pins use.
+ */
+export const popClusterRenderer = {
+  render({ count, position }) {
+    const size = count < 10 ? 40 : count < 100 ? 48 : 56
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 56 56">
+<circle cx="28" cy="28" r="26" fill="${POINT_COLORS.POP}" fill-opacity="0.25"/>
+<circle cx="28" cy="28" r="18" fill="${POINT_COLORS.POP}" stroke="#ffffff" stroke-width="3"/>
+<text x="28" y="29" fill="#ffffff" font-family="Inter, sans-serif" font-size="15" font-weight="700" text-anchor="middle" dominant-baseline="central">${count}</text>
+</svg>`
+    return new google.maps.Marker({
+      position,
+      icon: {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new google.maps.Size(size, size),
+        anchor: new google.maps.Point(size / 2, size / 2),
+      },
+      zIndex: Number(google.maps.Marker.MAX_ZINDEX) + 100000 + count,
+    })
+  },
+}
