@@ -192,25 +192,28 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
         onChange={(e) => setForm({ ...form, notes: e.target.value })}
       />
 
-      {error && (
-        <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
-      )}
-
-      <div className="flex gap-3">
-        {onCancel && (
-          <Button type="button" variant="secondary" className="flex-1" onClick={onCancel}>
-            Cancel
-          </Button>
+      {/* Pinned to the bottom of the screen so Save is always in reach — above
+          the mobile bottom-nav, flush at the card's foot on desktop. */}
+      <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 -mx-5 -mb-5 mt-1 flex flex-col gap-3 rounded-b-card border-t border-line bg-card px-5 py-4 lg:bottom-0">
+        {error && (
+          <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
         )}
-        <Button
-          type="button"
-          className="flex-1"
-          disabled={!canSave}
-          loading={busy}
-          onClick={handleSave}
-        >
-          {saveLabel}
-        </Button>
+        <div className="flex gap-3">
+          {onCancel && (
+            <Button type="button" variant="secondary" className="flex-1" onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
+          <Button
+            type="button"
+            className="flex-1"
+            disabled={!canSave}
+            loading={busy}
+            onClick={handleSave}
+          >
+            {saveLabel}
+          </Button>
+        </div>
       </div>
     </div>
   )

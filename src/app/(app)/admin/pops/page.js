@@ -229,36 +229,38 @@ function AdminPopsPage() {
         </p>
       )}
 
-      {editingPop !== undefined && (
-        <div className="mb-4">
-          <PopForm
-            key={editingPop?.id ?? 'new'}
-            initial={editingPop ? toForm(editingPop) : emptyForm}
-            saveLabel={editingPop ? 'Save changes' : 'Add POP'}
-            onCancel={closeForm}
-            onSave={handleSave}
+      {editingPop !== undefined ? (
+        // Editing takes over the page — the list is hidden until Cancel/save,
+        // so the rest of the POPs no longer bleed through below the form.
+        <PopForm
+          key={editingPop?.id ?? 'new'}
+          initial={editingPop ? toForm(editingPop) : emptyForm}
+          saveLabel={editingPop ? 'Save changes' : 'Add POP'}
+          onCancel={closeForm}
+          onSave={handleSave}
+        />
+      ) : (
+        <>
+          <SearchInput
+            value={table.search}
+            onChange={table.onSearchChange}
+            placeholder="Search POPs by name or zone…"
+            className="mb-4"
           />
-        </div>
+
+          <DataTable
+            columns={columns}
+            rows={table.rows}
+            loading={loading}
+            keyField="id"
+            onRowClick={(row) => details.open('pop', row.id)}
+            renderCard={renderCard}
+            emptyState={<p className="text-sm font-normal text-muted">No POPs yet — add the first one.</p>}
+          />
+
+          <Pagination pagination={table.pagination} onChange={table.onPageChange} />
+        </>
       )}
-
-      <SearchInput
-        value={table.search}
-        onChange={table.onSearchChange}
-        placeholder="Search POPs by name or zone…"
-        className="mb-4"
-      />
-
-      <DataTable
-        columns={columns}
-        rows={table.rows}
-        loading={loading}
-        keyField="id"
-        onRowClick={(row) => details.open('pop', row.id)}
-        renderCard={renderCard}
-        emptyState={<p className="text-sm font-normal text-muted">No POPs yet — add the first one.</p>}
-      />
-
-      <Pagination pagination={table.pagination} onChange={table.onPageChange} />
 
       <DetailDrawer
         stack={details.stack}
