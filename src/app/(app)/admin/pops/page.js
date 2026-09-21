@@ -6,6 +6,12 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { DataTable } from '@/components/ui/DataTable'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { Pagination } from '@/components/ui/Pagination'
+import { useClientTable } from '@/hooks/useClientTable'
+
+// Search a POP by its name or the zone it sits in.
+const popSearchText = (pop) => [pop.name, pop.zone?.name]
 import { IconPlus, IconEdit, IconTrash } from '@/components/ui/icons'
 import { usePops, invalidatePops } from '@/hooks/usePops'
 import { invalidateFibers } from '@/hooks/useFibers'
@@ -100,6 +106,7 @@ function AdminPopsPage() {
   const isAdmin = user?.role === 'ADMIN'
   const { pops, loading } = usePops()
   const [listError, setListError] = useState(null)
+  const table = useClientTable(pops, { getSearchText: popSearchText })
   // undefined = closed, null = new POP, object = edit that POP.
   const [chosenPop, setChosenPop] = useState(undefined)
   // A row opens the left detail drawer; links inside it walk the network.
@@ -245,15 +252,24 @@ function AdminPopsPage() {
         </div>
       )}
 
+      <SearchInput
+        value={table.search}
+        onChange={table.onSearchChange}
+        placeholder="Search POPs by name or zone…"
+        className="mb-4"
+      />
+
       <DataTable
         columns={columns}
-        rows={pops}
+        rows={table.rows}
         loading={loading}
         keyField="id"
         onRowClick={(row) => details.open('pop', row.id)}
         renderCard={renderCard}
         emptyState={<p className="text-sm font-normal text-muted">No POPs yet — add the first one.</p>}
       />
+
+      <Pagination pagination={table.pagination} onChange={table.onPageChange} />
 
       <DetailDrawer
         stack={details.stack}
