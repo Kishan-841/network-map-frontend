@@ -18,7 +18,6 @@ import { invalidateFibers } from '@/hooks/useFibers'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import PopForm from '@/components/fiber/PopForm'
-import { rackSummary } from '@/lib/fiber/pop-sheet'
 import DetailDrawer from '@/components/fiber/details/DetailDrawer'
 import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 
@@ -67,8 +66,8 @@ const toForm = (pop) => ({
   })),
 })
 
-const oltSummary = (pop) =>
-  pop.olts?.length ? pop.olts.map((o) => `${o.name} (${o.ponPortCount})`).join(' · ') : '—'
+// Just how many OLTs — the names, ports and fibers are in the detail drawer.
+const oltCount = (pop) => pop.olts?.length ?? 0
 
 function RowActions({ pop, onEdit, onDelete }) {
   return (
@@ -168,17 +167,11 @@ function AdminPopsPage() {
       render: (p) => p.zone?.name ?? <span className="text-faint">No zone</span>,
     },
     {
-      key: 'rack',
-      header: 'Rack',
-      render: (p) => rackSummary(p) ?? <span className="text-faint">—</span>,
+      key: 'olts',
+      header: 'OLTs',
+      className: 'tabular-nums',
+      render: (p) => oltCount(p) || <span className="text-faint">—</span>,
     },
-    {
-      key: 'position',
-      header: 'Position',
-      className: 'font-mono text-xs text-muted',
-      render: (p) => `${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`,
-    },
-    { key: 'olts', header: 'OLTs', render: oltSummary },
     ...(canManage
       ? [
           {
@@ -198,14 +191,9 @@ function AdminPopsPage() {
         onClick={() => details.open('pop', p.id)}
         className="cursor-pointer transition-transform active:scale-[0.99]"
       >
-        <div className="flex items-start justify-between gap-3">
-          <span className="truncate font-bold">{p.name}</span>
-        </div>
-        <p className="mt-1 font-mono text-xs text-muted">
-          {p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}
-        </p>
+        <span className="block truncate font-bold">{p.name}</span>
         <p className="mt-1 text-sm font-normal text-muted">
-          {p.zone?.name ?? 'No zone'} · {oltSummary(p)}
+          {p.zone?.name ?? 'No zone'} · {oltCount(p)} OLT{oltCount(p) === 1 ? '' : 's'}
         </p>
       </div>
       {canManage && (

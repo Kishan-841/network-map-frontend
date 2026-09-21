@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconArrowLeft, IconClose } from '@/components/ui/icons'
@@ -16,21 +16,33 @@ const BODIES = { pop: PopDetails, fiber: FiberDetails, closure: ClosureDetails }
  * the Fibers, POPs and Closures pages alike.
  *
  * It opens from the right edge, so the map stays visible to its left on a
- * desktop; on a phone it covers most of the screen over a dimmed backdrop
- * that closes it. `stack` comes from `lib/fiber/detail-stack.js`:
- * the last entry is shown, and Back steps to the one before.
+ * desktop; on a phone it covers most of the screen over a dimmed backdrop.
+ * Clicking anywhere outside it, or pressing Escape, closes it — on the desktop
+ * as well as the phone. `stack` comes from `lib/fiber/detail-stack.js`: the
+ * last entry is shown, and Back steps to the one before.
  */
 export default function DetailDrawer({ stack, onOpen, onBack, onClose, onCentre, onEditFiber, onEditPop, readOnly = false }) {
   const entry = stack.at(-1)
   const canManage = canManageFiber(useAuthStore((s) => s.user)) && !readOnly
+  const panelRef = useRef(null)
 
   useEffect(() => {
     if (!entry) return undefined
     const onKey = (e) => {
       if (e.key === 'Escape') onClose?.()
     }
+    // A press that starts outside the panel closes it. `mousedown` (not click)
+    // so it fires even when the press lands on the map or a table row behind;
+    // the press that opened the drawer has already finished before this runs.
+    const onDown = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) onClose?.()
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
   }, [entry, onClose])
 
   if (!entry) return null
@@ -41,6 +53,7 @@ export default function DetailDrawer({ stack, onOpen, onBack, onClose, onCentre,
       {/* Phone only: the map behind is covered anyway, so a tap outside closes. */}
       <div className="fixed inset-0 z-[59] bg-ink/40 lg:hidden" onClick={() => onClose?.()} aria-hidden="true" />
       <aside
+        ref={panelRef}
         role="dialog"
         aria-label={TITLES[entry.kind]}
         className="fixed inset-y-0 right-0 z-[60] flex w-[min(92vw,440px)] flex-col border-l border-line bg-card shadow-lift transition-transform duration-200 ease-out starting:translate-x-full"
