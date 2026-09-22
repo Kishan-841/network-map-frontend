@@ -15,7 +15,7 @@ import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
  *    resolves it with the same rule the list used. That is the only way to
  *    cover a zone with more buildings than one page holds.
  */
-export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter, ids, scopeLabel, canDelete = false, canAssignOlt = false, onSelectAllMatching, onClear, onDone, onDeleted, onAssignOlt }) {
+export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter, ids, scopeLabel, canMarkLive = true, canDelete = false, canAssignOlt = false, onSelectAllMatching, onClear, onDone, onDeleted, onAssignOlt }) {
   const [confirm, setConfirm] = useState(null) // true | false | null → target isLive
   const [deleting, setDeleting] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -25,8 +25,10 @@ export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter,
   if (!count) return null
 
   // Offer "select all N" only when the filter actually holds more than the
-  // page — otherwise ticking the header box already covered everything.
-  const canSelectAll = !allMatching && totalMatching > selectedCount
+  // page — otherwise ticking the header box already covered everything. Only
+  // where Mark live is offered: the OLT map (a surveyor's one action here)
+  // works on explicitly ticked rows, never on a whole page-spanning filter.
+  const canSelectAll = canMarkLive && !allMatching && totalMatching > selectedCount
 
   async function apply() {
     setBusy(true)
@@ -108,21 +110,25 @@ export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter,
               Delete
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setConfirm(false)}
-            className="inline-flex h-9 items-center rounded-btn border border-line px-3.5 text-sm font-medium text-muted transition-colors hover:border-faint hover:text-ink"
-          >
-            Mark not live
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirm(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-btn bg-primary px-4 text-sm font-medium text-primary-content transition-colors active:scale-[0.98]"
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-primary-content" />
-            Mark live
-          </button>
+          {canMarkLive && (
+            <>
+              <button
+                type="button"
+                onClick={() => setConfirm(false)}
+                className="inline-flex h-9 items-center rounded-btn border border-line px-3.5 text-sm font-medium text-muted transition-colors hover:border-faint hover:text-ink"
+              >
+                Mark not live
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirm(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-btn bg-primary px-4 text-sm font-medium text-primary-content transition-colors active:scale-[0.98]"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-primary-content" />
+                Mark live
+              </button>
+            </>
+          )}
         </div>
       </div>
 
