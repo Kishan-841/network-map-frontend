@@ -616,6 +616,7 @@ function BuildingsList() {
           filter={activeFilter}
           ids={selectedIds}
           scopeLabel={scopeLabel}
+          canDelete={role === 'ADMIN'}
           onSelectAllMatching={() => setSelectAllMatching(true)}
           onClear={() => {
             setSelectedIds(new Set())
@@ -625,6 +626,15 @@ function BuildingsList() {
             setSelectedIds(new Set())
             setSelectAllMatching(false)
             setToast(`${count} building${count === 1 ? '' : 's'} marked ${isLive ? 'live' : 'not live'}`)
+            refetch()
+          }}
+          onDeleted={({ deletedCount, skipped }) => {
+            setSelectedIds(new Set())
+            setSelectAllMatching(false)
+            setToast(
+              `${deletedCount} building${deletedCount === 1 ? '' : 's'} deleted` +
+                (skipped.length ? ` · ${skipped.length} kept (attached to fibers)` : ''),
+            )
             refetch()
           }}
         />
