@@ -226,6 +226,10 @@ function BuildingsList() {
   // Bulk go-live is a coverage-registry action, admins and managers only.
   const canBulkEdit = canManageBuildings(role)
   const canAssignOlt = canEditBuildingsAtAll(user)
+  // Show the selection checkboxes and bulk bar for anyone with a bulk action:
+  // bulk go-live (admins/managers/supervisors) OR the OLT map (a ticked
+  // surveyor). Without this a ticked surveyor could never select buildings.
+  const canSelect = canBulkEdit || canAssignOlt
   const [assigningOlt, setAssigningOlt] = useState(false)
   const { pops } = usePops(canAssignOlt)
   const zoneId = searchParams.get('zoneId') ?? ''
@@ -615,7 +619,7 @@ function BuildingsList() {
         </div>
       )}
 
-      {canBulkEdit && (
+      {canSelect && (
         <BulkLiveBar
           selectedCount={selectedIds.size}
           totalMatching={pagination?.total ?? 0}
@@ -623,6 +627,7 @@ function BuildingsList() {
           filter={activeFilter}
           ids={selectedIds}
           scopeLabel={scopeLabel}
+          canMarkLive={canBulkEdit}
           canDelete={role === 'ADMIN'}
           canAssignOlt={canAssignOlt}
           onAssignOlt={() => setAssigningOlt(true)}
@@ -690,7 +695,7 @@ function BuildingsList() {
         pagination={pagination}
         onPageChange={setPage}
         selection={
-          canBulkEdit
+          canSelect
             ? {
                 selectedIds,
                 onToggle: (id) => {
