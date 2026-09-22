@@ -15,8 +15,9 @@ import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
  *    resolves it with the same rule the list used. That is the only way to
  *    cover a zone with more buildings than one page holds.
  */
-export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter, ids, scopeLabel, onSelectAllMatching, onClear, onDone }) {
+export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter, ids, scopeLabel, canDelete = false, onSelectAllMatching, onClear, onDone, onDeleted }) {
   const [confirm, setConfirm] = useState(null) // true | false | null → target isLive
+  const [deleting, setDeleting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -39,6 +40,22 @@ export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter,
       onDone(res.data.data)
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not update those buildings'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Ticked rows only — the schema refuses a filter, so deleting a whole page-
+  // spanning selection is deliberately not offered here.
+  async function applyDelete() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await apiClient.post('/buildings/bulk-delete', { ids: [...ids] })
+      setDeleting(false)
+      onDeleted(res.data.data)
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Could not delete those buildings'))
     } finally {
       setBusy(false)
     }
@@ -70,6 +87,18 @@ export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter,
           >
             Clear
           </button>
+          {canDelete && !allMatching && (
+            <button
+              type="button"
+              onClick={() => {
+                setError(null)
+                setDeleting(true)
+              }}
+              className="inline-flex h-9 items-center rounded-btn border border-bad/40 px-3.5 text-sm font-medium text-bad transition-colors hover:bg-bad-tint"
+            >
+              Delete
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setConfirm(false)}
@@ -141,6 +170,38 @@ export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter,
               <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
                 {error}
               </p>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {deleting && (
+        <Modal
+          open
+          onClose={() => !busy && setDeleting(false)}
+          title={`Permanently delete ${count} building${count === 1 ? '' : 's'}?`}
+          footer={
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setDeleting(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button variant="danger" className="flex-1" loading={busy} onClick={applyDelete}>
+                Delete {count}
+              </Button>
+            </div>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-normal text-muted">
+              The <span className="font-medium text-ink">{count}</span> building
+              {count === 1 ? '' : 's'} you selected will be permanently removed.{' '}
+              <span className="font-medium text-ink">This cannot be undone.</span>
+            </p>
+            <p className="text-sm font-normal text-muted">
+              Any building still attached to a fiber is kept — you will be told how many were skipped.
+            </p>
+            {error && (
+              <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
             )}
           </div>
         </Modal>
