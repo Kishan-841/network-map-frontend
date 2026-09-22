@@ -26,6 +26,13 @@ export const isSupervisor = (role) => role === 'SUPERVISOR'
  */
 export const canManageBuildings = (role) => ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)
 
+// May this user edit buildings at all (mirrors `requireBuildingEdit` on the
+// API): ADMIN/MANAGER/SUPERVISOR always; a SURVEYOR needs the granted tick.
+// The OLT-mapping bulk action is gated on this.
+export const canEditBuildingsAtAll = (user) =>
+  ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(user?.role) ||
+  (user?.role === 'SURVEYOR' && user?.canEditBuildings === true)
+
 /**
  * May edit THIS building. The roles above may edit any of them; a SURVEYOR
  * needs the per-user grant an ADMIN ticks on Users → Assign accesses, and then

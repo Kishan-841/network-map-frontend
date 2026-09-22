@@ -15,7 +15,7 @@ import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
  *    resolves it with the same rule the list used. That is the only way to
  *    cover a zone with more buildings than one page holds.
  */
-export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter, ids, scopeLabel, canDelete = false, onSelectAllMatching, onClear, onDone, onDeleted }) {
+export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter, ids, scopeLabel, canDelete = false, canAssignOlt = false, onSelectAllMatching, onClear, onDone, onDeleted, onAssignOlt }) {
   const [confirm, setConfirm] = useState(null) // true | false | null → target isLive
   const [deleting, setDeleting] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -87,6 +87,15 @@ export function BulkLiveBar({ selectedCount, totalMatching, allMatching, filter,
           >
             Clear
           </button>
+          {canAssignOlt && !allMatching && (
+            <button
+              type="button"
+              onClick={onAssignOlt}
+              className="inline-flex h-9 items-center rounded-btn border border-fiber/40 px-3.5 text-sm font-medium text-fiber transition-colors hover:bg-fiber-tint"
+            >
+              Assign OLT
+            </button>
+          )}
           {canDelete && !allMatching && (
             <button
               type="button"

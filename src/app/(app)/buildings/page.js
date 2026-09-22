@@ -8,6 +8,9 @@ import { TIER_LABEL, TIER_STYLE } from '@/lib/home-pass-tier'
 import { useOperators } from '@/hooks/useOperators'
 import { useCities } from '@/hooks/useCities'
 import { useAuthStore } from '@/stores/auth-store'
+import { usePops } from '@/hooks/usePops'
+import { AssignOltModal } from '@/components/buildings/AssignOltModal'
+import { canEditBuildingsAtAll } from '@/lib/roles'
 import { BuildingCard, BuildingCardSkeleton } from '@/components/buildings/BuildingCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Select } from '@/components/ui/Input'
@@ -206,6 +209,7 @@ function BuildingsList() {
   const operatorId = searchParams.get('operatorId') ?? ''
   const cityId = searchParams.get('cityId') ?? ''
   const role = useAuthStore((s) => s.user?.role)
+  const user = useAuthStore((s) => s.user)
   const acquisition = isAcquisition(role)
   const agentFilter = searchParams.get('createdById') ?? ''
   // Only admins/managers can list operators/cities (both APIs are role-gated).
@@ -221,6 +225,9 @@ function BuildingsList() {
   const [pageSize, setPageSize] = useState(20)
   // Bulk go-live is a coverage-registry action, admins and managers only.
   const canBulkEdit = canManageBuildings(role)
+  const canAssignOlt = canEditBuildingsAtAll(user)
+  const [assigningOlt, setAssigningOlt] = useState(false)
+  const { pops } = usePops(canAssignOlt)
   const zoneId = searchParams.get('zoneId') ?? ''
   const tier = searchParams.get('tier') ?? ''
   const { zones } = useZones()
@@ -617,6 +624,8 @@ function BuildingsList() {
           ids={selectedIds}
           scopeLabel={scopeLabel}
           canDelete={role === 'ADMIN'}
+          canAssignOlt={canAssignOlt}
+          onAssignOlt={() => setAssigningOlt(true)}
           onSelectAllMatching={() => setSelectAllMatching(true)}
           onClear={() => {
             setSelectedIds(new Set())
@@ -635,6 +644,23 @@ function BuildingsList() {
               `${deletedCount} building${deletedCount === 1 ? '' : 's'} deleted` +
                 (skipped.length ? ` · ${skipped.length} kept (attached to fibers)` : ''),
             )
+            refetch()
+          }}
+        />
+      )}
+
+      {assigningOlt && (
+        <AssignOltModal
+          selectedIds={selectedIds}
+          rows={buildings}
+          pops={pops}
+          isAdmin={role === 'ADMIN'}
+          onClose={() => setAssigningOlt(false)}
+          onDone={({ count }) => {
+            setAssigningOlt(false)
+            setSelectedIds(new Set())
+            setSelectAllMatching(false)
+            setToast(`${count} building${count === 1 ? '' : 's'} mapped to the OLT`)
             refetch()
           }}
         />
