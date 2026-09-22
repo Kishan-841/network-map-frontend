@@ -28,10 +28,16 @@ export const canManageBuildings = (role) => ['ADMIN', 'MANAGER', 'SUPERVISOR'].i
 
 // May this user edit buildings at all (mirrors `requireBuildingEdit` on the
 // API): ADMIN/MANAGER/SUPERVISOR always; a SURVEYOR needs the granted tick.
-// The OLT-mapping bulk action is gated on this.
 export const canEditBuildingsAtAll = (user) =>
   ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(user?.role) ||
   (user?.role === 'SURVEYOR' && user?.canEditBuildings === true)
+
+// May bulk-assign an OLT + PON port. Wider than building editing (user's
+// choice): EVERY coverage role, a SURVEYOR with no edit tick included. Mirrors
+// `requireOltAssign` / OLT_ASSIGN_ROLES on the API; the server still scopes the
+// buildings to the actor's zone, so a surveyor can only map their own zone.
+export const OLT_ASSIGN_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR', 'SURVEYOR']
+export const canAssignOlt = (role) => OLT_ASSIGN_ROLES.includes(role)
 
 /**
  * May edit THIS building. The roles above may edit any of them; a SURVEYOR
