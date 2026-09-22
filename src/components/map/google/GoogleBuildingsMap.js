@@ -311,6 +311,7 @@ export default function GoogleBuildingsMap({
         marker = new google.maps.Marker({
           position: { lat: building.latitude, lng: building.longitude },
           icon: pinIcon(building, selected),
+          title: building.buildingName, // native hover tooltip (like the POP pins)
           zIndex: selected ? 1000 : 1, // selected pin sits on top
         })
         marker.addListener('click', () => {
@@ -326,6 +327,7 @@ export default function GoogleBuildingsMap({
       }
 
       marker.buildingData = building
+      if (marker.getTitle() !== building.buildingName) marker.setTitle(building.buildingName)
       const pos = marker.getPosition()
       if (pos.lat() !== building.latitude || pos.lng() !== building.longitude) {
         marker.setPosition({ lat: building.latitude, lng: building.longitude })

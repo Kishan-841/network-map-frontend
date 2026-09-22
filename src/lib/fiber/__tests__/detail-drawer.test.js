@@ -24,7 +24,7 @@ describe('detail drawer history', () => {
   it('ignores opening what is already on top, and anything malformed', () => {
     const stack = [fiber]
     expect(pushEntry(stack, fiber)).toBe(stack)
-    expect(openEntry(stack, { kind: 'building', id: 'b1' })).toBe(stack)
+    expect(openEntry(stack, { kind: 'zone', id: 'z1' })).toBe(stack)
     expect(pushEntry(stack, { kind: 'pop' })).toBe(stack)
   })
 })

@@ -5,7 +5,7 @@
  * a fiber through it → the POP that fiber starts at) can be walked back one
  * step at a time. Entries are `{ kind: 'pop' | 'fiber' | 'closure', id }`.
  */
-export const DETAIL_KINDS = ['pop', 'fiber', 'closure']
+export const DETAIL_KINDS = ['pop', 'fiber', 'closure', 'building']
 
 const same = (a, b) => a?.kind === b?.kind && a?.id === b?.id
 const valid = (entry) => DETAIL_KINDS.includes(entry?.kind) && Boolean(entry?.id)

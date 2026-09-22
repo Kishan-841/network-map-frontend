@@ -7,13 +7,14 @@ import { IconArrowLeft, IconClose } from '@/components/ui/icons'
 import PopDetails from './PopDetails'
 import FiberDetails from './FiberDetails'
 import ClosureDetails from './ClosureDetails'
+import BuildingDetails from './BuildingDetails'
 
-const TITLES = { pop: 'POP details', fiber: 'Fiber details', closure: 'Closure details' }
-const BODIES = { pop: PopDetails, fiber: FiberDetails, closure: ClosureDetails }
+const TITLES = { pop: 'POP details', fiber: 'Fiber details', closure: 'Closure details', building: 'Building details' }
+const BODIES = { pop: PopDetails, fiber: FiberDetails, closure: ClosureDetails, building: BuildingDetails }
 
 /**
- * The one place a POP, fiber or closure is read in full — on the map and on
- * the Fibers, POPs and Closures pages alike.
+ * The one place a POP, fiber, closure or building is read in full — on the
+ * map and on the Fibers, POPs and Closures pages alike.
  *
  * It opens from the right edge, so the map stays visible to its left on a
  * desktop; on a phone it covers most of the screen over a dimmed backdrop.

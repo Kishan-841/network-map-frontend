@@ -11,7 +11,6 @@ import { useAuthStore } from '@/stores/auth-store'
 import { canManageFiber, isAcquisition } from '@/lib/roles'
 import { AcquisitionMap } from '@/components/map/AcquisitionMap'
 import { FilterSheet } from '@/components/map/FilterSheet'
-import { SelectedBuildingCard } from '@/components/map/SelectedBuildingCard'
 import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 import { MapLegend } from '@/components/map/MapLegend'
 import { Fab } from '@/components/ui/Fab'
@@ -49,7 +48,6 @@ function CoverageMapPage() {
     return () => clearTimeout(timer)
   }, [search])
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [selected, setSelected] = useState(null)
   // Legend-driven declutter toggles.
   const [buildingsShown, setBuildingsShown] = useState(true)
   const [zonesShown, setZonesShown] = useState(true)
@@ -109,23 +107,11 @@ function CoverageMapPage() {
         zones={zonesShown ? zones : []}
         fibers={visibleFibers}
         pops={visiblePops}
-        selectedId={selected?.id}
-        onSelect={(building) => {
-          details.close()
-          setSelected(building)
-        }}
-        onPopSelect={(pop) => {
-          setSelected(null)
-          details.open('pop', pop.id)
-        }}
-        onFiberSelect={(id) => {
-          setSelected(null)
-          details.open('fiber', id)
-        }}
-        onClosureSelect={(id) => {
-          setSelected(null)
-          details.open('closure', id)
-        }}
+        selectedId={details.current?.kind === 'building' ? details.current.id : null}
+        onSelect={(building) => details.open('building', building.id)}
+        onPopSelect={(pop) => details.open('pop', pop.id)}
+        onFiberSelect={(id) => details.open('fiber', id)}
+        onClosureSelect={(id) => details.open('closure', id)}
         centreRef={centreRef}
       />
 
@@ -193,14 +179,13 @@ function CoverageMapPage() {
         onEditPop={(pop) => router.push(`/admin/pops?edit=${pop.id}`)}
       />
 
-      <SelectedBuildingCard building={selected} onClose={() => setSelected(null)} />
       <FilterSheet
         open={filtersOpen}
         filters={filters}
         onApply={setFilters}
         onClose={() => setFiltersOpen(false)}
       />
-      {!selected && !details.current && <Fab href="/buildings/add" label="Add Building" />}
+      {!details.current && <Fab href="/buildings/add" label="Add Building" />}
     </div>
   )
 }
