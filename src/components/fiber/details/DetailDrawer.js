@@ -26,21 +26,35 @@ export default function DetailDrawer({ stack, onOpen, onBack, onClose, onCentre,
   const entry = stack.at(-1)
   const canManage = canManageFiber(useAuthStore((s) => s.user)) && !readOnly
   const panelRef = useRef(null)
+  // The outside-press listeners must ignore the tail of the very gesture that
+  // opened the drawer. On touch, a map marker opens the drawer on `touchend`
+  // (Google Maps fires a marker's click there, mid-tap), so the drawer mounts
+  // while the panel is still sliding in from off-screen; the tap's trailing
+  // synthesized `mousedown` — and the backdrop's own click — then land outside
+  // the panel a millisecond later and would close it instantly (the bug: on a
+  // phone the drawer flashed open and vanished). Arm them one frame after open,
+  // once those events have passed. A mouse click on desktop is unaffected: the
+  // marker opens on `click`, after its mousedown has already fired.
+  const armedRef = useRef(false)
 
   useEffect(() => {
     if (!entry) return undefined
+    armedRef.current = false
+    const raf = requestAnimationFrame(() => {
+      armedRef.current = true
+    })
     const onKey = (e) => {
       if (e.key === 'Escape') onClose?.()
     }
     // A press that starts outside the panel closes it. `mousedown` (not click)
-    // so it fires even when the press lands on the map or a table row behind;
-    // the press that opened the drawer has already finished before this runs.
+    // so it fires even when the press lands on the map or a table row behind.
     const onDown = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) onClose?.()
+      if (armedRef.current && panelRef.current && !panelRef.current.contains(e.target)) onClose?.()
     }
     window.addEventListener('keydown', onKey)
     document.addEventListener('mousedown', onDown)
     return () => {
+      cancelAnimationFrame(raf)
       window.removeEventListener('keydown', onKey)
       document.removeEventListener('mousedown', onDown)
     }
@@ -51,8 +65,14 @@ export default function DetailDrawer({ stack, onOpen, onBack, onClose, onCentre,
 
   return (
     <>
-      {/* Phone only: the map behind is covered anyway, so a tap outside closes. */}
-      <div className="fixed inset-0 z-[59] bg-ink/40 lg:hidden" onClick={() => onClose?.()} aria-hidden="true" />
+      {/* Phone only: the map behind is covered anyway, so a tap outside closes.
+          Guarded like the mousedown listener so the opening tap's own click,
+          which lands here while the panel is still sliding in, is ignored. */}
+      <div
+        className="fixed inset-0 z-[59] bg-ink/40 lg:hidden"
+        onClick={() => armedRef.current && onClose?.()}
+        aria-hidden="true"
+      />
       <aside
         ref={panelRef}
         role="dialog"
