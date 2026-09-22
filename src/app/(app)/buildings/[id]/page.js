@@ -162,6 +162,16 @@ export default function BuildingDetailPage({ params }) {
         ]}
       />
 
+      {/* Filled in bulk from the Buildings tab — Zone → OLT → PON at a glance. */}
+      <Section
+        title="OLT mapping"
+        rows={[
+          ['OLT', building.olt?.name],
+          ['PON port', building.ponPort],
+          ['On POP', building.olt?.pop?.name],
+        ]}
+      />
+
       <PhotoManager building={building} onChanged={fetchBuilding} />
 
       {editOpen && (
