@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  canAssignOlt,
   canEditBuilding,
   canManageFiber,
   fiberNavFor,
@@ -108,6 +109,20 @@ describe('canEditBuilding', () => {
   it('is false while either the user or the building is still loading', () => {
     expect(canEditBuilding(undefined, building('u1'))).toBe(false)
     expect(canEditBuilding({ id: 'u1', role: 'SURVEYOR', canEditBuildings: true }, null)).toBe(false)
+  })
+})
+
+describe('canAssignOlt', () => {
+  it('allows every coverage role — a surveyor needs no edit tick', () => {
+    for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR', 'SURVEYOR']) {
+      expect(canAssignOlt(role)).toBe(true)
+    }
+  })
+
+  it('denies acquisition and other roles', () => {
+    for (const role of ['ACQUISITION_AGENT', 'ACQUISITION_LEAD', undefined]) {
+      expect(canAssignOlt(role)).toBe(false)
+    }
   })
 })
 

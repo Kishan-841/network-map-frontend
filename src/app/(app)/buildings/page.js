@@ -10,7 +10,7 @@ import { useCities } from '@/hooks/useCities'
 import { useAuthStore } from '@/stores/auth-store'
 import { usePops } from '@/hooks/usePops'
 import { AssignOltModal } from '@/components/buildings/AssignOltModal'
-import { canEditBuildingsAtAll } from '@/lib/roles'
+import { canAssignOlt as canAssignOltRole } from '@/lib/roles'
 import { BuildingCard, BuildingCardSkeleton } from '@/components/buildings/BuildingCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Select } from '@/components/ui/Input'
@@ -209,7 +209,6 @@ function BuildingsList() {
   const operatorId = searchParams.get('operatorId') ?? ''
   const cityId = searchParams.get('cityId') ?? ''
   const role = useAuthStore((s) => s.user?.role)
-  const user = useAuthStore((s) => s.user)
   const acquisition = isAcquisition(role)
   const agentFilter = searchParams.get('createdById') ?? ''
   // Only admins/managers can list operators/cities (both APIs are role-gated).
@@ -225,7 +224,7 @@ function BuildingsList() {
   const [pageSize, setPageSize] = useState(20)
   // Bulk go-live is a coverage-registry action, admins and managers only.
   const canBulkEdit = canManageBuildings(role)
-  const canAssignOlt = canEditBuildingsAtAll(user)
+  const canAssignOlt = canAssignOltRole(role)
   // Show the selection checkboxes and bulk bar for anyone with a bulk action:
   // bulk go-live (admins/managers/supervisors) OR the OLT map (a ticked
   // surveyor). Without this a ticked surveyor could never select buildings.
