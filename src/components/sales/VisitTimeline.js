@@ -1,8 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { apiClient } from '@/lib/api-client'
 import { IconChevronRight } from '@/components/ui/icons'
 
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -22,24 +20,9 @@ function duration(inIso, outIso) {
  * recent first. Each card links to that visit's detail page — clicking opens
  * everything about the visit.
  */
-export function VisitTimeline({ from }) {
-  const [visits, setVisits] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let alive = true
-    setLoading(true)
-    apiClient
-      .get('/sales/visits', { params: from ? { from } : {} })
-      .then((res) => alive && (setVisits(res.data.data), setLoading(false)))
-      .catch(() => alive && setLoading(false))
-    return () => {
-      alive = false
-    }
-  }, [from])
-
+export function VisitTimeline({ visits = [], loading = false }) {
   return (
-    <div className="mt-4 flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <p className="text-sm font-medium text-muted">Field visits</p>
       {loading && <p className="text-sm font-normal text-muted">Loading…</p>}
       {!loading && visits.length === 0 && (
@@ -56,7 +39,14 @@ export function VisitTimeline({ from }) {
           >
             {v.selfieUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={v.selfieUrl} alt="" className="h-12 w-12 shrink-0 rounded-btn object-cover" />
+              <img
+                src={v.selfieUrl}
+                alt=""
+                className="h-12 w-12 shrink-0 rounded-btn bg-paper object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink">

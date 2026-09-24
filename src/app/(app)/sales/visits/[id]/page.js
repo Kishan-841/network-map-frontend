@@ -104,7 +104,14 @@ export default function VisitDetailPage() {
             <Section title="Selfie">
               <a href={visit.selfieUrl} target="_blank" rel="noreferrer">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={visit.selfieUrl} alt="Check-in selfie" className="max-h-72 rounded-card object-cover" />
+                <img
+                  src={visit.selfieUrl}
+                  alt="Check-in selfie"
+                  className="max-h-72 rounded-card bg-paper object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none'
+                  }}
+                />
               </a>
             </Section>
           )}
