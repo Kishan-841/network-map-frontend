@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { apiClient } from '@/lib/api-client'
+import { IconChevronRight } from '@/components/ui/icons'
 
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 const fmtDay = (iso) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' })
 const ACTIVITY_LABEL = { DESK: 'Desk', UMBRELLA: 'Umbrella', LIFT: 'Lift' }
-const mapHref = (lat, lng) => (lat != null && lng != null ? `https://www.google.com/maps?q=${lat},${lng}` : null)
 
 function duration(inIso, outIso) {
   if (!outIso) return null
@@ -16,16 +17,10 @@ function duration(inIso, outIso) {
   return h ? `${h}h ${m}m` : `${m}m`
 }
 
-function activityCounts(activities) {
-  const c = {}
-  for (const a of activities ?? []) c[a.type] = (c[a.type] ?? 0) + 1
-  return Object.entries(c).map(([type, n]) => `${ACTIVITY_LABEL[type] ?? type}${n > 1 ? ` ×${n}` : ''}`)
-}
-
 /**
  * The field-work timeline for the selected period: every visit in scope, most
- * recent first — who, which building, IN/OUT times + map links, duration,
- * selfie, and the activities + inquiries done between.
+ * recent first. Each card links to that visit's detail page — clicking opens
+ * everything about the visit.
  */
 export function VisitTimeline({ from }) {
   const [visits, setVisits] = useState([])
@@ -52,41 +47,25 @@ export function VisitTimeline({ from }) {
       )}
       {visits.map((v) => {
         const dur = duration(v.visitedAt, v.checkOutAt)
-        const inHref = mapHref(v.checkInLat, v.checkInLng)
-        const outHref = mapHref(v.checkOutLat, v.checkOutLng)
-        const acts = activityCounts(v.activities)
+        const acts = [...new Set((v.activities ?? []).map((a) => ACTIVITY_LABEL[a.type] ?? a.type))]
         return (
-          <div key={v.id} className="flex gap-3 rounded-card border border-line bg-card p-3">
+          <Link
+            key={v.id}
+            href={`/sales/visits/${v.id}`}
+            className="flex items-center gap-3 rounded-card border border-line bg-card p-3 transition-colors hover:border-faint hover:bg-paper"
+          >
             {v.selfieUrl && (
-              <a href={v.selfieUrl} target="_blank" rel="noreferrer" className="shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={v.selfieUrl} alt="Selfie" className="h-14 w-14 rounded-btn object-cover" />
-              </a>
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={v.selfieUrl} alt="" className="h-12 w-12 shrink-0 rounded-btn object-cover" />
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink">
                 {v.user?.name} <span className="font-normal text-muted">· {v.building?.buildingName}</span>
               </p>
               <p className="text-sm font-normal text-muted">
-                {fmtDay(v.visitedAt)} · {inHref ? (
-                  <a href={inHref} target="_blank" rel="noreferrer" className="text-fiber underline-offset-2 hover:underline">
-                    IN {fmtTime(v.visitedAt)}
-                  </a>
-                ) : (
-                  <>IN {fmtTime(v.visitedAt)}</>
-                )}
+                {fmtDay(v.visitedAt)} · IN {fmtTime(v.visitedAt)}
                 {' → '}
-                {v.checkOutAt ? (
-                  outHref ? (
-                    <a href={outHref} target="_blank" rel="noreferrer" className="text-fiber underline-offset-2 hover:underline">
-                      OUT {fmtTime(v.checkOutAt)}
-                    </a>
-                  ) : (
-                    <>OUT {fmtTime(v.checkOutAt)}</>
-                  )
-                ) : (
-                  <span className="text-fiber">still in</span>
-                )}
+                {v.checkOutAt ? `OUT ${fmtTime(v.checkOutAt)}` : <span className="text-fiber">still in</span>}
                 {dur && <span className="text-faint"> · {dur}</span>}
               </p>
               <div className="mt-1 flex flex-wrap gap-1.5">
@@ -105,7 +84,8 @@ export function VisitTimeline({ from }) {
                 )}
               </div>
             </div>
-          </div>
+            <IconChevronRight className="h-5 w-5 shrink-0 text-faint" aria-hidden="true" />
+          </Link>
         )
       })}
     </div>

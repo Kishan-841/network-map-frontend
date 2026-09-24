@@ -15,6 +15,7 @@ import {
   isPartnerManager,
   isAccounts,
   isSales,
+  isSalesExecutive,
   fiberNavFor,
   ROLE_LABELS,
 } from '@/lib/roles'
@@ -91,6 +92,12 @@ const LEAD_NAV = [
 // pool they distribute) live on one page for now.
 const SALES_NAV = [
   { href: '/sales', label: 'Sales', icon: IconBuildings },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+// Managers and team leaders also get the team dashboard.
+const SALES_LEAD_NAV = [
+  { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
@@ -185,7 +192,9 @@ export function Sidebar() {
         : isAccounts(role)
           ? ACCOUNTS_NAV
           : isSales(role)
-            ? SALES_NAV
+            ? isSalesExecutive(role)
+              ? SALES_NAV
+              : SALES_LEAD_NAV
             : isPartnerManager(role)
               ? PARTNER_MANAGER_NAV
               : role === 'ADMIN'

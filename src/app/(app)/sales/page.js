@@ -11,7 +11,6 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { Pagination } from '@/components/ui/Pagination'
 import { Button } from '@/components/ui/Button'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
-import { SalesDashboard } from '@/components/sales/SalesDashboard'
 import { BuildingSearchAssign } from '@/components/sales/BuildingSearchAssign'
 import { CheckInModal } from '@/components/sales/CheckInModal'
 import { OpenVisitCard } from '@/components/sales/OpenVisitCard'
@@ -189,8 +188,6 @@ export default function SalesPage() {
           }}
         />
       )}
-
-      {canAssign && <SalesDashboard />}
 
       {canSearchRegistry && (
         <BuildingSearchAssign onAssigned={(n) => setToast(`${n} building${n === 1 ? '' : 's'} assigned`)} />
