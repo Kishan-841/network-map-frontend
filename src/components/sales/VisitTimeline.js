@@ -53,17 +53,25 @@ function Work({ visit }) {
  * a real table on desktop, stacked cards on a phone). A row opens that visit's
  * detail page.
  */
-export function VisitTimeline({ visits = [], loading = false }) {
+export function VisitTimeline({ visits = [], loading = false, showPerson = true }) {
   const router = useRouter()
   const open = (v) => router.push(`/sales/visits/${v.id}`)
 
   const columns = [
+    ...(showPerson
+      ? [
+          {
+            key: 'user',
+            header: 'Sales person',
+            render: (v) => <span className="font-medium text-ink">{v.user?.name}</span>,
+          },
+        ]
+      : []),
     {
-      key: 'user',
-      header: 'Sales person',
-      render: (v) => <span className="font-medium text-ink">{v.user?.name}</span>,
+      key: 'building',
+      header: 'Building',
+      render: (v) => <span className={showPerson ? undefined : 'font-medium text-ink'}>{v.building?.buildingName ?? '—'}</span>,
     },
-    { key: 'building', header: 'Building', render: (v) => v.building?.buildingName ?? '—' },
     {
       key: 'in',
       header: 'Check-in',
@@ -101,7 +109,9 @@ export function VisitTimeline({ visits = [], loading = false }) {
       className="w-full rounded-card border border-line bg-card p-3 text-left transition-transform active:scale-[0.99]"
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="min-w-0 truncate font-medium text-ink">{v.user?.name}</span>
+        <span className="min-w-0 truncate font-medium text-ink">
+          {showPerson ? v.user?.name : v.building?.buildingName}
+        </span>
         {v.checkOutAt ? (
           <span className="shrink-0 text-xs tabular-nums text-muted">
             {duration(v.visitedAt, v.checkOutAt)}
@@ -110,7 +120,7 @@ export function VisitTimeline({ visits = [], loading = false }) {
           <LiveTag />
         )}
       </div>
-      <p className="mt-0.5 truncate text-sm text-muted">{v.building?.buildingName}</p>
+      {showPerson && <p className="mt-0.5 truncate text-sm text-muted">{v.building?.buildingName}</p>}
       <p className="mt-0.5 text-xs tabular-nums text-muted">
         {fmtDay(v.visitedAt)} · {fmtTime(v.visitedAt)}
         {v.checkOutAt ? ` → ${fmtTime(v.checkOutAt)}` : ''}

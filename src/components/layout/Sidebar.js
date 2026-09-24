@@ -91,7 +91,8 @@ const LEAD_NAV = [
 // Field-sales team: their assigned buildings (and, for a manager/leader, the
 // pool they distribute) live on one page for now.
 const SALES_NAV = [
-  { href: '/sales', label: 'Sales', icon: IconBuildings },
+  { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/dashboard', label: 'My work', icon: IconDashboard },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // Managers and team leaders also get the team dashboard.

@@ -65,7 +65,8 @@ const SUPERVISOR_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const SALES_NAV = [
-  { href: '/sales', label: 'Sales', icon: IconBuildings },
+  { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/dashboard', label: 'My work', icon: IconDashboard },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const SALES_LEAD_NAV = [

@@ -1,26 +1,37 @@
 'use client'
 
 import { useAuthStore } from '@/stores/auth-store'
-import { canAssignSalesBuildings } from '@/lib/roles'
+import { canAssignSalesBuildings, isSalesExecutive } from '@/lib/roles'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SalesDashboard } from '@/components/sales/SalesDashboard'
+import { MyPerformance } from '@/components/sales/MyPerformance'
 
 /**
- * The team dashboard, on its own tab. A team leader tracks their executives; a
- * sales manager tracks their team leaders AND executives. Every visit drills
- * into its own detail page. Executives never see this (backend-gated too).
+ * The Field-sales dashboard tab, by role:
+ *  - manager / team leader / admin: the team dashboard — a team leader tracks
+ *    their executives, a manager tracks leaders AND executives; every visit
+ *    drills into its own detail page.
+ *  - sales executive: their OWN performance (visits, activities, inquiries),
+ *    computed from their scoped visits — no team data.
  */
 export default function SalesDashboardPage() {
   const role = useAuthStore((s) => s.user?.role)
-  const allowed = canAssignSalesBuildings(role) // ADMIN / SALES_MANAGER / TEAM_LEADER
+  const isTeamView = canAssignSalesBuildings(role) // ADMIN / SALES_MANAGER / TEAM_LEADER
+  const isMine = isSalesExecutive(role)
 
   return (
     <main className="mx-auto max-w-5xl">
-      <PageHeader eyebrow="Field sales" title="Dashboard" sub="Your team's field activity and performance" />
-      {allowed ? (
+      <PageHeader
+        eyebrow="Field sales"
+        title={isMine ? 'My work' : 'Dashboard'}
+        sub={isMine ? 'Your visits, activities and inquiries' : "Your team's field activity and performance"}
+      />
+      {isTeamView ? (
         <SalesDashboard />
+      ) : isMine ? (
+        <MyPerformance />
       ) : (
-        <p className="text-sm font-normal text-muted">This dashboard is for managers and team leaders.</p>
+        <p className="text-sm font-normal text-muted">This dashboard is for the field-sales team.</p>
       )}
     </main>
   )
