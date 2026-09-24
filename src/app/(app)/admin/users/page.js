@@ -12,6 +12,7 @@ import { invalidateUsers } from '@/hooks/useUsers'
 import { ROLE_LABELS, SALES_ROLES } from '@/lib/roles'
 import { useCities } from '@/hooks/useCities'
 import { BulkAssignZonesModal } from '@/components/admin/BulkAssignZonesModal'
+import { ImportUsersModal } from '@/components/admin/ImportUsersModal'
 import { UsersTabs } from '@/components/admin/UsersTabs'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconPlus, IconEdit, IconUpload } from '@/components/ui/icons'
@@ -329,6 +330,7 @@ export default function AdminUsersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editUser, setEditUser] = useState(null)
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -512,7 +514,13 @@ export default function AdminUsersPage() {
       )}
 
       {isAdmin && (
-        <div className="mb-3 flex justify-end">
+        <div className="mb-3 flex flex-wrap justify-end gap-2">
+          <button
+            onClick={() => setImportOpen(true)}
+            className="inline-flex items-center gap-2 rounded-btn border border-line bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-fiber/50"
+          >
+            <IconUpload className="h-4 w-4" /> Import sales team
+          </button>
           <button
             onClick={() => setBulkAssignOpen(true)}
             className="inline-flex items-center gap-2 rounded-btn border border-line bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-fiber/50"
@@ -578,6 +586,7 @@ export default function AdminUsersPage() {
       {bulkAssignOpen && (
         <BulkAssignZonesModal onClose={() => setBulkAssignOpen(false)} onAssigned={refresh} />
       )}
+      {importOpen && <ImportUsersModal onClose={() => setImportOpen(false)} onImported={refresh} />}
     </main>
   )
 }
