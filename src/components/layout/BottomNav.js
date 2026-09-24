@@ -16,7 +16,7 @@ import {
   IconMore,
 } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
-import { isAgent, isLead, isSupervisor, isPartnerManager, isAccounts } from '@/lib/roles'
+import { isAgent, isLead, isSupervisor, isPartnerManager, isAccounts, isSales } from '@/lib/roles'
 import { MANAGE_LINKS } from '@/lib/manage-links'
 import { pickExtraNav } from '@/lib/nav-extras'
 import { MoreSheet, splitNav } from '@/components/layout/MoreSheet'
@@ -64,6 +64,10 @@ const SUPERVISOR_NAV = [
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+const SALES_NAV = [
+  { href: '/sales', label: 'Sales', icon: IconBuildings },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
 const LEAD_NAV = [
   // `exact` — /acquisition/users is a sibling tab, not a child of the dashboard.
   { href: '/acquisition', label: 'Team', icon: IconDashboard, exact: true },
@@ -86,11 +90,13 @@ export function BottomNav() {
         ? SUPERVISOR_NAV
         : isAccounts(role)
           ? ACCOUNTS_NAV
-          : isPartnerManager(role)
-            ? PARTNER_MANAGER_NAV
-            : role === 'ADMIN'
-              ? ADMIN_NAV
-              : COVERAGE_NAV
+          : isSales(role)
+            ? SALES_NAV
+            : isPartnerManager(role)
+              ? PARTNER_MANAGER_NAV
+              : role === 'ADMIN'
+                ? ADMIN_NAV
+                : COVERAGE_NAV
 
   // The admin pages a phone could not reach at all — every Manage link for an
   // admin, the fiber pages for whoever was ticked. They go after the role's

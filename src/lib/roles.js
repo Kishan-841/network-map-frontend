@@ -11,6 +11,9 @@ export const ROLE_LABELS = {
   SUPERVISOR: 'Supervisor',
   PARTNER_MANAGER: 'Partner manager',
   ACCOUNTS: 'Accounts',
+  SALES_MANAGER: 'Sales manager',
+  TEAM_LEADER: 'Team leader',
+  SALES_EXECUTIVE: 'Sales executive',
 }
 
 export const isAgent = (role) => role === 'ACQUISITION_AGENT'
@@ -28,6 +31,14 @@ export const isPartnerManager = (role) => role === 'PARTNER_MANAGER'
  * registry, no map, and none of the customers' details behind the earnings.
  */
 export const isAccounts = (role) => role === 'ACCOUNTS'
+/** Field-sales hierarchy: works assigned buildings, records visits + inquiries. */
+export const SALES_ROLES = ['SALES_MANAGER', 'TEAM_LEADER', 'SALES_EXECUTIVE']
+export const isSales = (role) => SALES_ROLES.includes(role)
+export const isSalesManager = (role) => role === 'SALES_MANAGER'
+export const isTeamLeader = (role) => role === 'TEAM_LEADER'
+export const isSalesExecutive = (role) => role === 'SALES_EXECUTIVE'
+/** May assign / distribute buildings down the sales chain (mirrors the API's ASSIGNER). */
+export const canAssignSalesBuildings = (role) => ['ADMIN', 'SALES_MANAGER', 'TEAM_LEADER'].includes(role)
 /**
  * May create and edit building CONTENT, whoever logged it. Distinct from
  * administration (users, zones, operators, logs), which stays with ADMIN.
@@ -144,7 +155,9 @@ export const homePathFor = (role) =>
           ? '/partner-dashboard'
           : isAccounts(role)
             ? '/payouts'
-            : '/dashboard'
+            : isSales(role)
+              ? '/sales'
+              : '/dashboard'
 
 /** Route prefixes each role must never reach. */
 const COVERAGE_ONLY = ['/dashboard', '/admin']
@@ -174,6 +187,8 @@ const PARTNER_MANAGER_ALLOWED = [
 const PARTNER_NETWORK = ['/partner-dashboard', '/partners', '/referrals', '/leads', '/calculator']
 /** Accounts reaches payouts and their own profile. Nothing else. */
 const ACCOUNTS_ALLOWED = ['/payouts', '/profile']
+/** The field-sales team reach only their own workspace and profile. */
+const SALES_ALLOWED = ['/sales', '/profile']
 export const isForbiddenPath = (role, pathname, user) => {
   // Checked before the per-role rules below, so a new role cannot reach the
   // partner network just by not appearing in any of them.
@@ -185,6 +200,9 @@ export const isForbiddenPath = (role, pathname, user) => {
   // (only ever a map role — canManageFiber checks). Below the accounts rule
   // on purpose: finance stays on its allow-list whatever a flag says.
   if (isFiberPage(pathname) && canManageFiber(user)) return false
+  // Allow-list: the sales team reach only /sales and /profile, whatever new
+  // staff route is added elsewhere.
+  if (isSales(role)) return !SALES_ALLOWED.some((p) => pathname.startsWith(p))
   if (isAcquisition(role)) return COVERAGE_ONLY.some((p) => pathname.startsWith(p))
   if (isSupervisor(role)) return OFF_LIMITS_FOR_SUPERVISOR.some((p) => pathname.startsWith(p))
   // Allow-list rather than deny-list: a new staff route must not silently

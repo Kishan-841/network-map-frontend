@@ -14,6 +14,7 @@ import {
   isSupervisor,
   isPartnerManager,
   isAccounts,
+  isSales,
   fiberNavFor,
   ROLE_LABELS,
 } from '@/lib/roles'
@@ -84,6 +85,12 @@ const LEAD_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/acquisition/users', label: 'Users', icon: IconUsers },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+// Field-sales team: their assigned buildings (and, for a manager/leader, the
+// pool they distribute) live on one page for now.
+const SALES_NAV = [
+  { href: '/sales', label: 'Sales', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
@@ -177,11 +184,13 @@ export function Sidebar() {
         ? SUPERVISOR_NAV
         : isAccounts(role)
           ? ACCOUNTS_NAV
-          : isPartnerManager(role)
-            ? PARTNER_MANAGER_NAV
-            : role === 'ADMIN'
-              ? ADMIN_NAV
-              : COVERAGE_NAV
+          : isSales(role)
+            ? SALES_NAV
+            : isPartnerManager(role)
+              ? PARTNER_MANAGER_NAV
+              : role === 'ADMIN'
+                ? ADMIN_NAV
+                : COVERAGE_NAV
 
   // Fiber access is granted per user (Users → Assign accesses). Whoever holds
   // it gets the same two links the admin has, icons and all, in a group of
