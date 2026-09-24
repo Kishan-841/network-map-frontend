@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useMapLayer } from '@/lib/useMapLayer'
-import { emptyDraft, reduce, draftErrors, fromApiPoints, toPayloadPoints } from '@/lib/fiber/draft'
+import { emptyDraft, reduce, draftErrors, fromApiPoints, toPayloadPoints, continuationStart } from '@/lib/fiber/draft'
 import { useFibers, invalidateFibers } from '@/hooks/useFibers'
 import { usePops } from '@/hooks/usePops'
 import { invalidateClosures } from '@/hooks/useClosures'
@@ -275,6 +275,24 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     onClose()
   }
 
+  // Start a NEW fiber that continues from this one's end point — a fresh draw
+  // session in place (same map, same view), seeded with the last point so the
+  // cables meet at that junction. The user picks a different core in the drawer
+  // and saves it as its own fiber. Warns if the current line has unsaved edits.
+  function handleAddFiber() {
+    if (dirty && !window.confirm('The line has unsaved changes. Discard them and start a new fiber?')) return
+    const start = continuationStart(draft.points[draft.points.length - 1])
+    annotations.resetForMode('draw')
+    setSelectedTarget(null)
+    setPointsError(null)
+    setSaveOpen(false)
+    setFiber(null)
+    setSavedSignature(null)
+    dispatch({ type: 'load', points: start ? [start] : [] })
+    setMode('draw')
+    showToast('New fiber from here — set its core count in the panel, then keep drawing')
+  }
+
   function handleMode(next) {
     setMode(next)
     annotations.resetForMode(next)
@@ -299,6 +317,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
         onUndo={() => dispatch({ type: 'undo' })}
         onLeave={handleLeave}
         onSave={phase === 'draw' ? () => setSaveOpen(true) : handleSaveChanges}
+        onAddFiber={phase === 'annotate' ? handleAddFiber : null}
       />
 
       <div className="relative min-h-0 flex-1">
