@@ -9,6 +9,9 @@ export const ROLE_LABELS = {
   ACQUISITION_AGENT: 'Acquisition agent',
   ACQUISITION_LEAD: 'Acquisition lead',
   SUPERVISOR: 'Supervisor',
+  SALES_MANAGER: 'Sales manager',
+  TEAM_LEADER: 'Team leader',
+  SALES_EXECUTIVE: 'Sales executive',
 }
 
 export const isAgent = (role) => role === 'ACQUISITION_AGENT'
@@ -19,6 +22,14 @@ export const isAcquisition = (role) => isAgent(role) || isLead(role)
 export const isCoverage = (role) => ['ADMIN', 'MANAGER', 'SURVEYOR'].includes(role)
 /** Oversight across BOTH registries — sees every building, edits any of them. */
 export const isSupervisor = (role) => role === 'SUPERVISOR'
+/** Field-sales hierarchy: works assigned buildings, records visits + inquiries. */
+export const SALES_ROLES = ['SALES_MANAGER', 'TEAM_LEADER', 'SALES_EXECUTIVE']
+export const isSales = (role) => SALES_ROLES.includes(role)
+export const isSalesManager = (role) => role === 'SALES_MANAGER'
+export const isTeamLeader = (role) => role === 'TEAM_LEADER'
+export const isSalesExecutive = (role) => role === 'SALES_EXECUTIVE'
+/** May assign / distribute buildings down the sales chain (mirrors the API's ASSIGNER). */
+export const canAssignSalesBuildings = (role) => ['ADMIN', 'SALES_MANAGER', 'TEAM_LEADER'].includes(role)
 /**
  * May create and edit building CONTENT, whoever logged it. Distinct from
  * administration (users, zones, operators, logs), which stays with ADMIN.
@@ -123,17 +134,22 @@ export const homePathFor = (role) =>
         // coverage dashboard is not theirs.
         isSupervisor(role)
         ? '/map'
-        : '/dashboard'
+        : isSales(role)
+          ? '/sales'
+          : '/dashboard'
 
 /** Route prefixes each role must never reach. */
 const COVERAGE_ONLY = ['/dashboard', '/admin']
 // A supervisor reads every building but administers nothing, and has no
 // coverage dashboard of its own.
 const OFF_LIMITS_FOR_SUPERVISOR = ['/dashboard', '/admin', '/acquisition']
+/** The field-sales team reach only their own workspace and profile. */
+const SALES_ALLOWED = ['/sales', '/profile']
 export const isForbiddenPath = (role, pathname, user) => {
   // Fiber access opens exactly two pages under /admin, for whoever holds it
   // (only ever a map role — canManageFiber checks that).
   if (isFiberPage(pathname) && canManageFiber(user)) return false
+  if (isSales(role)) return !SALES_ALLOWED.some((p) => pathname.startsWith(p))
   if (isAcquisition(role)) return COVERAGE_ONLY.some((p) => pathname.startsWith(p))
   if (isSupervisor(role)) return OFF_LIMITS_FOR_SUPERVISOR.some((p) => pathname.startsWith(p))
   return false

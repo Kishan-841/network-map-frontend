@@ -8,7 +8,7 @@ import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
 import { MANAGE_LINKS } from '@/lib/manage-links'
-import { isAgent, isLead, isSupervisor, fiberNavFor, ROLE_LABELS } from '@/lib/roles'
+import { isAgent, isLead, isSupervisor, isSales, isSalesExecutive, fiberNavFor, ROLE_LABELS } from '@/lib/roles'
 import {
   NodeMark,
   IconDashboard,
@@ -49,6 +49,19 @@ const LEAD_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
+// A sales executive gets Sales + their own "My work"; managers and team leaders
+// get Sales + the team Dashboard.
+const SALES_NAV = [
+  { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/dashboard', label: 'My work', icon: IconDashboard },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+const SALES_LEAD_NAV = [
+  { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/dashboard', label: 'Dashboard', icon: IconDashboard },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+
 function initials(name = '') {
   return name
     .split(' ')
@@ -80,7 +93,11 @@ export function Sidebar() {
       ? LEAD_NAV
       : isSupervisor(user?.role)
         ? SUPERVISOR_NAV
-        : COVERAGE_NAV
+        : isSales(user?.role)
+          ? isSalesExecutive(user?.role)
+            ? SALES_NAV
+            : SALES_LEAD_NAV
+          : COVERAGE_NAV
 
   // Fiber access is granted per user (Users → Assign accesses). Whoever holds
   // it gets the same two links the admin has, icons and all, in a group of

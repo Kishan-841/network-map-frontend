@@ -12,7 +12,7 @@ import {
   IconMore,
 } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
-import { isAgent, isLead, isSupervisor } from '@/lib/roles'
+import { isAgent, isLead, isSupervisor, isSales, isSalesExecutive } from '@/lib/roles'
 import { MANAGE_LINKS } from '@/lib/manage-links'
 import { pickExtraNav } from '@/lib/nav-extras'
 import { MoreSheet, splitNav } from '@/components/layout/MoreSheet'
@@ -42,6 +42,16 @@ const LEAD_NAV = [
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+const SALES_NAV = [
+  { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/dashboard', label: 'My work', icon: IconDashboard },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+const SALES_LEAD_NAV = [
+  { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/dashboard', label: 'Dashboard', icon: IconDashboard },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
 
 /** Mobile-only bottom bar (72px, blurred). Hidden at lg — Sidebar takes over. */
 export function BottomNav() {
@@ -54,7 +64,11 @@ export function BottomNav() {
       ? LEAD_NAV
       : isSupervisor(role)
         ? SUPERVISOR_NAV
-        : COVERAGE_NAV
+        : isSales(role)
+          ? isSalesExecutive(role)
+            ? SALES_NAV
+            : SALES_LEAD_NAV
+          : COVERAGE_NAV
 
   // The admin pages a phone could not reach at all — every Manage link for an
   // admin, the fiber pages for whoever was ticked on Users → Assign accesses.
