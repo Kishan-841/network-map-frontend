@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiClient } from '@/lib/api-client'
 import { ROLE_LABELS } from '@/lib/roles'
 import { VisitTimeline } from './VisitTimeline'
-import { TeamPerformanceChart, ActivityMixChart } from './DashboardCharts'
+import { TeamPerformanceChart } from './DashboardCharts'
 
 const startOfDay = (d) => {
   const x = new Date(d)
@@ -170,15 +170,10 @@ export function SalesDashboard() {
         <Tile label={userId ? 'Person' : 'Team members'} value={shownTeam.length} />
       </div>
 
-      {/* Charts */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Visits by team member">
-          <TeamPerformanceChart team={shownTeam} />
-        </Card>
-        <Card title="Activity mix">
-          <ActivityMixChart visits={visits} />
-        </Card>
-      </div>
+      {/* Chart */}
+      <Card title="Visits by team member">
+        <TeamPerformanceChart team={shownTeam} />
+      </Card>
 
       <VisitTimeline visits={visits} loading={loading} />
     </section>

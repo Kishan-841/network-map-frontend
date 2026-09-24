@@ -1,7 +1,5 @@
 'use client'
 
-const ACTIVITY_LABEL = { DESK: 'Desk', UMBRELLA: 'Umbrella', LIFT: 'Lift' }
-
 /** A ranked horizontal bar chart — one labelled, value-tagged bar per row. */
 function RankedBars({ rows, color = 'var(--color-fiber)', empty = 'No data yet.' }) {
   if (!rows.length) return <p className="text-sm font-normal text-muted">{empty}</p>
@@ -35,12 +33,4 @@ export function TeamPerformanceChart({ team }) {
     .sort((a, b) => b.visits - a.visits || b.inquiries - a.inquiries)
     .map((u) => ({ id: u.id, label: u.name, value: u.visits, sub: `· ${u.inquiries} inq` }))
   return <RankedBars rows={rows} color="var(--color-fiber)" empty="No team members." />
-}
-
-/** How the field time was spent — Desk / Umbrella / Lift totals across visits. */
-export function ActivityMixChart({ visits }) {
-  const counts = { DESK: 0, UMBRELLA: 0, LIFT: 0 }
-  for (const v of visits) for (const a of v.activities ?? []) counts[a.type] = (counts[a.type] ?? 0) + 1
-  const rows = ['DESK', 'UMBRELLA', 'LIFT'].map((t) => ({ id: t, label: ACTIVITY_LABEL[t], value: counts[t] }))
-  return <RankedBars rows={rows} color="var(--color-ok)" />
 }

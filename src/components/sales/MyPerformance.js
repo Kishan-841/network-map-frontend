@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiClient } from '@/lib/api-client'
 import { VisitTimeline } from './VisitTimeline'
-import { ActivityMixChart } from './DashboardCharts'
 
 const startOfDay = (d) => {
   const x = new Date(d)
@@ -25,15 +24,6 @@ function Tile({ label, value, accent }) {
         {value}
       </p>
       <p className="text-sm font-normal text-muted">{label}</p>
-    </div>
-  )
-}
-
-function Card({ title, children }) {
-  return (
-    <div className="rounded-card border border-line bg-card p-4">
-      <p className="mb-3 text-sm font-medium text-ink">{title}</p>
-      {children}
     </div>
   )
 }
@@ -143,11 +133,6 @@ export function MyPerformance() {
         <Tile label="Activities logged" value={totals.activities} />
         <Tile label="Avg time / visit" value={avgDuration(visits)} />
       </div>
-
-      {/* Activity mix */}
-      <Card title="What you did on visits">
-        <ActivityMixChart visits={visits} />
-      </Card>
 
       <VisitTimeline visits={visits} loading={loading} showPerson={false} />
     </section>
