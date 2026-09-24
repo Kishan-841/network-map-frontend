@@ -95,12 +95,17 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
   const [salesCandidates, setSalesCandidates] = useState({ managers: [], leaders: [] })
   useEffect(() => {
     let alive = true
-    Promise.all([
-      apiClient.get('/users', { params: { role: 'SALES_MANAGER', pageSize: 100 } }),
-      apiClient.get('/users', { params: { role: 'TEAM_LEADER', pageSize: 100 } }),
-    ])
-      .then(([m, l]) => {
-        if (alive) setSalesCandidates({ managers: m.data.data.items ?? [], leaders: l.data.data.items ?? [] })
+    // The plain list returns every user as an array — filter to the two sales
+    // levels we need for the pickers.
+    apiClient
+      .get('/users')
+      .then((res) => {
+        if (!alive) return
+        const all = Array.isArray(res.data.data) ? res.data.data : (res.data.data.items ?? [])
+        setSalesCandidates({
+          managers: all.filter((u) => u.role === 'SALES_MANAGER'),
+          leaders: all.filter((u) => u.role === 'TEAM_LEADER'),
+        })
       })
       .catch(() => {})
     return () => {

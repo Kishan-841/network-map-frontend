@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
-import { canAssignSalesBuildings, isSalesExecutive, ROLE_LABELS } from '@/lib/roles'
+import { canAssignSalesBuildings, isSales, isSalesExecutive, ROLE_LABELS } from '@/lib/roles'
 import { useSalesBuildings, invalidateSalesBuildings } from '@/hooks/useSales'
 import { useClientTable } from '@/hooks/useClientTable'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -11,6 +12,7 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { Pagination } from '@/components/ui/Pagination'
 import { Button } from '@/components/ui/Button'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
+import { InquiryModal } from '@/components/sales/InquiryModal'
 
 const holderOf = (b) => b.salesAssignments?.[0]?.assignedTo ?? null
 // Module-level so the memo inside useClientTable stays stable.
@@ -20,16 +22,48 @@ export default function SalesPage() {
   const role = useAuthStore((s) => s.user?.role)
   const canAssign = canAssignSalesBuildings(role)
   const isExec = isSalesExecutive(role)
+  // Field users record visits and raise inquiries on buildings in their scope.
+  const canAct = isSales(role)
 
   const { buildings, loading } = useSalesBuildings()
   const table = useClientTable(buildings, { getSearchText: searchText })
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [assigning, setAssigning] = useState(false)
+  const [inquiryFor, setInquiryFor] = useState(null)
+  const [visitingId, setVisitingId] = useState(null)
   const [toast, setToast] = useState(null)
 
   const clearSelection = () => setSelectedIds(new Set())
 
-  const columns = useMemo(() => {
+  async function recordVisit(building) {
+    setVisitingId(building.id)
+    try {
+      await apiClient.post('/sales/visits', { buildingId: building.id })
+      setToast(`Visit recorded at ${building.buildingName}`)
+    } catch (err) {
+      setToast(getApiErrorMessage(err, 'Could not record the visit'))
+    } finally {
+      setVisitingId(null)
+    }
+  }
+
+  const RowActions = ({ building }) => (
+    <div className="flex justify-end gap-2">
+      <Button
+        variant="secondary"
+        className="h-9 min-h-9"
+        loading={visitingId === building.id}
+        onClick={() => recordVisit(building)}
+      >
+        Visit
+      </Button>
+      <Button className="h-9 min-h-9" onClick={() => setInquiryFor(building)}>
+        Inquiry
+      </Button>
+    </div>
+  )
+
+  const baseColumns = useMemo(() => {
     const cols = [
       {
         key: 'building',
@@ -75,6 +109,21 @@ export default function SalesPage() {
     return cols
   }, [isExec])
 
+  // Actions rebuild each render (they read `visitingId`), so they are appended
+  // outside the memo.
+  const columns = canAct
+    ? [
+        ...baseColumns,
+        {
+          key: 'actions',
+          header: '',
+          headerClassName: 'text-right',
+          className: 'text-right',
+          render: (b) => <RowActions building={b} />,
+        },
+      ]
+    : baseColumns
+
   const renderCard = (b) => {
     const h = holderOf(b)
     return (
@@ -94,6 +143,11 @@ export default function SalesPage() {
             </span>
           )}
         </p>
+        {canAct && (
+          <div className="mt-3 border-t border-line pt-3">
+            <RowActions building={b} />
+          </div>
+        )}
       </div>
     )
   }
@@ -188,6 +242,17 @@ export default function SalesPage() {
             clearSelection()
             invalidateSalesBuildings()
             setToast(`${count} building${count === 1 ? '' : 's'} assigned`)
+          }}
+        />
+      )}
+
+      {inquiryFor && (
+        <InquiryModal
+          building={inquiryFor}
+          onClose={() => setInquiryFor(null)}
+          onDone={() => {
+            setToast(`Inquiry raised for ${inquiryFor.buildingName}`)
+            setInquiryFor(null)
           }}
         />
       )}
