@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
-import { canAssignSalesBuildings, isSales, isSalesExecutive, ROLE_LABELS } from '@/lib/roles'
+import { canAssignSalesBuildings, isSales, isSalesExecutive, isSalesManager, ROLE_LABELS } from '@/lib/roles'
 import { useSalesBuildings, invalidateSalesBuildings } from '@/hooks/useSales'
 import { useClientTable } from '@/hooks/useClientTable'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
 import { InquiryModal } from '@/components/sales/InquiryModal'
 import { SalesDashboard } from '@/components/sales/SalesDashboard'
+import { BuildingSearchAssign } from '@/components/sales/BuildingSearchAssign'
 
 const holderOf = (b) => b.salesAssignments?.[0]?.assignedTo ?? null
 // Module-level so the memo inside useClientTable stays stable.
@@ -23,6 +24,9 @@ export default function SalesPage() {
   const role = useAuthStore((s) => s.user?.role)
   const canAssign = canAssignSalesBuildings(role)
   const isExec = isSalesExecutive(role)
+  // A manager (or admin) searches the whole registry to assign from; a team
+  // leader distributes their own pool below instead.
+  const canSearchRegistry = role === 'ADMIN' || isSalesManager(role)
   // Field users record visits and raise inquiries on buildings in their scope.
   const canAct = isSales(role)
 
@@ -194,6 +198,10 @@ export default function SalesPage() {
       )}
 
       {canAssign && <SalesDashboard />}
+
+      {canSearchRegistry && (
+        <BuildingSearchAssign onAssigned={(n) => setToast(`${n} building${n === 1 ? '' : 's'} assigned`)} />
+      )}
 
       {canAssign && selectedIds.size > 0 && (
         <div className="sticky top-2 z-20 mb-3 flex flex-wrap items-center gap-3 rounded-card border border-fiber/30 bg-card px-4 py-3 shadow-lift">
