@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiClient } from '@/lib/api-client'
 import { ROLE_LABELS } from '@/lib/roles'
+import { VisitTimeline } from './VisitTimeline'
 
 const startOfToday = () => {
   const d = new Date()
@@ -32,11 +33,12 @@ export function SalesDashboard() {
   const [preset, setPreset] = useState('today')
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Stable per preset, so the timeline below does not refetch every render.
+  const from = useMemo(() => PRESETS.find((p) => p.key === preset).from(), [preset])
 
   useEffect(() => {
     let alive = true
     setLoading(true)
-    const from = PRESETS.find((p) => p.key === preset).from()
     apiClient
       .get('/sales/dashboard', { params: from ? { from } : {} })
       .then((res) => alive && (setData(res.data.data), setLoading(false)))
@@ -44,7 +46,7 @@ export function SalesDashboard() {
     return () => {
       alive = false
     }
-  }, [preset])
+  }, [from])
 
   const totals = data?.totals ?? { visits: 0, inquiries: 0 }
   const team = data?.team ?? []
@@ -97,6 +99,8 @@ export function SalesDashboard() {
           </table>
         </div>
       )}
+
+      <VisitTimeline from={from} />
     </section>
   )
 }
