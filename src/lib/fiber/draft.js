@@ -78,6 +78,27 @@ export const toPayloadPoints = (points) =>
     newSplitter: p.ref?.newSplitter,
   }))
 
+/**
+ * The first point of a fiber that continues from where another one ended.
+ * Keeps the endpoint's coordinate so the new line starts exactly there, and
+ * carries the endpoint's entity reference when it is a closure, POP or
+ * building — so the two fibers connect at that junction. A plain bend, or a
+ * splitter (which is fed, not passed through), starts a bare WAYPOINT instead.
+ * Returns null when there is no point to continue from.
+ */
+export const continuationStart = (point) => {
+  if (!point) return null
+  const at = { latitude: point.latitude, longitude: point.longitude }
+  const ref = point.ref
+  if (point.type === 'CLOSURE' && ref?.closureId)
+    return { ...at, type: 'CLOSURE', ref: { closureId: ref.closureId, code: ref.code ?? null } }
+  if (point.type === 'POP' && ref?.popId)
+    return { ...at, type: 'POP', ref: { popId: ref.popId, name: ref.name ?? null } }
+  if (point.type === 'BUILDING' && ref?.buildingId)
+    return { ...at, type: 'BUILDING', ref: { buildingId: ref.buildingId, name: ref.name ?? null } }
+  return { ...at, type: 'WAYPOINT', ref: null }
+}
+
 export const fromApiPoints = (api) =>
   api.map((p) => ({
     latitude: p.latitude,
