@@ -2,23 +2,23 @@
 
 import { useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
-import { uploadFile } from '@/lib/upload'
 import { getCurrentLocation } from '@/lib/geolocation'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
-import { IconLocate, IconOkCircle } from '@/components/ui/icons'
+import { SelfieCapture } from './SelfieCapture'
+import { IconLocate } from '@/components/ui/icons'
 
 /**
- * Check in to a building: location is forced and a selfie is required. Location
- * is fetched on open (and can be retried); the selfie is captured and uploaded.
- * Only when both are ready can the visit be created.
+ * Check in to a building: location is forced and a live-camera selfie is
+ * required (no gallery upload). Location is fetched on open (and can be
+ * retried); the selfie is taken with the camera and uploaded. Only when both
+ * are ready can the visit be created.
  */
 export function CheckInModal({ building, onClose, onDone }) {
   const [coords, setCoords] = useState(null)
   const [locating, setLocating] = useState(true)
   const [locError, setLocError] = useState(null)
   const [selfieUrl, setSelfieUrl] = useState(null)
-  const [uploading, setUploading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -36,20 +36,6 @@ export function CheckInModal({ building, onClose, onDone }) {
   useEffect(() => {
     locate()
   }, [])
-
-  async function onSelfie(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    setError(null)
-    try {
-      setSelfieUrl(await uploadFile(file))
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not upload the selfie'))
-    } finally {
-      setUploading(false)
-    }
-  }
 
   async function checkIn() {
     setBusy(true)
@@ -107,19 +93,8 @@ export function CheckInModal({ building, onClose, onDone }) {
           )}
         </div>
 
-        {/* Selfie — required. */}
-        <label className="flex cursor-pointer items-center gap-2 rounded-btn border border-line px-4 py-3 text-sm font-medium transition-colors hover:bg-paper">
-          {selfieUrl ? (
-            <>
-              <IconOkCircle className="h-4 w-4 text-ok" aria-hidden="true" />
-              <span className="text-ok">Selfie added</span>
-              <span className="ml-auto text-muted">Retake</span>
-            </>
-          ) : (
-            <span>{uploading ? 'Uploading selfie…' : 'Take a selfie'}</span>
-          )}
-          <input type="file" accept="image/*" capture="user" className="hidden" onChange={onSelfie} disabled={uploading} />
-        </label>
+        {/* Selfie — required, taken with the live camera (no gallery). */}
+        <SelfieCapture onCaptured={setSelfieUrl} disabled={busy} />
 
         {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
         {!ready && !error && <p className="text-xs font-normal text-faint">Location and a selfie are required to check in.</p>}
