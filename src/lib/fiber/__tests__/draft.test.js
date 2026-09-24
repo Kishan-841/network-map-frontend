@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyDraft, reduce, deriveSegments, draftErrors, toPayloadPoints, fromApiPoints, isPinned } from '../draft.js'
+import { emptyDraft, reduce, deriveSegments, draftErrors, toPayloadPoints, fromApiPoints, isPinned, continuationStart } from '../draft.js'
 import { pathMeters } from '../geo.js'
 
 describe('reduce', () => {
@@ -292,5 +292,47 @@ describe('payload <-> API point conversion', () => {
   it('leaves the splitter fields null on a closure without one', () => {
     const [point] = fromApiPoints([{ type: 'CLOSURE', latitude: 2, longitude: 3, closureId: 'c1', label: 'JC-1' }])
     expect(point.ref).toMatchObject({ splitterId: null, splitterRatio: null, splitterLocation: null, splitterFiberType: null })
+  })
+})
+
+describe('continuationStart', () => {
+  it('returns null when there is no endpoint', () => {
+    expect(continuationStart(undefined)).toBeNull()
+    expect(continuationStart(null)).toBeNull()
+  })
+
+  it('keeps a plain bend as a bare waypoint at the same coordinate', () => {
+    expect(continuationStart({ type: 'WAYPOINT', latitude: 1, longitude: 2, ref: null })).toEqual({
+      type: 'WAYPOINT',
+      latitude: 1,
+      longitude: 2,
+      ref: null,
+    })
+  })
+
+  it('connects at a closure endpoint (carries only the closure id + code)', () => {
+    const start = continuationStart({
+      type: 'CLOSURE',
+      latitude: 5,
+      longitude: 6,
+      ref: { closureId: 'c1', code: 'JC-0007', splitterId: 's1', splitter: '1:4', notes: 'x' },
+    })
+    expect(start).toEqual({ type: 'CLOSURE', latitude: 5, longitude: 6, ref: { closureId: 'c1', code: 'JC-0007' } })
+    // The new fiber references the closure, and nothing else rides along.
+    expect(toPayloadPoints([start])[0]).toMatchObject({ closureId: 'c1', splitterId: undefined })
+  })
+
+  it('connects at a POP endpoint', () => {
+    expect(continuationStart({ type: 'POP', latitude: 7, longitude: 8, ref: { popId: 'p1', name: 'POP A' } })).toEqual({
+      type: 'POP',
+      latitude: 7,
+      longitude: 8,
+      ref: { popId: 'p1', name: 'POP A' },
+    })
+  })
+
+  it('starts a bare waypoint from a splitter endpoint (a splitter is fed, not passed through)', () => {
+    const start = continuationStart({ type: 'SPLITTER', latitude: 9, longitude: 10, ref: { splitterId: 's1' } })
+    expect(start).toEqual({ type: 'WAYPOINT', latitude: 9, longitude: 10, ref: null })
   })
 })
