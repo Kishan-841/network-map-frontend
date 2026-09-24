@@ -22,16 +22,18 @@ export function OpenVisitCard({ visit, onChanged }) {
   const [error, setError] = useState(null)
   const [inquiry, setInquiry] = useState(false)
 
-  const counts = (visit.activities ?? []).reduce((m, a) => ({ ...m, [a.type]: (m[a.type] ?? 0) + 1 }), {})
+  // Activities are a set of types done — selected or not, never counted.
+  const selected = new Set((visit.activities ?? []).map((a) => a.type))
 
-  async function addActivity(type) {
+  async function toggleActivity(type) {
     setBusy(type)
     setError(null)
     try {
-      await apiClient.post(`/sales/visits/${visit.id}/activities`, { type })
+      if (selected.has(type)) await apiClient.delete(`/sales/visits/${visit.id}/activities/${type}`)
+      else await apiClient.post(`/sales/visits/${visit.id}/activities`, { type })
       onChanged()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not log the activity'))
+      setError(getApiErrorMessage(err, 'Could not update the activity'))
     } finally {
       setBusy(null)
     }
@@ -61,20 +63,30 @@ export function OpenVisitCard({ visit, onChanged }) {
         {(visit.inquiries ?? []).length === 1 ? 'y' : 'ies'}
       </p>
 
-      <p className="mt-4 text-sm font-medium text-muted">Log activity</p>
+      <p className="mt-4 text-sm font-medium text-muted">Work done here — tap all that apply</p>
       <div className="mt-1 flex flex-wrap gap-2">
-        {ACTIVITIES.map((a) => (
-          <Button
-            key={a.type}
-            variant="secondary"
-            className="h-10 min-h-10"
-            loading={busy === a.type}
-            onClick={() => addActivity(a.type)}
-          >
-            {a.label}
-            {counts[a.type] ? ` · ${counts[a.type]}` : ''}
-          </Button>
-        ))}
+        {ACTIVITIES.map((a) => {
+          const on = selected.has(a.type)
+          return (
+            <button
+              key={a.type}
+              type="button"
+              aria-pressed={on}
+              disabled={busy === a.type}
+              onClick={() => toggleActivity(a.type)}
+              className={`inline-flex h-10 items-center gap-2 rounded-btn px-4 text-sm font-medium transition-colors disabled:opacity-60 ${
+                on ? 'bg-fiber text-on-fiber' : 'border border-line text-ink hover:bg-paper'
+              }`}
+            >
+              {busy === a.type && <span className="loading loading-spinner loading-xs" />}
+              {a.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* An inquiry is a separate thing — a customer, not an activity. */}
+      <div className="mt-4 border-t border-line pt-4">
         <Button variant="secondary" className="h-10 min-h-10" onClick={() => setInquiry(true)}>
           Generate inquiry
         </Button>

@@ -54,8 +54,10 @@ export default function SalesPage() {
       {
         key: 'building',
         header: 'Building',
+        // Cap the width so a long address truncates instead of pushing the
+        // Check-in button off to the right.
         render: (b) => (
-          <div className="min-w-0">
+          <div className="min-w-0 max-w-[12rem] sm:max-w-[20rem] lg:max-w-[26rem]">
             <p className="truncate font-medium text-ink">{b.buildingName}</p>
             <p className="truncate text-sm font-normal text-muted">{b.formattedAddress}</p>
           </div>
