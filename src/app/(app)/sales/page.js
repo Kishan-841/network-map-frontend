@@ -13,6 +13,7 @@ import { Pagination } from '@/components/ui/Pagination'
 import { Button } from '@/components/ui/Button'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
 import { InquiryModal } from '@/components/sales/InquiryModal'
+import { SalesDashboard } from '@/components/sales/SalesDashboard'
 
 const holderOf = (b) => b.salesAssignments?.[0]?.assignedTo ?? null
 // Module-level so the memo inside useClientTable stays stable.
@@ -191,6 +192,8 @@ export default function SalesPage() {
           </button>
         </div>
       )}
+
+      {canAssign && <SalesDashboard />}
 
       {canAssign && selectedIds.size > 0 && (
         <div className="sticky top-2 z-20 mb-3 flex flex-wrap items-center gap-3 rounded-card border border-fiber/30 bg-card px-4 py-3 shadow-lift">
