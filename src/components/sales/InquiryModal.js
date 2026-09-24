@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/Modal'
  * collects the rest. Building + address are shown read-only and sent by id; the
  * server snapshots the address.
  */
-export function InquiryModal({ building, onClose, onDone }) {
+export function InquiryModal({ building, visitId, onClose, onDone }) {
   const [form, setForm] = useState({ customerName: '', phone: '', email: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -28,6 +28,7 @@ export function InquiryModal({ building, onClose, onDone }) {
         customerName: form.customerName.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
+        ...(visitId ? { visitId } : {}),
       })
       onDone()
     } catch (err) {

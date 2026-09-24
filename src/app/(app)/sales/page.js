@@ -1,10 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { canAssignSalesBuildings, isSales, isSalesExecutive, isSalesManager, ROLE_LABELS } from '@/lib/roles'
-import { useSalesBuildings, invalidateSalesBuildings } from '@/hooks/useSales'
+import { useSalesBuildings, invalidateSalesBuildings, useOpenVisit } from '@/hooks/useSales'
 import { useClientTable } from '@/hooks/useClientTable'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { DataTable } from '@/components/ui/DataTable'
@@ -12,9 +11,10 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { Pagination } from '@/components/ui/Pagination'
 import { Button } from '@/components/ui/Button'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
-import { InquiryModal } from '@/components/sales/InquiryModal'
 import { SalesDashboard } from '@/components/sales/SalesDashboard'
 import { BuildingSearchAssign } from '@/components/sales/BuildingSearchAssign'
+import { CheckInModal } from '@/components/sales/CheckInModal'
+import { OpenVisitCard } from '@/components/sales/OpenVisitCard'
 
 const holderOf = (b) => b.salesAssignments?.[0]?.assignedTo ?? null
 // Module-level so the memo inside useClientTable stays stable.
@@ -27,43 +27,24 @@ export default function SalesPage() {
   // A manager (or admin) searches the whole registry to assign from; a team
   // leader distributes their own pool below instead.
   const canSearchRegistry = role === 'ADMIN' || isSalesManager(role)
-  // Field users record visits and raise inquiries on buildings in their scope.
+  // Field users (SE + TL) check in to their assigned buildings and do the work.
   const canAct = isSales(role)
 
   const { buildings, loading } = useSalesBuildings()
+  const { visit: openVisit, refresh: refreshOpen } = useOpenVisit(canAct)
   const table = useClientTable(buildings, { getSearchText: searchText })
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [assigning, setAssigning] = useState(false)
-  const [inquiryFor, setInquiryFor] = useState(null)
-  const [visitingId, setVisitingId] = useState(null)
+  const [checkInFor, setCheckInFor] = useState(null)
   const [toast, setToast] = useState(null)
 
   const clearSelection = () => setSelectedIds(new Set())
 
-  async function recordVisit(building) {
-    setVisitingId(building.id)
-    try {
-      await apiClient.post('/sales/visits', { buildingId: building.id })
-      setToast(`Visit recorded at ${building.buildingName}`)
-    } catch (err) {
-      setToast(getApiErrorMessage(err, 'Could not record the visit'))
-    } finally {
-      setVisitingId(null)
-    }
-  }
-
+  // One open visit at a time: while checked in somewhere, Check-in is disabled.
   const RowActions = ({ building }) => (
-    <div className="flex justify-end gap-2">
-      <Button
-        variant="secondary"
-        className="h-9 min-h-9"
-        loading={visitingId === building.id}
-        onClick={() => recordVisit(building)}
-      >
-        Visit
-      </Button>
-      <Button className="h-9 min-h-9" onClick={() => setInquiryFor(building)}>
-        Inquiry
+    <div className="flex justify-end">
+      <Button className="h-9 min-h-9" disabled={Boolean(openVisit)} onClick={() => setCheckInFor(building)}>
+        Check in
       </Button>
     </div>
   )
@@ -197,6 +178,16 @@ export default function SalesPage() {
         </div>
       )}
 
+      {canAct && openVisit && (
+        <OpenVisitCard
+          visit={openVisit}
+          onChanged={() => {
+            refreshOpen()
+            invalidateSalesBuildings()
+          }}
+        />
+      )}
+
       {canAssign && <SalesDashboard />}
 
       {canSearchRegistry && (
@@ -257,13 +248,14 @@ export default function SalesPage() {
         />
       )}
 
-      {inquiryFor && (
-        <InquiryModal
-          building={inquiryFor}
-          onClose={() => setInquiryFor(null)}
+      {checkInFor && (
+        <CheckInModal
+          building={checkInFor}
+          onClose={() => setCheckInFor(null)}
           onDone={() => {
-            setToast(`Inquiry raised for ${inquiryFor.buildingName}`)
-            setInquiryFor(null)
+            setToast(`Checked in to ${checkInFor.buildingName}`)
+            setCheckInFor(null)
+            refreshOpen()
           }}
         />
       )}
