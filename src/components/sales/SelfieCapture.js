@@ -107,14 +107,14 @@ export function SelfieCapture({ onCaptured, disabled }) {
             autoPlay
             playsInline
             muted
-            className="w-full rounded-btn bg-black object-cover"
-            style={{ aspectRatio: '3 / 4', transform: 'scaleX(-1)' }}
+            className="mx-auto max-w-full rounded-btn bg-black object-cover"
+            style={{ height: '38vh', aspectRatio: '3 / 4', transform: 'scaleX(-1)' }}
           />
           <div className="flex gap-2">
-            <Button type="button" variant="ghost" fullWidth disabled={disabled} onClick={stopStream}>
+            <Button type="button" variant="ghost" className="flex-1" disabled={disabled} onClick={stopStream}>
               Cancel
             </Button>
-            <Button type="button" fullWidth disabled={disabled} onClick={capture}>
+            <Button type="button" className="flex-1" disabled={disabled} onClick={capture}>
               <IconCamera className="h-4 w-4" aria-hidden="true" />
               Capture
             </Button>
