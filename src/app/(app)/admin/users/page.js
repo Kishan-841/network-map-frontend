@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal'
 import { DataTable } from '@/components/ui/DataTable'
 import { ZoneMultiSelect } from '@/components/admin/ZoneMultiSelect'
 import { invalidateUsers } from '@/hooks/useUsers'
-import { ROLE_LABELS } from '@/lib/roles'
+import { ROLE_LABELS, SALES_ROLES } from '@/lib/roles'
 import { useCities } from '@/hooks/useCities'
 import { BulkAssignZonesModal } from '@/components/admin/BulkAssignZonesModal'
 import { UsersTabs } from '@/components/admin/UsersTabs'
@@ -25,6 +25,9 @@ const ROLES = [
   'ADMIN',
   'ACQUISITION_AGENT',
   'ACQUISITION_LEAD',
+  'SALES_MANAGER',
+  'TEAM_LEADER',
+  'SALES_EXECUTIVE',
 ]
 const roleLabel = (role) => ROLE_LABELS[role] ?? role
 
@@ -82,9 +85,28 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
           password: '',
           role: initial.role,
           zoneIds: initial.assignedZones?.map((zone) => zone.id) ?? [],
+          managerId: initial.managerId ?? '',
+          teamLeaderId: initial.teamLeaderId ?? '',
         }
-      : { name: '', email: '', password: '', role: 'SURVEYOR', zoneIds: [] },
+      : { name: '', email: '', password: '', role: 'SURVEYOR', zoneIds: [], managerId: '', teamLeaderId: '' },
   )
+  // The sales chain's candidate lists — fetched once, small. Managers to put a
+  // team leader / executive under; team leaders to put an executive under.
+  const [salesCandidates, setSalesCandidates] = useState({ managers: [], leaders: [] })
+  useEffect(() => {
+    let alive = true
+    Promise.all([
+      apiClient.get('/users', { params: { role: 'SALES_MANAGER', pageSize: 100 } }),
+      apiClient.get('/users', { params: { role: 'TEAM_LEADER', pageSize: 100 } }),
+    ])
+      .then(([m, l]) => {
+        if (alive) setSalesCandidates({ managers: m.data.data.items ?? [], leaders: l.data.data.items ?? [] })
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
   // Acquisition agents are mapped to a city + pincodes instead of zones.
   const [territory, setTerritory] = useState(() => ({
     cityId: initial?.pincodes?.[0]?.cityId ?? '',
@@ -114,6 +136,14 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
           patch.cityId = territory.cityId || null
           patch.pincodes = pincodeList
         }
+        // Sales chain — sent as null to clear when empty or on a non-sales role.
+        if (SALES_ROLES.includes(form.role)) {
+          patch.managerId = form.managerId || null
+          patch.teamLeaderId = form.role === 'SALES_EXECUTIVE' ? form.teamLeaderId || null : null
+        } else {
+          patch.managerId = null
+          patch.teamLeaderId = null
+        }
         await apiClient.patch(`/users/${initial.id}`, patch)
       } else {
         const body = { ...form }
@@ -121,6 +151,14 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
         if (body.role === 'ACQUISITION_AGENT') {
           body.cityId = territory.cityId || null
           body.pincodes = pincodeList
+        }
+        // The API rejects an empty-string id (min length 1) — omit, don't send ''.
+        if (!SALES_ROLES.includes(body.role)) {
+          delete body.managerId
+          delete body.teamLeaderId
+        } else {
+          if (!body.managerId) delete body.managerId
+          if (body.role !== 'SALES_EXECUTIVE' || !body.teamLeaderId) delete body.teamLeaderId
         }
         await apiClient.post('/users', body)
       }
@@ -208,6 +246,29 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
             selectedIds={form.zoneIds}
             onChange={(zoneIds) => setForm((prev) => ({ ...prev, zoneIds }))}
           />
+        )}
+
+        {/* Field-sales chain. A manager reports to the admin (no picker); a team
+            leader picks their manager; an executive picks both. */}
+        {(form.role === 'TEAM_LEADER' || form.role === 'SALES_EXECUTIVE') && (
+          <Select id="u-manager" label="Reports to (sales manager)" value={form.managerId} onChange={set('managerId')}>
+            <option value="">Select a sales manager…</option>
+            {salesCandidates.managers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </Select>
+        )}
+        {form.role === 'SALES_EXECUTIVE' && (
+          <Select id="u-leader" label="Team leader (optional)" value={form.teamLeaderId} onChange={set('teamLeaderId')}>
+            <option value="">No team leader — reports to the manager directly</option>
+            {salesCandidates.leaders.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </Select>
         )}
 
         {error && (
