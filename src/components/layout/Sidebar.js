@@ -92,12 +92,14 @@ const LEAD_NAV = [
 // pool they distribute) live on one page for now.
 const SALES_NAV = [
   { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/map', label: 'Map', icon: IconMap },
   { href: '/sales/dashboard', label: 'My work', icon: IconDashboard },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // Managers and team leaders also get the team dashboard.
 const SALES_LEAD_NAV = [
   { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/map', label: 'Map', icon: IconMap },
   { href: '/sales/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
