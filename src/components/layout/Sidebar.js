@@ -53,11 +53,13 @@ const LEAD_NAV = [
 // get Sales + the team Dashboard.
 const SALES_NAV = [
   { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/map', label: 'Map', icon: IconMap },
   { href: '/sales/dashboard', label: 'My work', icon: IconDashboard },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const SALES_LEAD_NAV = [
   { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
+  { href: '/sales/map', label: 'Map', icon: IconMap },
   { href: '/sales/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
