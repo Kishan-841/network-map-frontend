@@ -147,6 +147,12 @@ function ManagerRegistry() {
       ),
     },
     { key: 'tier', header: 'Tier', render: (b) => (b.homePassTier ? TIER_LABEL[b.homePassTier] : '—') },
+    {
+      key: 'homePass',
+      header: 'Home pass',
+      className: 'tabular-nums',
+      render: (b) => b.details?.homePass ?? '—',
+    },
     { key: 'zone', header: 'Zone', render: (b) => b.zone?.name ?? '—' },
     { key: 'status', header: 'Status', render: statusCell },
     { key: 'holder', header: 'Held by', render: heldByCell },
@@ -158,7 +164,9 @@ function ManagerRegistry() {
       <p className="truncate text-sm font-normal text-muted">{b.formattedAddress}</p>
       <p className="mt-1 text-sm font-normal text-muted">
         {b.zone?.name ?? 'No zone'}
-        {b.homePassTier ? ` · ${TIER_LABEL[b.homePassTier]}` : ''} · {holderOf(b) ? holderOf(b).name : 'Unassigned'}
+        {b.homePassTier ? ` · ${TIER_LABEL[b.homePassTier]}` : ''}
+        {b.details?.homePass != null ? ` · ${b.details.homePass} home pass` : ''} ·{' '}
+        {holderOf(b) ? holderOf(b).name : 'Unassigned'}
       </p>
     </div>
   )
