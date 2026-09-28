@@ -25,7 +25,13 @@ function cameraError(err) {
  * Needs a secure context (HTTPS or localhost); getUserMedia is unavailable
  * otherwise and the component says so.
  */
-export function SelfieCapture({ onCaptured, disabled }) {
+export function SelfieCapture({
+  onCaptured,
+  disabled,
+  facingMode = 'user',
+  label = 'Take a selfie',
+  doneLabel = 'Selfie captured',
+}) {
   const videoRef = useRef(null)
   const [stream, setStream] = useState(null)
   const [phase, setPhase] = useState('idle') // idle | live | uploading | done
@@ -48,7 +54,7 @@ export function SelfieCapture({ onCaptured, disabled }) {
       return
     }
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: false })
       setStream(s)
       setPhase('live')
     } catch (err) {
@@ -108,7 +114,7 @@ export function SelfieCapture({ onCaptured, disabled }) {
             playsInline
             muted
             className="mx-auto max-w-full rounded-btn bg-black object-cover"
-            style={{ height: '38vh', aspectRatio: '3 / 4', transform: 'scaleX(-1)' }}
+            style={{ height: '38vh', aspectRatio: '3 / 4', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
           />
           <div className="flex gap-2">
             <Button type="button" variant="ghost" className="flex-1" disabled={disabled} onClick={stopStream}>
@@ -125,7 +131,7 @@ export function SelfieCapture({ onCaptured, disabled }) {
       {phase === 'idle' && (
         <Button type="button" variant="secondary" fullWidth disabled={disabled} onClick={start}>
           <IconCamera className="h-4 w-4" aria-hidden="true" />
-          Take a selfie
+          {label}
         </Button>
       )}
 
@@ -139,7 +145,7 @@ export function SelfieCapture({ onCaptured, disabled }) {
       {phase === 'done' && (
         <div className="flex items-center gap-2 rounded-btn border border-line px-4 py-3 text-sm font-medium">
           <IconOkCircle className="h-4 w-4 text-ok" aria-hidden="true" />
-          <span className="text-ok">Selfie captured</span>
+          <span className="text-ok">{doneLabel}</span>
           <button
             type="button"
             onClick={retake}
