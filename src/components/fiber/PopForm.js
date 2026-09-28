@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
-import { ZoneSearchSelect } from '@/components/buildings/ZoneSearchSelect'
+import { MultiSelect } from '@/components/ui/MultiSelect'
 import { BuildingSearchField } from '@/components/fiber/BuildingSearchField'
 import { useZones } from '@/hooks/useZones'
 import { uploadFile } from '@/lib/upload'
@@ -77,7 +77,7 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
     try {
       await onSave({
         name: form.name.trim(),
-        zoneId: form.zoneId,
+        zoneIds: form.zoneIds,
         latitude,
         longitude,
         notes: form.notes.trim() || null,
@@ -109,14 +109,14 @@ export default function PopForm({ initial, onSave, onCancel, saveLabel }) {
       />
 
       <div>
-        <ZoneSearchSelect
-          id="pop-zone"
-          zones={zones}
-          value={form.zoneId}
-          disabled={zonesLoading}
-          onChange={(zoneId) => setForm((f) => ({ ...f, zoneId }))}
+        <p className="mb-1 text-sm font-medium text-ink">Zones this POP serves</p>
+        <MultiSelect
+          options={zones.map((z) => ({ id: z.id, label: z.name }))}
+          selectedIds={form.zoneIds ?? []}
+          onChange={(zoneIds) => setForm((f) => ({ ...f, zoneIds }))}
+          placeholder={zonesLoading ? 'Loading zones…' : 'Search zones…'}
         />
-        {show.fields.zoneId && <p className="mt-1 text-sm font-normal text-bad">{show.fields.zoneId}</p>}
+        {show.fields.zoneIds && <p className="mt-1 text-sm font-normal text-bad">{show.fields.zoneIds}</p>}
       </div>
 
       {/* Most POPs sit in or beside a building somebody has already surveyed —

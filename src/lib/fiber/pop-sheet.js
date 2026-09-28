@@ -132,7 +132,7 @@ export function equipmentErrors({ olts = [], devices = [] } = {}) {
 export function popFormErrors(form) {
   const fields = {}
   if (!String(form?.name ?? '').trim()) fields.name = 'Give the POP a name'
-  if (!form?.zoneId) fields.zoneId = 'Choose the zone this POP sits in'
+  if (!form?.zoneIds?.length) fields.zoneIds = 'Choose at least one zone this POP serves'
   if (parseLatitude(form?.latitude) === null) fields.latitude = 'Enter a latitude between −90 and 90'
   if (parseLongitude(form?.longitude) === null) fields.longitude = 'Enter a longitude between −180 and 180'
   const equipment = equipmentErrors({ olts: form?.olts ?? [], devices: form?.devices ?? [] })
