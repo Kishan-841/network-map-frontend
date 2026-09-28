@@ -18,6 +18,12 @@ const PRESETS = [
   { key: '30d', label: 'Last month' },
   { key: 'custom', label: 'Custom' },
 ]
+const TIERS = [
+  { value: 'SALES_MANAGER', label: 'Sales managers' },
+  { value: 'TEAM_LEADER', label: 'Team leaders' },
+  { value: 'SALES_EXECUTIVE', label: 'Sales executives' },
+]
+const EMPTY = []
 
 function Tile({ label, value, accent }) {
   return (
@@ -56,6 +62,7 @@ export function SalesDashboard() {
   const [range, setRange] = useState('today')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+  const [tier, setTier] = useState('') // role tier: '' = all, or SALES_MANAGER/TEAM_LEADER/SALES_EXECUTIVE
   const [userId, setUserId] = useState('')
   const [team, setTeam] = useState([])
   const [data, setData] = useState(null)
@@ -92,8 +99,9 @@ export function SalesDashboard() {
     }
     let alive = true
     setLoading(true)
-    const params = { ...window, ...(userId ? { userId } : {}) }
-    Promise.all([apiClient.get('/sales/dashboard', { params }), apiClient.get('/sales/visits', { params })])
+    // Fetch the whole scope for the period; the tier / person filters below are
+    // applied on the client so switching between them is instant.
+    Promise.all([apiClient.get('/sales/dashboard', { params: window }), apiClient.get('/sales/visits', { params: window })])
       .then(([d, v]) => {
         if (!alive) return
         setData(d.data.data)
@@ -104,11 +112,15 @@ export function SalesDashboard() {
     return () => {
       alive = false
     }
-  }, [window, userId])
+  }, [window])
 
-  const totals = data?.totals ?? { visits: 0, inquiries: 0 }
-  const teamRows = data?.team ?? []
-  const shownTeam = userId ? teamRows.filter((u) => u.id === userId) : teamRows
+  const teamRows = data?.team ?? EMPTY
+  const tierTeam = useMemo(() => teamRows.filter((u) => !tier || u.role === tier), [teamRows, tier])
+  const shownTeam = useMemo(() => tierTeam.filter((u) => !userId || u.id === userId), [tierTeam, userId])
+  const shownIds = useMemo(() => new Set(shownTeam.map((u) => u.id)), [shownTeam])
+  const shownVisits = tier || userId ? visits.filter((v) => shownIds.has(v.user?.id)) : visits
+  const sumVisits = shownTeam.reduce((s, u) => s + u.visits, 0)
+  const sumInquiries = shownTeam.reduce((s, u) => s + u.inquiries, 0)
 
   return (
     <section className="mb-6 flex flex-col gap-4">
@@ -148,12 +160,27 @@ export function SalesDashboard() {
           </div>
         )}
         <select
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
+          value={tier}
+          onChange={(e) => {
+            setTier(e.target.value)
+            setUserId('')
+          }}
           className="ml-auto h-9 rounded-btn border border-line bg-card px-3 text-sm font-medium"
         >
-          <option value="">Whole team</option>
-          {team.map((u) => (
+          <option value="">All roles</option>
+          {TIERS.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+          className="h-9 rounded-btn border border-line bg-card px-3 text-sm font-medium"
+        >
+          <option value="">{tier ? `All ${TIERS.find((t) => t.value === tier)?.label.toLowerCase()}` : 'Everyone'}</option>
+          {tierTeam.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name} · {ROLE_LABELS[u.role] ?? u.role}
             </option>
@@ -164,18 +191,18 @@ export function SalesDashboard() {
 
       {/* KPI tiles */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile label="Buildings visited" value={totals.visits} accent="var(--color-fiber)" />
-        <Tile label="Inquiries generated" value={totals.inquiries} accent="var(--color-ok)" />
-        <Tile label="Avg time / visit" value={avgDuration(visits)} />
-        <Tile label={userId ? 'Person' : 'Team members'} value={shownTeam.length} />
+        <Tile label="Buildings visited" value={sumVisits} accent="var(--color-fiber)" />
+        <Tile label="Inquiries generated" value={sumInquiries} accent="var(--color-ok)" />
+        <Tile label="Avg time / visit" value={avgDuration(shownVisits)} />
+        <Tile label={userId ? 'Person' : 'People'} value={shownTeam.length} />
       </div>
 
       {/* Chart */}
-      <Card title="Visits by team member">
+      <Card title={tier ? `Visits by ${TIERS.find((t) => t.value === tier)?.label.toLowerCase()}` : 'Visits by person'}>
         <TeamPerformanceChart team={shownTeam} />
       </Card>
 
-      <VisitTimeline visits={visits} loading={loading} />
+      <VisitTimeline visits={shownVisits} loading={loading} />
     </section>
   )
 }

@@ -28,6 +28,13 @@ import {
  */
 export const NAV_GROUPS = [
   {
+    label: 'Field sales',
+    items: [
+      { href: '/sales/dashboard', label: 'Sales overview', icon: IconDashboard, exact: true },
+      { href: '/sales', label: 'Assign buildings', icon: IconBuildings, exact: true },
+    ],
+  },
+  {
     label: 'Partner network',
     items: [
       { href: '/partner-dashboard', label: 'Overview', icon: IconDashboard, exact: true },
