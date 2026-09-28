@@ -115,11 +115,27 @@ export default function MeetingsPage() {
     { key: 'when', header: 'When', className: 'whitespace-nowrap tabular-nums', render: (m) => fmt(m.createdAt) },
     { key: 'note', header: 'Note', render: (m) => <span className="line-clamp-1 text-muted">{m.note || '—'}</span> },
     {
+      key: 'map',
+      header: 'Location',
+      render: (m) => (
+        <a
+          href={mapHref(m.latitude, m.longitude)}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-fiber underline-offset-2 hover:underline"
+        >
+          <IconPin className="h-4 w-4" aria-hidden="true" />
+          Open in map
+        </a>
+      ),
+    },
+    {
       key: 'view',
       header: '',
       className: 'text-right',
       render: () => (
-        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-fiber">
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted">
           <IconCamera className="h-4 w-4" aria-hidden="true" />
           View
         </span>
@@ -128,21 +144,22 @@ export default function MeetingsPage() {
   ]
 
   const renderCard = (m) => (
-    <button
-      type="button"
-      onClick={() => setSelected(m)}
-      className="flex w-full items-center gap-3 rounded-card border border-line bg-card p-3 text-left"
-    >
-      <div className="min-w-0 flex-1">
+    <div className="flex items-center gap-3 rounded-card border border-line bg-card p-3">
+      <button type="button" onClick={() => setSelected(m)} className="min-w-0 flex-1 text-left">
         <p className="truncate text-sm font-medium text-ink">{m.teamLeader?.name}</p>
         <p className="text-sm font-normal text-muted">{fmt(m.createdAt)}</p>
         {m.note && <p className="mt-0.5 line-clamp-1 text-sm font-normal text-muted">{m.note}</p>}
-      </div>
-      <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-fiber">
-        <IconCamera className="h-4 w-4" aria-hidden="true" />
-        View
-      </span>
-    </button>
+      </button>
+      <a
+        href={mapHref(m.latitude, m.longitude)}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-fiber"
+      >
+        <IconPin className="h-4 w-4" aria-hidden="true" />
+        Map
+      </a>
+    </div>
   )
 
   return (
