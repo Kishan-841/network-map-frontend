@@ -15,6 +15,7 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { Select } from '@/components/ui/Input'
 import { Pagination } from '@/components/ui/Pagination'
 import { Button } from '@/components/ui/Button'
+import { Toast } from '@/components/ui/Toast'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
 import { CheckInModal } from '@/components/sales/CheckInModal'
 import { OpenVisitCard } from '@/components/sales/OpenVisitCard'
@@ -62,18 +63,6 @@ function AssignBar({ count, onClear, onAssign }) {
           Assign to…
         </Button>
       </div>
-    </div>
-  )
-}
-
-function Toast({ toast, onDismiss }) {
-  if (!toast) return null
-  return (
-    <div className="mb-3 flex items-center justify-between gap-3 rounded-btn bg-ok-tint px-4 py-3 text-sm font-medium text-ok">
-      {toast}
-      <button type="button" onClick={onDismiss} className="text-xs font-medium underline-offset-2 hover:underline">
-        Dismiss
-      </button>
     </div>
   )
 }
@@ -174,7 +163,7 @@ function ManagerRegistry() {
   return (
     <main className="mx-auto max-w-5xl">
       <PageHeader eyebrow="Field sales" title="Sales" sub="Every building in the registry — filter, select and assign to your team" />
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
+      <Toast key={toast} message={toast} onDone={() => setToast(null)} />
 
       {/* Filters */}
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -302,7 +291,7 @@ function FieldPool({ role }) {
         title="Sales"
         sub={isExec ? 'The buildings assigned to you' : "Your team's building pool — select to assign"}
       />
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
+      <Toast key={toast} message={toast} onDone={() => setToast(null)} />
 
       {openVisit && (
         <OpenVisitCard
