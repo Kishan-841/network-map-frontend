@@ -15,6 +15,7 @@ import { BuildingCard, BuildingCardSkeleton } from '@/components/buildings/Build
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
+import { Toast } from '@/components/ui/Toast'
 import { Fab } from '@/components/ui/Fab'
 import {
   IconPlus,
@@ -605,18 +606,7 @@ function BuildingsList() {
         ))}
       </BuildingFilterSheet>
 
-      {toast && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-btn bg-ok-tint px-4 py-3 text-sm font-medium text-ok">
-          {toast}
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="text-xs font-medium underline-offset-2 hover:underline"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+      <Toast key={toast} message={toast} onDone={() => setToast(null)} />
 
       {canSelect && (
         <BulkLiveBar

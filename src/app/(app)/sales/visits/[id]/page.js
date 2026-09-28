@@ -92,6 +92,22 @@ export default function VisitDetailPage() {
             <p className="text-sm font-normal text-muted">{visit.building?.formattedAddress}</p>
           </Section>
 
+          {(visit.wentSolo || (visit.companions?.length ?? 0) > 0) && (
+            <Section title="Went with">
+              {visit.wentSolo ? (
+                <p className="text-sm font-normal text-muted">Went solo</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {visit.companions.map((c) => (
+                    <span key={c.user.id} className="rounded-full bg-paper px-2.5 py-1 text-sm font-medium text-ink">
+                      {c.user.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Section>
+          )}
+
           <Section title="Timing & location">
             <Point label="Checked in" at={visit.visitedAt} lat={visit.checkInLat} lng={visit.checkInLng} />
             <Point label="Checked out" at={visit.checkOutAt} lat={visit.checkOutLat} lng={visit.checkOutLng} />
