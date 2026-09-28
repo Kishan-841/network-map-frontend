@@ -5,7 +5,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { oltOptionsFromPops, zonesOfSelection } from '@/lib/olt-mapping'
+import { oltOptionsFromPops, zonesOfSelection, parsePonPorts } from '@/lib/olt-mapping'
 
 /**
  * Bulk-map the ticked buildings to one OLT + PON port (olt-mapping.md).
@@ -24,14 +24,14 @@ export function AssignOltModal({ selectedIds, rows, pops, isAdmin = false, onClo
   const oltOptions = useMemo(() => oltOptionsFromPops(pops, scopeZoneId), [pops, scopeZoneId])
 
   const [oltId, setOltId] = useState('')
-  const [ponPort, setPonPort] = useState('')
+  const [ponText, setPonText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
   const olt = oltOptions.find((o) => o.id === oltId) ?? null
-  const port = Number(ponPort)
-  const portValid = olt && Number.isInteger(port) && port >= 1 && port <= olt.ponPortCount
-  const canConfirm = Boolean(olt) && portValid && !busy
+  const parsed = olt ? parsePonPorts(ponText, olt.ponPortCount) : { ports: [], error: null }
+  const portsValid = olt && parsed.error === null && parsed.ports.length > 0
+  const canConfirm = Boolean(olt) && portsValid && !busy
 
   async function confirm() {
     setBusy(true)
@@ -40,7 +40,7 @@ export function AssignOltModal({ selectedIds, rows, pops, isAdmin = false, onClo
       const res = await apiClient.patch('/buildings/bulk-olt', {
         ids: [...selectedIds],
         oltId,
-        ponPort: port,
+        ponPorts: parsed.ports,
       })
       onDone(res.data.data)
     } catch (err) {
@@ -91,7 +91,7 @@ export function AssignOltModal({ selectedIds, rows, pops, isAdmin = false, onClo
             value={oltId}
             onChange={(e) => {
               setOltId(e.target.value)
-              setPonPort('')
+              setPonText('')
             }}
           >
             <option value="">Choose an OLT…</option>
@@ -108,23 +108,21 @@ export function AssignOltModal({ selectedIds, rows, pops, isAdmin = false, onClo
 
           <Input
             id="assign-pon"
-            label="PON port"
-            type="number"
+            label="PON ports"
             inputMode="numeric"
-            min={1}
-            max={olt?.ponPortCount ?? undefined}
-            placeholder={olt ? `1 – ${olt.ponPortCount}` : 'Choose an OLT first'}
-            value={ponPort}
+            placeholder={olt ? `e.g. 1,2,3 (1–${olt.ponPortCount})` : 'Choose an OLT first'}
+            value={ponText}
             disabled={!olt}
-            error={olt && ponPort !== '' && !portValid ? `Enter a port from 1 to ${olt.ponPortCount}` : undefined}
-            onChange={(e) => setPonPort(e.target.value)}
+            error={olt && ponText.trim() !== '' ? parsed.error ?? undefined : undefined}
+            onChange={(e) => setPonText(e.target.value)}
           />
 
           {canConfirm && (
             <div className="rounded-btn bg-paper px-4 py-3 text-sm font-normal text-muted">
               You are about to map <span className="font-medium text-ink">{count}</span> building
               {count === 1 ? '' : 's'} to <span className="font-medium text-ink">{olt.name}</span>,
-              PON port <span className="font-medium text-ink">{port}</span>.
+              PON port{parsed.ports.length === 1 ? '' : 's'}{' '}
+              <span className="font-medium text-ink">{parsed.ports.join(', ')}</span>.
             </div>
           )}
 
