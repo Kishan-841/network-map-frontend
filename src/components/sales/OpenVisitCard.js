@@ -98,6 +98,11 @@ export function OpenVisitCard({ visit, onChanged }) {
           On site since {fmtTime(visit.visitedAt)} · {nActs} activit{nActs === 1 ? 'y' : 'ies'} · {nLeads} lead
           {nLeads === 1 ? '' : 's'}
         </p>
+        {(visit.wentSolo || (visit.companions?.length ?? 0) > 0) && (
+          <p className="mt-0.5 text-sm font-normal text-muted">
+            {visit.wentSolo ? 'Solo visit' : `With ${visit.companions.map((c) => c.user.name).join(', ')}`}
+          </p>
+        )}
 
         {/* Activities — a set of what was done here. */}
         <p className="mt-5 text-sm font-medium text-muted">Work done here — tap all that apply</p>
