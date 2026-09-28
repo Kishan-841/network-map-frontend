@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -9,6 +10,9 @@ import { ZoneSearchSelect } from '@/components/buildings/ZoneSearchSelect'
 import { useZones } from '@/hooks/useZones'
 import { useBuildingTypes } from '@/hooks/useBuildingTypes'
 import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
+import { IconPin } from '@/components/ui/icons'
+
+const LocationPicker = dynamic(() => import('@/components/map/LocationPicker'), { ssr: false })
 
 function YesNo({ label, value, onChange }) {
   return (
@@ -48,7 +52,8 @@ const strOrNull = (value) => {
 const dateInput = (value) => (value ? String(value).slice(0, 10) : '')
 
 /**
- * Edit for everything except location. One save, one audit entry.
+ * Edit a building, including its map location: the pin can be dragged to the
+ * correct spot from here. One save, one audit entry.
  *
  * `restricted` is the granted surveyor's version: the building's own details,
  * without the permission record or the live flag. Hiding them is a courtesy —
@@ -59,11 +64,14 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
   const { types: buildingTypes } = useBuildingTypes()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [showMap, setShowMap] = useState(false)
 
   const [form, setForm] = useState({
     buildingName: building.buildingName ?? '',
     formattedAddress: building.formattedAddress ?? '',
     zoneId: building.zoneId ?? '',
+    latitude: Number(building.latitude),
+    longitude: Number(building.longitude),
     isLive: Boolean(building.isLive),
     wings: building.details?.wings ?? '',
     floors: building.details?.floors ?? '',
@@ -89,6 +97,8 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
         buildingName: form.buildingName.trim(),
         formattedAddress: form.formattedAddress.trim(),
         zoneId: form.zoneId,
+        latitude: form.latitude,
+        longitude: form.longitude,
         ...(restricted ? {} : { isLive: form.isLive }),
         details: {
           wings: numOrNull(form.wings),
@@ -140,6 +150,39 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
           disabled={zonesLoading}
           onChange={(zoneId) => setForm((prev) => ({ ...prev, zoneId }))}
         />
+
+        {/* Location — the pin can be nudged to the right spot on the map. */}
+        <div className="flex flex-col gap-2 rounded-btn border border-line bg-card p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+              <IconPin className="h-4 w-4 text-muted" aria-hidden="true" />
+              {Number.isFinite(form.latitude) && Number.isFinite(form.longitude)
+                ? `${form.latitude.toFixed(6)}, ${form.longitude.toFixed(6)}`
+                : 'No location set'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowMap((v) => !v)}
+              className="inline-flex h-9 items-center rounded-btn border border-line px-3.5 text-sm font-medium text-ink transition-colors hover:border-fiber/50 hover:bg-paper"
+            >
+              {showMap ? 'Done' : 'Adjust on map'}
+            </button>
+          </div>
+          {showMap && Number.isFinite(form.latitude) && Number.isFinite(form.longitude) && (
+            <>
+              <p className="text-xs font-normal text-muted">Drag the pin (or search) to the correct spot.</p>
+              <LocationPicker
+                latitude={form.latitude}
+                longitude={form.longitude}
+                searchable
+                onChange={({ latitude, longitude }) =>
+                  setForm((prev) => ({ ...prev, latitude, longitude }))
+                }
+              />
+            </>
+          )}
+        </div>
+
         {!restricted && (
           <YesNo
             label="Building RFS"
