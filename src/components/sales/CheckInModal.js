@@ -134,7 +134,7 @@ export function CheckInModal({ building, onClose, onDone }) {
                 type="button"
                 aria-pressed={wentSolo}
                 disabled={busy}
-                onClick={goSolo}
+                onClick={() => (wentSolo ? setWentSolo(false) : goSolo())}
                 className={`inline-flex h-8 items-center rounded-btn px-3 text-sm font-medium transition-colors disabled:opacity-60 ${
                   wentSolo ? 'bg-fiber text-on-fiber' : 'border border-line text-ink hover:bg-paper'
                 }`}
