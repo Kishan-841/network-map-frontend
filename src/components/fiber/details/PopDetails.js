@@ -86,7 +86,9 @@ export default function PopDetails({ id, canManage, onOpen, onCentre, onEdit }) 
           <h2 className="break-words text-xl font-bold text-ink">{pop.name}</h2>
           <div className="mt-1 flex flex-wrap gap-1.5">
             <span className={`${CHIP} bg-paper text-muted`}>POP</span>
-            {pop.zone && <span className={`${CHIP} bg-paper text-muted`}>{pop.zone.name}</span>}
+            {(pop.zones ?? []).map((z) => (
+              <span key={z.id} className={`${CHIP} bg-paper text-muted`}>{z.name}</span>
+            ))}
             <span className={`${CHIP} bg-paper text-muted`}>
               {pop.olts.length} OLT{pop.olts.length === 1 ? '' : 's'}
             </span>
@@ -105,7 +107,7 @@ export default function PopDetails({ id, canManage, onOpen, onCentre, onEdit }) 
         <FieldList
           rows={[
             ['Server name', pop.name],
-            ['Zone', pop.zone?.name],
+            ['Zones', (pop.zones ?? []).map((z) => z.name).join(', ') || null],
             ['Server location', pop.serverLocation],
             ['Rack size', pop.rackSize],
             ['Rack condition', pop.rackCondition ? (RACK_CONDITION_LABELS[pop.rackCondition] ?? pop.rackCondition) : null],

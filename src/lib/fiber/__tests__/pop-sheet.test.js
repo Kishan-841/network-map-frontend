@@ -165,17 +165,17 @@ describe('equipmentErrors', () => {
 })
 
 describe('popFormErrors', () => {
-  const good = { name: 'Wakad POP', zoneId: 'z1', latitude: '18.6', longitude: '73.7', olts: [], devices: [] }
+  const good = { name: 'Wakad POP', zoneIds: ['z1'], latitude: '18.6', longitude: '73.7', olts: [], devices: [] }
 
   it('passes a complete form', () => {
     expect(popFormErrors(good).ok).toBe(true)
   })
 
   it('names each missing or invalid required field', () => {
-    const { fields, ok } = popFormErrors({ name: '  ', zoneId: '', latitude: '', longitude: '999' })
+    const { fields, ok } = popFormErrors({ name: '  ', zoneIds: [], latitude: '', longitude: '999' })
     expect(ok).toBe(false)
     expect(fields.name).toBeTruthy()
-    expect(fields.zoneId).toBeTruthy()
+    expect(fields.zoneIds).toBeTruthy()
     expect(fields.latitude).toBeTruthy()
     expect(fields.longitude).toBeTruthy()
   })

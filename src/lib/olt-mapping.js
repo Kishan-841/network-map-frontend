@@ -8,20 +8,46 @@
 export function oltOptionsFromPops(pops, zoneId = null) {
   const options = []
   for (const pop of pops ?? []) {
-    const popZoneId = pop.zone?.id ?? pop.zoneId ?? null
-    if (zoneId && popZoneId !== zoneId) continue
+    const zones = pop.zones ?? []
+    const zoneIds = zones.map((z) => z.id)
+    if (zoneId && !zoneIds.includes(zoneId)) continue
     for (const olt of pop.olts ?? []) {
       options.push({
         id: olt.id,
         name: olt.name,
         ponPortCount: olt.ponPortCount,
-        zoneId: popZoneId,
-        zoneName: pop.zone?.name ?? null,
+        zoneIds,
+        zoneNames: zones.map((z) => z.name),
+        zoneName: zones[0]?.name ?? null, // for the admin's dropdown label
         popName: pop.name,
       })
     }
   }
   return options.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Turn a comma-separated PON string ("1, 2 ,3") into a clean, deduped,
+ * ascending list of ports, each within 1..max. Mirrors the server's rule so
+ * the form never sends what the API would reject. Returns { ports, error }.
+ */
+export function parsePonPorts(text, max) {
+  const parts = String(text ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s !== '')
+  if (parts.length === 0) return { ports: [], error: 'Enter at least one PON port' }
+  const ports = []
+  for (const part of parts) {
+    if (!/^\d+$/.test(part)) return { ports: [], error: `“${part}” is not a port number` }
+    const n = Number(part)
+    if (n < 1 || (max && n > max)) {
+      return { ports: [], error: `Each port must be between 1 and ${max ?? '?'}` }
+    }
+    if (!ports.includes(n)) ports.push(n)
+  }
+  ports.sort((a, b) => a - b)
+  return { ports, error: null }
 }
 
 /**

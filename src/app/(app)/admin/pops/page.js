@@ -10,8 +10,8 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { Pagination } from '@/components/ui/Pagination'
 import { useClientTable } from '@/hooks/useClientTable'
 
-// Search a POP by its name or the zone it sits in.
-const popSearchText = (pop) => [pop.name, pop.zone?.name]
+// Search a POP by its name or any of the zones it serves.
+const popSearchText = (pop) => [pop.name, ...(pop.zones ?? []).map((z) => z.name)]
 import { IconPlus, IconEdit, IconTrash } from '@/components/ui/icons'
 import { usePops, invalidatePops } from '@/hooks/usePops'
 import { invalidateFibers } from '@/hooks/useFibers'
@@ -24,7 +24,7 @@ import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 
 const emptyForm = {
   name: '',
-  zoneId: '',
+  zoneIds: [],
   latitude: '',
   longitude: '',
   notes: '',
@@ -39,7 +39,7 @@ const emptyForm = {
 
 const toForm = (pop) => ({
   name: pop.name,
-  zoneId: pop.zoneId ?? '',
+  zoneIds: (pop.zones ?? []).map((z) => z.id),
   latitude: String(pop.latitude),
   longitude: String(pop.longitude),
   notes: pop.notes ?? '',
@@ -165,7 +165,8 @@ function AdminPopsPage() {
     {
       key: 'zone',
       header: 'Zone',
-      render: (p) => p.zone?.name ?? <span className="text-faint">No zone</span>,
+      render: (p) =>
+        p.zones?.length ? p.zones.map((z) => z.name).join(', ') : <span className="text-faint">No zone</span>,
     },
     {
       key: 'olts',
@@ -198,7 +199,7 @@ function AdminPopsPage() {
       >
         <span className="block truncate font-bold">{p.name}</span>
         <span className="block truncate text-sm font-normal text-muted">
-          {p.zone?.name ?? 'No zone'} · {oltCount(p)} OLT{oltCount(p) === 1 ? '' : 's'}
+          {p.zones?.length ? p.zones.map((z) => z.name).join(', ') : 'No zone'} · {oltCount(p)} OLT{oltCount(p) === 1 ? '' : 's'}
         </span>
       </button>
       {canManage && <RowActions pop={p} onEdit={setEditingPop} onDelete={handleDelete} />}
