@@ -9,7 +9,7 @@ import { InquiryModal } from './InquiryModal'
 const ACTIVITIES = [
   { type: 'DESK', label: 'Desk' },
   { type: 'UMBRELLA', label: 'Umbrella' },
-  { type: 'LIFT', label: 'Lift' },
+  { type: 'LIFT', label: 'Leafleting' },
 ]
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
