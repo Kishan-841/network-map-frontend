@@ -1,5 +1,6 @@
 import {
   IconMap,
+  IconDashboard,
   IconLayers,
   IconPin,
   IconNavigate,
@@ -15,6 +16,8 @@ import {
  * grid and the desktop sidebar. `adminOnly` rows hide from managers.
  */
 export const MANAGE_LINKS = [
+  { href: '/sales/dashboard', label: 'Sales overview', sub: 'Team performance', icon: IconDashboard, adminOnly: true },
+  { href: '/sales', label: 'Assign buildings', sub: 'To the sales team', icon: IconBuildings, adminOnly: true },
   { href: '/admin/cities', label: 'Cities', sub: 'Operator groups', icon: IconMap, adminOnly: true },
   { href: '/admin/operators', label: 'Operators', sub: 'Zone groups', icon: IconLayers },
   { href: '/admin/zones', label: 'Zones', sub: 'Coverage areas', icon: IconPin },
