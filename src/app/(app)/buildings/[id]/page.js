@@ -163,7 +163,7 @@ export default function BuildingDetailPage({ params }) {
         title="OLT mapping"
         rows={[
           ['OLT', building.olt?.name],
-          ['PON port', building.ponPort],
+          ['PON ports', building.ponPorts?.length ? building.ponPorts.join(', ') : null],
           ['On POP', building.olt?.pop?.name],
         ]}
       />
