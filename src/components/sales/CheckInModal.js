@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { isTeamLeader } from '@/lib/roles'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { MultiSelect } from '@/components/ui/MultiSelect'
 import { SelfieCapture } from './SelfieCapture'
 import { IconLocate } from '@/components/ui/icons'
 
@@ -58,15 +59,6 @@ export function CheckInModal({ building, onClose, onDone }) {
     }
   }, [isTL])
 
-  function toggleCompanion(id) {
-    setWentSolo(false)
-    setCompanions((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
   function goSolo() {
     setWentSolo(true)
     setCompanions(new Set())
@@ -136,40 +128,35 @@ export function CheckInModal({ building, onClose, onDone }) {
         {/* Team leader: who did you go with? (their executives, or solo) */}
         {isTL && (
           <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium text-muted">Who did you go with?</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-muted">Who did you go with?</p>
               <button
                 type="button"
                 aria-pressed={wentSolo}
                 disabled={busy}
                 onClick={goSolo}
-                className={`inline-flex h-9 items-center rounded-btn px-3.5 text-sm font-medium transition-colors disabled:opacity-60 ${
+                className={`inline-flex h-8 items-center rounded-btn px-3 text-sm font-medium transition-colors disabled:opacity-60 ${
                   wentSolo ? 'bg-fiber text-on-fiber' : 'border border-line text-ink hover:bg-paper'
                 }`}
               >
                 Went solo
               </button>
-              {execs.map((u) => {
-                const on = companions.has(u.id)
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    aria-pressed={on}
-                    disabled={busy}
-                    onClick={() => toggleCompanion(u.id)}
-                    className={`inline-flex h-9 items-center rounded-btn px-3.5 text-sm font-medium transition-colors disabled:opacity-60 ${
-                      on ? 'bg-fiber text-on-fiber' : 'border border-line text-ink hover:bg-paper'
-                    }`}
-                  >
-                    {u.name}
-                  </button>
-                )
-              })}
             </div>
-            {execs.length === 0 && (
-              <p className="text-xs font-normal text-faint">You have no executives yet — mark that you went solo.</p>
-            )}
+            {!wentSolo &&
+              (execs.length === 0 ? (
+                <p className="text-xs font-normal text-faint">You have no executives yet — mark that you went solo.</p>
+              ) : (
+                <MultiSelect
+                  options={execs.map((u) => ({ id: u.id, label: u.name }))}
+                  selectedIds={[...companions]}
+                  onChange={(ids) => {
+                    setWentSolo(false)
+                    setCompanions(new Set(ids))
+                  }}
+                  placeholder="Search executives…"
+                  emptyText="No matching executives"
+                />
+              ))}
           </div>
         )}
 
