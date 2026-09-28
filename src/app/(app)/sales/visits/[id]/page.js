@@ -6,7 +6,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { ROLE_LABELS } from '@/lib/roles'
 import { PageHeader } from '@/components/ui/PageHeader'
 
-const ACTIVITY_LABEL = { DESK: 'Desk', UMBRELLA: 'Umbrella', LIFT: 'Lift' }
+const ACTIVITY_LABEL = { DESK: 'Desk', UMBRELLA: 'Umbrella', LIFT: 'Leafleting' }
 const fmtDateTime = (iso) => new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const mapHref = (lat, lng) => (lat != null && lng != null ? `https://www.google.com/maps?q=${lat},${lng}` : null)
 
