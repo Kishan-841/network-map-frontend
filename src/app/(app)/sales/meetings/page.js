@@ -11,7 +11,7 @@ import { Pagination } from '@/components/ui/Pagination'
 import { Modal } from '@/components/ui/Modal'
 import { Toast } from '@/components/ui/Toast'
 import { LogMeetingModal } from '@/components/sales/LogMeetingModal'
-import { IconOkCircle, IconPlus, IconPin } from '@/components/ui/icons'
+import { IconOkCircle, IconPlus, IconPin, IconCamera } from '@/components/ui/icons'
 
 const fmt = (iso) => new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const isToday = (iso) => {
@@ -111,17 +111,20 @@ export default function MeetingsPage() {
   const loggedToday = isTL && meetings.some((m) => m.teamLeader?.id === userId && isToday(m.createdAt))
 
   const columns = [
-    {
-      key: 'photo',
-      header: '',
-      className: 'w-14',
-      render: (m) =>
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={m.photoUrl} alt="" className="h-10 w-10 rounded-btn bg-paper object-cover" />,
-    },
     { key: 'tl', header: 'Team leader', render: (m) => <span className="font-medium text-ink">{m.teamLeader?.name}</span> },
     { key: 'when', header: 'When', className: 'whitespace-nowrap tabular-nums', render: (m) => fmt(m.createdAt) },
     { key: 'note', header: 'Note', render: (m) => <span className="line-clamp-1 text-muted">{m.note || '—'}</span> },
+    {
+      key: 'view',
+      header: '',
+      className: 'text-right',
+      render: () => (
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-fiber">
+          <IconCamera className="h-4 w-4" aria-hidden="true" />
+          View
+        </span>
+      ),
+    },
   ]
 
   const renderCard = (m) => (
@@ -130,13 +133,15 @@ export default function MeetingsPage() {
       onClick={() => setSelected(m)}
       className="flex w-full items-center gap-3 rounded-card border border-line bg-card p-3 text-left"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={m.photoUrl} alt="" className="h-12 w-12 shrink-0 rounded-btn bg-paper object-cover" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-ink">{m.teamLeader?.name}</p>
         <p className="text-sm font-normal text-muted">{fmt(m.createdAt)}</p>
         {m.note && <p className="mt-0.5 line-clamp-1 text-sm font-normal text-muted">{m.note}</p>}
       </div>
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-fiber">
+        <IconCamera className="h-4 w-4" aria-hidden="true" />
+        View
+      </span>
     </button>
   )
 
