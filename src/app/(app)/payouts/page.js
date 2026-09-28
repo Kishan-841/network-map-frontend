@@ -1,4 +1,5 @@
 'use client'
+import { Toast } from '@/components/ui/Toast'
 
 import { useCallback, useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
@@ -204,18 +205,7 @@ export default function PayoutsPage() {
           {error}
         </p>
       )}
-      {notice && (
-        <div className="mb-3 flex items-start justify-between gap-3 rounded-btn bg-ok-tint px-4 py-3">
-          <p className="text-sm font-normal text-ok">{notice}</p>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            className="shrink-0 text-sm font-medium text-ok/70 hover:text-ok"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+      <Toast key={notice} message={notice} onDone={() => setNotice(null)} />
 
       <h2 className="mb-2 text-sm font-bold">Awaiting payment</h2>
       <DataTable

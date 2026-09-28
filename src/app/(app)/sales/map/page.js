@@ -9,6 +9,7 @@ import { useOpenVisit } from '@/hooks/useSales'
 import { CheckInModal } from '@/components/sales/CheckInModal'
 import { OpenVisitCard } from '@/components/sales/OpenVisitCard'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
+import { Toast } from '@/components/ui/Toast'
 
 const BuildingsMap = dynamic(() => import('@/components/map/BuildingsMap'), { ssr: false })
 
@@ -74,23 +75,23 @@ export default function SalesMapPage() {
         </div>
       </div>
 
-      {/* Toast / errors */}
+      {/* Errors persist (manual dismiss); success toasts clear themselves. */}
       {(toast || error) && (
         <div className="absolute inset-x-3 top-20 z-40 mx-auto max-w-md lg:top-24">
-          <div
-            className={`flex items-center justify-between gap-3 rounded-btn px-4 py-3 text-sm font-medium shadow-md ${
-              error ? 'bg-bad-tint text-bad' : 'bg-ok-tint text-ok'
-            }`}
-          >
-            {error || toast}
-            <button
-              type="button"
-              onClick={() => (error ? setError(null) : setToast(null))}
-              className="text-xs font-medium underline-offset-2 hover:underline"
-            >
-              Dismiss
-            </button>
-          </div>
+          {error ? (
+            <div className="flex items-center justify-between gap-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-medium text-bad shadow-md">
+              {error}
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                className="text-xs font-medium underline-offset-2 hover:underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : (
+            <Toast key={toast} message={toast} onDone={() => setToast(null)} className="mb-0 shadow-md" />
+          )}
         </div>
       )}
 

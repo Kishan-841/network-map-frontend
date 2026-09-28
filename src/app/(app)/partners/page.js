@@ -1,4 +1,5 @@
 'use client'
+import { Toast } from '@/components/ui/Toast'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -259,18 +260,7 @@ export default function PartnersPage() {
         <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>
       )}
 
-      {notice && (
-        <div className="mb-3 flex items-start justify-between gap-3 rounded-btn bg-ok-tint px-4 py-3">
-          <p className="text-sm font-normal text-ok">{notice}</p>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            className="shrink-0 text-sm font-medium text-ok/70 hover:text-ok"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+      <Toast key={notice} message={notice} onDone={() => setNotice(null)} />
 
       {adding && (
         <AddPartnerModal

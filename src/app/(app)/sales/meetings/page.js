@@ -7,6 +7,7 @@ import { isTeamLeader } from '@/lib/roles'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { LogMeetingModal } from '@/components/sales/LogMeetingModal'
+import { Toast } from '@/components/ui/Toast'
 import { IconOkCircle, IconPlus, IconPin } from '@/components/ui/icons'
 
 const fmt = (iso) => new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -30,6 +31,7 @@ export default function MeetingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [logging, setLogging] = useState(false)
+  const [toast, setToast] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -56,22 +58,20 @@ export default function MeetingsPage() {
         sub={isTL ? 'Log your team huddle each morning' : "Your team leaders' daily meetings"}
       />
 
+      <Toast key={toast} message={toast} onDone={() => setToast(null)} />
+
       {/* Team leader's daily action */}
       {isTL && (
         <div className="mb-6">
           {loggedToday ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-ok/40 bg-ok-tint px-4 py-3">
-              <span className="inline-flex items-center gap-2 text-sm font-medium text-ok">
-                <IconOkCircle className="h-5 w-5" aria-hidden="true" />
-                Today&apos;s meeting is logged
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-card px-4 py-3">
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-muted">
+                <IconOkCircle className="h-5 w-5 text-ok" aria-hidden="true" />
+                Logged today
               </span>
-              <button
-                type="button"
-                onClick={() => setLogging(true)}
-                className="text-sm font-medium text-fiber underline-offset-2 hover:underline"
-              >
-                Replace
-              </button>
+              <Button variant="secondary" className="h-9 min-h-9" onClick={() => setLogging(true)}>
+                Replace today&apos;s meeting
+              </Button>
             </div>
           ) : (
             <Button className="w-full gap-2" onClick={() => setLogging(true)}>
@@ -122,7 +122,16 @@ export default function MeetingsPage() {
         ))}
       </div>
 
-      {logging && <LogMeetingModal onClose={() => setLogging(false)} onDone={() => (setLogging(false), load())} />}
+      {logging && (
+        <LogMeetingModal
+          onClose={() => setLogging(false)}
+          onDone={() => {
+            setLogging(false)
+            setToast('Morning meeting logged')
+            load()
+          }}
+        />
+      )}
     </main>
   )
 }
