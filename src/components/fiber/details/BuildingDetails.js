@@ -58,9 +58,9 @@ export default function BuildingDetails({ id, onOpen, onCentre }) {
             <FieldList
               rows={[
                 ['OLT', b.olt.name],
-                ['PON port', b.ponPort],
+                ['PON ports', b.ponPorts?.length ? b.ponPorts.join(', ') : null],
                 ['On POP', pop?.name],
-                ['Zone', pop?.zone?.name],
+                ['Zones', (pop?.zones ?? []).map((z) => z.name).join(', ') || null],
               ]}
             />
             {pop && (
