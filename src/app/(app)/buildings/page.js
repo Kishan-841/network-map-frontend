@@ -225,6 +225,9 @@ function BuildingsList() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  // Live / not-live filter (coverage only). Local state — a status filter need
+  // not live in the URL like the shareable operator/zone ones. '' = all.
+  const [live, setLive] = useState('')
   // Bulk go-live is a coverage-registry action, admins and managers only.
   const canBulkEdit = canManageBuildings(role)
   const canAssignOlt = canAssignOltRole(role)
@@ -270,8 +273,9 @@ function BuildingsList() {
       cityId: cityId || undefined,
       createdById: agentFilter || undefined,
       tier: tier || undefined,
+      isLive: live === 'true' ? true : live === 'false' ? false : undefined,
     }),
-    [debouncedSearch, zoneId, operatorId, cityId, agentFilter, tier],
+    [debouncedSearch, zoneId, operatorId, cityId, agentFilter, tier, live],
   )
   const { buildings, pagination, loading, refetch } = useBuildings({
     ...activeFilter,
@@ -327,13 +331,14 @@ function BuildingsList() {
   // Clearing resets every filter to its default — same setters the controls
   // themselves call, just with every value emptied at once.
   const clearFilters = () => {
+    setLive('')
     if (isLead(role)) applyAcquisitionFilters('', '')
     else applyFilters('', '', '', '')
   }
   // Mirrors how the map page counts its active filters: every defined,
   // non-empty value except the free-text search.
   const activeFilterCount = Object.entries(activeFilter).filter(
-    ([key, value]) => key !== 'search' && value,
+    ([key, value]) => key !== 'search' && value !== undefined && value !== '',
   ).length
 
   // The select/date controls themselves, defined exactly once. `variant`
@@ -378,6 +383,25 @@ function BuildingsList() {
                 {c.name}
               </option>
             ))}
+          </Select>
+        ),
+      },
+      !acquisition && {
+        key: 'live',
+        label: 'Status',
+        className: 'w-32 shrink-0 sm:w-36',
+        control: (
+          <Select
+            id={`buildings-live${idSuffix}`}
+            value={live}
+            onChange={(e) => {
+              setLive(e.target.value)
+              setPage(1)
+            }}
+          >
+            <option value="">All status</option>
+            <option value="true">Live</option>
+            <option value="false">Not live</option>
           </Select>
         ),
       },
