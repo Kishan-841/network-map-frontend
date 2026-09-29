@@ -16,6 +16,7 @@ import {
   IconBuildings,
   IconUser,
   IconUsers,
+  IconUserPlus,
   IconSun,
   IconMoon,
   IconCollapse,
