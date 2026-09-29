@@ -15,6 +15,8 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { Select } from '@/components/ui/Input'
 import { Pagination } from '@/components/ui/Pagination'
 import { Button } from '@/components/ui/Button'
+import { IconDownload } from '@/components/ui/icons'
+import { exportBuildings } from '@/lib/export-buildings'
 import { Toast } from '@/components/ui/Toast'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
 import { CheckInModal } from '@/components/sales/CheckInModal'
@@ -98,6 +100,8 @@ function ManagerRegistry() {
   const [operatorId, setOperatorId] = useState('')
   const [zoneId, setZoneId] = useState('')
   const [tier, setTier] = useState('')
+  const [live, setLive] = useState('') // '' | 'true' | 'false'
+  const [exporting, setExporting] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -114,15 +118,39 @@ function ManagerRegistry() {
     }, 300)
     return () => clearTimeout(t)
   }, [search])
-  useEffect(() => setPage(1), [operatorId, zoneId, tier])
+  useEffect(() => setPage(1), [operatorId, zoneId, tier, live])
 
   const { operators } = useOperators()
   const { zones } = useZones()
+  const liveFilter = live === 'true' ? true : live === 'false' ? false : undefined
   const filters = useMemo(
-    () => ({ operatorId, zoneId, tier, search: debouncedSearch, page, pageSize: 20 }),
-    [operatorId, zoneId, tier, debouncedSearch, page],
+    () => ({ operatorId, zoneId, tier, isLive: liveFilter, search: debouncedSearch, page, pageSize: 20 }),
+    [operatorId, zoneId, tier, liveFilter, debouncedSearch, page],
   )
   const { buildings, pagination, loading, refetch } = useBuildings(filters)
+
+  // Export the current filter (no pagination — the file is the whole match).
+  async function handleExport() {
+    setExporting(true)
+    try {
+      const { rows, truncated } = await exportBuildings({
+        operatorId: operatorId || undefined,
+        zoneId: zoneId || undefined,
+        tier: tier || undefined,
+        isLive: liveFilter,
+        search: debouncedSearch || undefined,
+      })
+      setToast(
+        truncated
+          ? `Exported the first ${rows.toLocaleString('en-IN')} buildings — narrow the filter for the rest`
+          : `Exported ${rows.toLocaleString('en-IN')} building${rows === 1 ? '' : 's'}`,
+      )
+    } catch (e) {
+      setToast(e.message)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns = [
     {
@@ -162,11 +190,21 @@ function ManagerRegistry() {
 
   return (
     <main className="mx-auto max-w-5xl">
-      <PageHeader eyebrow="Field sales" title="Sales" sub="Every building in the registry — filter, select and assign to your team" />
+      <PageHeader
+        eyebrow="Field sales"
+        title="Sales"
+        sub="Every building in the registry — filter, select and assign to your team"
+        action={
+          <Button variant="secondary" onClick={handleExport} loading={exporting}>
+            <IconDownload className="h-4.5 w-4.5" />
+            Export Excel
+          </Button>
+        }
+      />
       <Toast key={toast} message={toast} onDone={() => setToast(null)} />
 
       {/* Filters */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Select id="f-operator" value={operatorId} onChange={(e) => setOperatorId(e.target.value)}>
           <option value="">All operators</option>
           {(operators ?? []).map((o) => (
@@ -190,6 +228,11 @@ function ManagerRegistry() {
               {TIER_LABEL[t] ?? 'Unrated'}
             </option>
           ))}
+        </Select>
+        <Select id="f-live" value={live} onChange={(e) => setLive(e.target.value)}>
+          <option value="">All status</option>
+          <option value="true">Live</option>
+          <option value="false">Not live</option>
         </Select>
       </div>
 
