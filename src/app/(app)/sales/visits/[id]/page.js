@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { ROLE_LABELS } from '@/lib/roles'
+import { leadStatusBadge, leadStatusLabel } from '@/lib/sales-lead-status'
 import { PageHeader } from '@/components/ui/PageHeader'
 
 const ACTIVITY_LABEL = { DESK: 'Desk', UMBRELLA: 'Umbrella', LIFT: 'Leafleting' }
@@ -151,7 +152,14 @@ export default function VisitDetailPage() {
               <ul className="flex flex-col gap-2">
                 {visit.inquiries.map((i) => (
                   <li key={i.id} className="rounded-btn bg-paper px-3 py-2">
-                    <p className="text-sm font-medium text-ink">{i.customerName}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-ink">{i.customerName}</p>
+                      {i.status && (
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${leadStatusBadge(i.status)}`}>
+                          {leadStatusLabel(i.status)}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm font-normal text-muted">
                       {i.phone}
                       {i.email ? ` · ${i.email}` : ''} · {fmtDateTime(i.createdAt)}
