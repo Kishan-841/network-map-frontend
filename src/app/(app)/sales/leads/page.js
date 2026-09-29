@@ -3,22 +3,31 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { DataTable } from '@/components/ui/DataTable'
+import { Button } from '@/components/ui/Button'
 import { CallButton } from '@/components/sales/CallButton'
+import { EditLeadModal } from '@/components/sales/EditLeadModal'
 import { LEAD_STATUSES, leadStatusLabel, leadStatusBadge } from '@/lib/sales-lead-status'
 
 const FILTERS = [{ value: '', label: 'All' }, ...LEAD_STATUSES.map((s) => ({ value: s.value, label: s.label }))]
 const fmtWhen = (v) => (v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : null)
 
+const StatusBadge = ({ status }) => (
+  <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${leadStatusBadge(status)}`}>
+    {leadStatusLabel(status)}
+  </span>
+)
+
 /**
- * A sales person's leads, as a table. Call the customer (mobile only), then set
- * where the lead stands. Scoped by the API — an executive sees their own, a team
- * leader or manager sees the team's.
+ * A sales person's leads, as a table. Call the customer (mobile only), then use
+ * Edit to set where the lead stands — status is never changed inline. Scoped by
+ * the API: an executive sees their own, a team leader or manager the team's.
  */
 export default function LeadsPage() {
   const [leads, setLeads] = useState([])
   const [filter, setFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [editing, setEditing] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -37,14 +46,10 @@ export default function LeadsPage() {
     load()
   }, [load])
 
-  const updateLead = useCallback(async (id, status, followUpAt) => {
-    try {
-      const res = await apiClient.patch(`/sales/inquiries/${id}`, { status, ...(followUpAt ? { followUpAt } : {}) })
-      setLeads((prev) => prev.map((l) => (l.id === id ? res.data.data : l)))
-    } catch (e) {
-      setError(getApiErrorMessage(e, 'Could not update the lead'))
-    }
-  }, [])
+  const onSaved = (updated) => {
+    setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+    setEditing(null)
+  }
 
   const columns = [
     { key: 'customer', header: 'Customer', render: (l) => <span className="font-medium text-ink">{l.customerName}</span> },
@@ -65,7 +70,17 @@ export default function LeadsPage() {
       render: (l) =>
         l.status === 'FOLLOW_UP' && l.followUpAt ? <span className="text-warn">{fmtWhen(l.followUpAt)}</span> : '—',
     },
-    { key: 'status', header: 'Status', render: (l) => <StatusControl lead={l} onUpdate={updateLead} /> },
+    { key: 'status', header: 'Status', render: (l) => <StatusBadge status={l.status} /> },
+    {
+      key: 'edit',
+      header: '',
+      className: 'text-right',
+      render: (l) => (
+        <Button variant="secondary" className="h-8 min-h-8 px-3" onClick={() => setEditing(l)}>
+          Edit
+        </Button>
+      ),
+    },
   ]
 
   const renderCard = (l) => (
@@ -81,9 +96,14 @@ export default function LeadsPage() {
             <p className="mt-0.5 text-sm font-medium text-warn">Follow up {fmtWhen(l.followUpAt)}</p>
           )}
         </div>
-        <CallButton phone={l.phone} />
+        <StatusBadge status={l.status} />
       </div>
-      <StatusControl lead={l} onUpdate={updateLead} />
+      <div className="flex items-center gap-2">
+        <CallButton phone={l.phone} />
+        <Button variant="secondary" className="h-8 min-h-8 px-3" onClick={() => setEditing(l)}>
+          Edit
+        </Button>
+      </div>
     </div>
   )
 
@@ -91,7 +111,7 @@ export default function LeadsPage() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 lg:p-6">
       <div>
         <h1 className="text-2xl font-bold text-ink">Leads</h1>
-        <p className="text-sm font-normal text-muted">Call a lead, then set where it stands.</p>
+        <p className="text-sm font-normal text-muted">Call a lead, then Edit to set where it stands.</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -118,55 +138,8 @@ export default function LeadsPage() {
         renderCard={renderCard}
         emptyState={<p className="py-8 text-center text-sm font-normal text-muted">No leads yet.</p>}
       />
-    </div>
-  )
-}
 
-/**
- * The status control for one lead: a colour-tinted dropdown that shows and
- * changes the status. Choosing Follow-up reveals a date+time input; the lead
- * saves when a time is picked. Other statuses save on selection.
- */
-function StatusControl({ lead, onUpdate }) {
-  const [picking, setPicking] = useState(false)
-
-  const onChange = (e) => {
-    const value = e.target.value
-    if (value === 'FOLLOW_UP') {
-      setPicking(true) // wait for a date before saving
-      return
-    }
-    setPicking(false)
-    onUpdate(lead.id, value)
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <select
-        aria-label="Lead status"
-        value={picking ? 'FOLLOW_UP' : lead.status}
-        onChange={onChange}
-        className={`h-8 rounded-btn border border-line px-2 text-sm font-medium ${leadStatusBadge(lead.status)}`}
-      >
-        {LEAD_STATUSES.map((s) => (
-          <option key={s.value} value={s.value}>
-            {s.label}
-          </option>
-        ))}
-      </select>
-      {picking && (
-        <input
-          type="datetime-local"
-          aria-label="Follow-up date and time"
-          className="h-8 rounded-btn border border-line bg-card px-2 text-sm"
-          onChange={(e) => {
-            if (e.target.value) {
-              onUpdate(lead.id, 'FOLLOW_UP', new Date(e.target.value).toISOString())
-              setPicking(false)
-            }
-          }}
-        />
-      )}
+      {editing && <EditLeadModal lead={editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
     </div>
   )
 }
