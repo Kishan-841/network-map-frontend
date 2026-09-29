@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input, Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { LEAD_STATUSES } from '@/lib/sales-lead-status'
 
 /**
  * Raise a customer inquiry from the field. Deliberately short — the calling team
@@ -12,11 +13,12 @@ import { Modal } from '@/components/ui/Modal'
  * server snapshots the address.
  */
 export function InquiryModal({ building, visitId, onClose, onDone }) {
-  const [form, setForm] = useState({ customerName: '', phone: '', email: '' })
+  const [form, setForm] = useState({ customerName: '', phone: '', email: '', status: 'NOT_CONTACTED', followUpAt: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
-  const valid = form.customerName.trim() && form.phone.trim().length >= 6
+  const needsFollowUp = form.status === 'FOLLOW_UP'
+  const valid = form.customerName.trim() && form.phone.trim().length >= 6 && (!needsFollowUp || form.followUpAt)
 
   async function submit(e) {
     e.preventDefault()
@@ -28,6 +30,8 @@ export function InquiryModal({ building, visitId, onClose, onDone }) {
         customerName: form.customerName.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
+        status: form.status,
+        ...(needsFollowUp ? { followUpAt: new Date(form.followUpAt).toISOString() } : {}),
         ...(visitId ? { visitId } : {}),
       })
       onDone()
@@ -65,6 +69,23 @@ export function InquiryModal({ building, visitId, onClose, onDone }) {
           required
         />
         <Input id="c-email" label="Email (optional)" type="email" value={form.email} onChange={set('email')} />
+        <Select id="c-status" label="Status" value={form.status} onChange={set('status')}>
+          {LEAD_STATUSES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </Select>
+        {needsFollowUp && (
+          <Input
+            id="c-followup"
+            label="Follow up on"
+            type="datetime-local"
+            value={form.followUpAt}
+            onChange={set('followUpAt')}
+            required
+          />
+        )}
         {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
       </form>
     </Modal>
