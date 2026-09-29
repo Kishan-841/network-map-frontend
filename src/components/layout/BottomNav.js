@@ -9,6 +9,7 @@ import {
   IconBuildings,
   IconUser,
   IconUsers,
+  IconUserPlus,
   IconMore,
 } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
