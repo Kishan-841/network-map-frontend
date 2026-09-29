@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
-import { Button } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Input'
+import { DataTable } from '@/components/ui/DataTable'
 import { CallButton } from '@/components/sales/CallButton'
 import { LEAD_STATUSES, leadStatusLabel, leadStatusBadge } from '@/lib/sales-lead-status'
 
@@ -11,9 +10,9 @@ const FILTERS = [{ value: '', label: 'All' }, ...LEAD_STATUSES.map((s) => ({ val
 const fmtWhen = (v) => (v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : null)
 
 /**
- * A sales person's leads. Call the customer (mobile only), then set where the
- * lead stands. Scoped by the API — an executive sees their own, a team leader
- * or manager sees the team's.
+ * A sales person's leads, as a table. Call the customer (mobile only), then set
+ * where the lead stands. Scoped by the API — an executive sees their own, a team
+ * leader or manager sees the team's.
  */
 export default function LeadsPage() {
   const [leads, setLeads] = useState([])
@@ -47,8 +46,49 @@ export default function LeadsPage() {
     }
   }, [])
 
+  const columns = [
+    { key: 'customer', header: 'Customer', render: (l) => <span className="font-medium text-ink">{l.customerName}</span> },
+    { key: 'building', header: 'Building', render: (l) => l.building?.buildingName ?? '—' },
+    {
+      key: 'phone',
+      header: 'Phone',
+      render: (l) => (
+        <span className="flex items-center gap-2">
+          <span className="tabular-nums">{l.phone}</span>
+          <CallButton phone={l.phone} />
+        </span>
+      ),
+    },
+    {
+      key: 'followUp',
+      header: 'Follow-up',
+      render: (l) =>
+        l.status === 'FOLLOW_UP' && l.followUpAt ? <span className="text-warn">{fmtWhen(l.followUpAt)}</span> : '—',
+    },
+    { key: 'status', header: 'Status', render: (l) => <StatusControl lead={l} onUpdate={updateLead} /> },
+  ]
+
+  const renderCard = (l) => (
+    <div className="flex flex-col gap-2 rounded-card border border-line bg-card p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-bold text-ink">{l.customerName}</p>
+          <p className="truncate text-sm font-normal text-muted">
+            {l.building?.buildingName ? `${l.building.buildingName} · ` : ''}
+            {l.phone}
+          </p>
+          {l.status === 'FOLLOW_UP' && l.followUpAt && (
+            <p className="mt-0.5 text-sm font-medium text-warn">Follow up {fmtWhen(l.followUpAt)}</p>
+          )}
+        </div>
+        <CallButton phone={l.phone} />
+      </div>
+      <StatusControl lead={l} onUpdate={updateLead} />
+    </div>
+  )
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 lg:p-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 lg:p-6">
       <div>
         <h1 className="text-2xl font-bold text-ink">Leads</h1>
         <p className="text-sm font-normal text-muted">Call a lead, then set where it stands.</p>
@@ -71,29 +111,29 @@ export default function LeadsPage() {
 
       {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
 
-      {loading ? (
-        <p className="text-sm font-normal text-muted">Loading…</p>
-      ) : leads.length === 0 ? (
-        <p className="text-sm font-normal text-muted">No leads yet.</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {leads.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} onUpdate={updateLead} />
-          ))}
-        </div>
-      )}
+      <DataTable
+        columns={columns}
+        rows={leads}
+        loading={loading}
+        renderCard={renderCard}
+        emptyState={<p className="py-8 text-center text-sm font-normal text-muted">No leads yet.</p>}
+      />
     </div>
   )
 }
 
-function LeadCard({ lead, onUpdate }) {
-  const [followUp, setFollowUp] = useState('')
+/**
+ * The status control for one lead: a colour-tinted dropdown that shows and
+ * changes the status. Choosing Follow-up reveals a date+time input; the lead
+ * saves when a time is picked. Other statuses save on selection.
+ */
+function StatusControl({ lead, onUpdate }) {
   const [picking, setPicking] = useState(false)
 
-  const onStatusChange = (e) => {
+  const onChange = (e) => {
     const value = e.target.value
     if (value === 'FOLLOW_UP') {
-      setPicking(true) // reveal the date+time picker; save is a second step
+      setPicking(true) // wait for a date before saving
       return
     }
     setPicking(false)
@@ -101,60 +141,31 @@ function LeadCard({ lead, onUpdate }) {
   }
 
   return (
-    <div className="rounded-card border border-line bg-card p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-bold text-ink">{lead.customerName}</p>
-          <p className="truncate text-sm font-normal text-muted">
-            {lead.building?.buildingName ? `${lead.building.buildingName} · ` : ''}
-            {lead.phone}
-          </p>
-          {lead.status === 'FOLLOW_UP' && lead.followUpAt && (
-            <p className="mt-1 text-sm font-medium text-warn">Follow up {fmtWhen(lead.followUpAt)}</p>
-          )}
-        </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${leadStatusBadge(lead.status)}`}>
-          {leadStatusLabel(lead.status)}
-        </span>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <CallButton phone={lead.phone} />
-        <Select
-          id={`status-${lead.id}`}
-          aria-label="Lead status"
-          value={lead.status}
-          onChange={onStatusChange}
-          className="h-9 w-auto"
-        >
-          {LEAD_STATUSES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </Select>
-      </div>
-
+    <div className="flex flex-col gap-1.5">
+      <select
+        aria-label="Lead status"
+        value={picking ? 'FOLLOW_UP' : lead.status}
+        onChange={onChange}
+        className={`h-8 rounded-btn border border-line px-2 text-sm font-medium ${leadStatusBadge(lead.status)}`}
+      >
+        {LEAD_STATUSES.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </select>
       {picking && (
-        <div className="mt-3 flex flex-wrap items-end gap-2">
-          <Input
-            id={`followup-${lead.id}`}
-            label="Follow up on"
-            type="datetime-local"
-            value={followUp}
-            onChange={(e) => setFollowUp(e.target.value)}
-          />
-          <Button
-            type="button"
-            disabled={!followUp}
-            onClick={() => {
-              onUpdate(lead.id, 'FOLLOW_UP', new Date(followUp).toISOString())
+        <input
+          type="datetime-local"
+          aria-label="Follow-up date and time"
+          className="h-8 rounded-btn border border-line bg-card px-2 text-sm"
+          onChange={(e) => {
+            if (e.target.value) {
+              onUpdate(lead.id, 'FOLLOW_UP', new Date(e.target.value).toISOString())
               setPicking(false)
-            }}
-          >
-            Save
-          </Button>
-        </div>
+            }
+          }}
+        />
       )}
     </div>
   )
