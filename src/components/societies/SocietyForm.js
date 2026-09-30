@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import LocationPicker from '@/components/map/LocationPicker'
-import { useZones } from '@/hooks/useZones'
-import { guessZoneId } from '@/lib/fiber/zone-guess'
+import { getMapProvider } from '@/lib/map-providers'
 import { uploadFile } from '@/lib/upload'
 import { DESIGNATIONS } from '@/lib/roles'
 import { DEFAULT_CENTRE, parseLatitude, parseLongitude } from '@/lib/fiber/coords'
@@ -37,9 +36,6 @@ export default function SocietyForm({ initial, onSave, saveLabel = 'Save society
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [uploading, setUploading] = useState('')
-  // The user has taken control of the zone dropdown — stop guessing over them.
-  const [zonePicked, setZonePicked] = useState(Boolean(initial?.zoneId))
-  const { zones, loading: zonesLoading } = useZones()
 
   const validation = societyFormErrors(form)
   const show = attempted ? validation.fields : {}
@@ -48,14 +44,16 @@ export default function SocietyForm({ initial, onSave, saveLabel = 'Save society
   const lat = parseLatitude(form.latitude)
   const lng = parseLongitude(form.longitude)
 
-  function onPin({ latitude, longitude }) {
-    setForm((f) => {
-      const next = { ...f, latitude: String(latitude), longitude: String(longitude) }
-      if (!zonePicked) {
-        next.zoneId = guessZoneId(zones, [{ latitude, longitude }]) ?? f.zoneId
-      }
-      return next
-    })
+  // Moving the pin (search or drag) sets the coordinates and auto-fills the
+  // address from the geocoding API — the executive never types it.
+  async function onPin({ latitude, longitude }) {
+    setForm((f) => ({ ...f, latitude: String(latitude), longitude: String(longitude) }))
+    try {
+      const { formattedAddress } = await getMapProvider().reverseGeocode({ latitude, longitude })
+      if (formattedAddress) setForm((f) => ({ ...f, formattedAddress }))
+    } catch {
+      /* leave whatever address is already there */
+    }
   }
 
   async function upload(key, file) {
@@ -104,30 +102,15 @@ export default function SocietyForm({ initial, onSave, saveLabel = 'Save society
           onChange={onPin}
         />
       </div>
-      <div>
-        <p className="mb-1 text-sm font-medium text-ink">Zone</p>
-        <Select
-          id="s-zone"
-          value={form.zoneId}
-          disabled={zonesLoading}
-          error={show.zoneId}
-          onChange={(e) => {
-            setZonePicked(true)
-            setForm((f) => ({ ...f, zoneId: e.target.value }))
-          }}
-        >
-          <option value="">Choose the zone…</option>
-          {(zones ?? []).map((z) => (
-            <option key={z.id} value={z.id}>
-              {z.name}
-            </option>
-          ))}
-        </Select>
-      </div>
-
       {/* Society */}
       <Input id="s-name" label="Society" value={form.buildingName} error={show.buildingName} onChange={set('buildingName')} />
-      <Input id="s-address" label="Address" value={form.formattedAddress} onChange={set('formattedAddress')} />
+      <Input
+        id="s-address"
+        label="Address (from the map)"
+        value={form.formattedAddress}
+        readOnly
+        placeholder="Search or move the pin to fill the address"
+      />
       <div className="grid grid-cols-3 gap-3">
         <Input id="s-wing" label="Wing" value={form.wings} onChange={set('wings')} />
         <Input id="s-floor" label="Floor" value={form.floors} onChange={set('floors')} />
