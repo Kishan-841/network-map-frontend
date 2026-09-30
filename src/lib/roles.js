@@ -12,7 +12,10 @@ export const ROLE_LABELS = {
   SALES_MANAGER: 'Sales manager',
   TEAM_LEADER: 'Team leader',
   SALES_EXECUTIVE: 'Sales executive',
+  PERMISSION_EXECUTIVE: 'Permission Executive',
 }
+
+export const isPermissionExecutive = (role) => role === 'PERMISSION_EXECUTIVE'
 
 export const isAgent = (role) => role === 'ACQUISITION_AGENT'
 export const isLead = (role) => role === 'ACQUISITION_LEAD'
@@ -136,7 +139,9 @@ export const homePathFor = (role) =>
         ? '/map'
         : isSales(role)
           ? '/sales'
-          : '/dashboard'
+          : isPermissionExecutive(role)
+            ? '/societies'
+            : '/dashboard'
 
 /** Route prefixes each role must never reach. */
 const COVERAGE_ONLY = ['/dashboard', '/admin']
@@ -145,11 +150,15 @@ const COVERAGE_ONLY = ['/dashboard', '/admin']
 const OFF_LIMITS_FOR_SUPERVISOR = ['/dashboard', '/admin', '/acquisition']
 /** The field-sales team reach only their own workspace and profile. */
 const SALES_ALLOWED = ['/sales', '/profile']
+/** A permission executive reaches only their society capture + profile. */
+const PERMISSION_ALLOWED = ['/societies', '/profile']
 export const isForbiddenPath = (role, pathname, user) => {
   // Fiber access opens exactly two pages under /admin, for whoever holds it
   // (only ever a map role — canManageFiber checks that).
   if (isFiberPage(pathname) && canManageFiber(user)) return false
   if (isSales(role)) return !SALES_ALLOWED.some((p) => pathname.startsWith(p))
+  // Allow-list: a permission executive reaches only /societies and /profile.
+  if (isPermissionExecutive(role)) return !PERMISSION_ALLOWED.some((p) => pathname.startsWith(p))
   if (isAcquisition(role)) return COVERAGE_ONLY.some((p) => pathname.startsWith(p))
   if (isSupervisor(role)) return OFF_LIMITS_FOR_SUPERVISOR.some((p) => pathname.startsWith(p))
   return false
