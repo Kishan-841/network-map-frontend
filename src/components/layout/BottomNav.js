@@ -91,8 +91,8 @@ const LEAD_NAV = [
 
 // A permission executive only captures societies and manages their own.
 const PERMISSION_NAV = [
-  { href: '/societies', label: 'My societies', icon: IconBuildings, exact: true },
-  { href: '/societies/add', label: 'Add society', icon: IconPlus },
+  { href: '/societies', label: 'My buildings', icon: IconBuildings, exact: true },
+  { href: '/societies/add', label: 'Add building', icon: IconPlus },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 

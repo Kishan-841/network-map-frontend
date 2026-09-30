@@ -50,10 +50,16 @@ export default function SocietyForm({ initial, onSave, saveLabel = 'Save society
     setForm((f) => ({ ...f, latitude: String(latitude), longitude: String(longitude) }))
     // The address is read-only and required, so it must never end up empty:
     // use the reverse-geocoded address, or the coordinates as a last resort.
+    // The building name is auto-captured from the same place when there is one.
     const coords = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
     try {
-      const { formattedAddress } = await getMapProvider().reverseGeocode({ latitude, longitude })
-      setForm((f) => ({ ...f, formattedAddress: formattedAddress || coords }))
+      const place = await getMapProvider().reverseGeocode({ latitude, longitude })
+      const name = place.buildingName || place.premise || place.name || ''
+      setForm((f) => ({
+        ...f,
+        formattedAddress: place.formattedAddress || coords,
+        buildingName: name || f.buildingName,
+      }))
     } catch {
       setForm((f) => ({ ...f, formattedAddress: f.formattedAddress || coords }))
     }
@@ -97,7 +103,7 @@ export default function SocietyForm({ initial, onSave, saveLabel = 'Save society
     <div className="flex flex-col gap-4 rounded-card bg-card p-5 shadow-soft">
       {/* Location */}
       <div>
-        <p className="mb-1 text-sm font-medium text-ink">Find the society on the map</p>
+        <p className="mb-1 text-sm font-medium text-ink">Find the building on the map</p>
         <LocationPicker
           searchable
           latitude={lat ?? DEFAULT_CENTRE.latitude}
@@ -106,7 +112,7 @@ export default function SocietyForm({ initial, onSave, saveLabel = 'Save society
         />
       </div>
       {/* Society */}
-      <Input id="s-name" label="Society" value={form.buildingName} error={show.buildingName} onChange={set('buildingName')} />
+      <Input id="s-name" label="Building name" value={form.buildingName} error={show.buildingName} onChange={set('buildingName')} />
       <Input
         id="s-address"
         label="Address (from the map)"
