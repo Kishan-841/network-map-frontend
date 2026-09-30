@@ -68,7 +68,6 @@ export function buildSocietyPayload(f) {
 export function societyFormErrors(f) {
   const fields = {}
   if (!String(f?.buildingName ?? '').trim()) fields.buildingName = 'Enter the society name'
-  if (!f?.zoneId) fields.zoneId = 'Pick the zone (search a place, or choose one)'
   if (!String(f?.contactName ?? '').trim()) fields.contactName = 'Who did you meet?'
   if (!String(f?.contactPhone ?? '').trim()) fields.contactPhone = 'Contact number is required'
   if (!f?.permissionStatus) fields.permissionStatus = 'Choose the permission outcome'

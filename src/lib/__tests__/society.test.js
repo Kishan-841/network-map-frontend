@@ -32,12 +32,12 @@ describe('society helpers', () => {
     expect(p.permission.demoCount).toBe(3)
     expect(p.permission.paymentType).toBeUndefined()
   })
-  it('flags missing society name / contact / zone / status', () => {
+  it('flags missing society name / contact / status (zone is not required)', () => {
     const { fields, ok } = societyFormErrors({ ...good, buildingName: '', contactPhone: '', zoneId: '', permissionStatus: '' })
     expect(ok).toBe(false)
     expect(fields.buildingName).toBeTruthy()
     expect(fields.contactPhone).toBeTruthy()
-    expect(fields.zoneId).toBeTruthy()
+    expect(fields.zoneId).toBeUndefined()
     expect(fields.permissionStatus).toBeTruthy()
   })
 })
