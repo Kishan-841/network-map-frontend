@@ -4,9 +4,12 @@ import {
   canEditBuilding,
   canManageFiber,
   fiberNavFor,
+  homePathFor,
   isForbiddenPath,
+  isPermissionExecutive,
   mayHoldAccess,
   mayOpenAdminPath,
+  ROLE_LABELS,
 } from '../roles'
 
 const user = (role, canManageFiber = false) => ({ role, canManageFiber })
@@ -135,3 +138,19 @@ describe('mayHoldAccess', () => {
   })
 })
 
+
+describe('permission executive', () => {
+  it('labels and identifies the role', () => {
+    expect(ROLE_LABELS.PERMISSION_EXECUTIVE).toBe('Permission Executive')
+    expect(isPermissionExecutive('PERMISSION_EXECUTIVE')).toBe(true)
+    expect(isPermissionExecutive('SURVEYOR')).toBe(false)
+  })
+  it('lands on /societies and is confined to it', () => {
+    expect(homePathFor('PERMISSION_EXECUTIVE')).toBe('/societies')
+    expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/societies')).toBe(false)
+    expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/societies/add')).toBe(false)
+    expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/profile')).toBe(false)
+    expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/map')).toBe(true)
+    expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/admin/users')).toBe(true)
+  })
+})

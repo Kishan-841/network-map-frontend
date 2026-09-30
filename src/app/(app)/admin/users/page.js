@@ -27,6 +27,7 @@ const ROLES = [
   'SALES_MANAGER',
   'TEAM_LEADER',
   'SALES_EXECUTIVE',
+  'PERMISSION_EXECUTIVE',
 ]
 const roleLabel = (role) => ROLE_LABELS[role] ?? role
 
