@@ -7,6 +7,7 @@ import {
   IconDashboard,
   IconMap,
   IconBuildings,
+  IconPlus,
   IconUser,
   IconUsers,
   IconUserPlus,
@@ -16,7 +17,7 @@ import {
   IconMore,
 } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
-import { isAgent, isLead, isSupervisor, isPartnerManager, isAccounts, isSales, isSalesExecutive } from '@/lib/roles'
+import { isAgent, isLead, isSupervisor, isPartnerManager, isAccounts, isSales, isSalesExecutive, isPermissionExecutive } from '@/lib/roles'
 import { MANAGE_LINKS } from '@/lib/manage-links'
 import { pickExtraNav } from '@/lib/nav-extras'
 import { MoreSheet, splitNav } from '@/components/layout/MoreSheet'
@@ -88,6 +89,13 @@ const LEAD_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
+// A permission executive only captures societies and manages their own.
+const PERMISSION_NAV = [
+  { href: '/societies', label: 'My societies', icon: IconBuildings, exact: true },
+  { href: '/societies/add', label: 'Add society', icon: IconPlus },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+
 /** Mobile-only bottom bar (72px, blurred). Hidden at lg — Sidebar takes over. */
 export function BottomNav() {
   const pathname = usePathname()
@@ -107,9 +115,11 @@ export function BottomNav() {
               : SALES_LEAD_NAV
             : isPartnerManager(role)
               ? PARTNER_MANAGER_NAV
-              : role === 'ADMIN'
-                ? ADMIN_NAV
-                : COVERAGE_NAV
+              : isPermissionExecutive(role)
+                ? PERMISSION_NAV
+                : role === 'ADMIN'
+                  ? ADMIN_NAV
+                  : COVERAGE_NAV
 
   // The admin pages a phone could not reach at all — every Manage link for an
   // admin, the fiber pages for whoever was ticked. They go after the role's

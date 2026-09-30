@@ -16,6 +16,7 @@ import {
   isAccounts,
   isSales,
   isSalesExecutive,
+  isPermissionExecutive,
   fiberNavFor,
   ROLE_LABELS,
 } from '@/lib/roles'
@@ -24,6 +25,7 @@ import {
   IconDashboard,
   IconMap,
   IconBuildings,
+  IconPlus,
   IconUser,
   IconUsers,
   IconUserPlus,
@@ -160,6 +162,13 @@ function NavGroup({ label, items, pathname, collapsed, renderLink, defaultOpen =
   )
 }
 
+// A permission executive only captures societies and manages their own.
+const PERMISSION_NAV = [
+  { href: '/societies', label: 'My societies', icon: IconBuildings, exact: true },
+  { href: '/societies/add', label: 'Add society', icon: IconPlus },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+
 function initials(name = '') {
   return name
     .split(' ')
@@ -203,9 +212,11 @@ export function Sidebar() {
               : SALES_LEAD_NAV
             : isPartnerManager(role)
               ? PARTNER_MANAGER_NAV
-              : role === 'ADMIN'
-                ? ADMIN_NAV
-                : COVERAGE_NAV
+              : isPermissionExecutive(role)
+                ? PERMISSION_NAV
+                : role === 'ADMIN'
+                  ? ADMIN_NAV
+                  : COVERAGE_NAV
 
   // Fiber access is granted per user (Users → Assign accesses). Whoever holds
   // it gets the same two links the admin has, icons and all, in a group of

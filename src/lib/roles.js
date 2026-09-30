@@ -14,7 +14,10 @@ export const ROLE_LABELS = {
   SALES_MANAGER: 'Sales manager',
   TEAM_LEADER: 'Team leader',
   SALES_EXECUTIVE: 'Sales executive',
+  PERMISSION_EXECUTIVE: 'Permission Executive',
 }
+
+export const isPermissionExecutive = (role) => role === 'PERMISSION_EXECUTIVE'
 
 export const isAgent = (role) => role === 'ACQUISITION_AGENT'
 export const isLead = (role) => role === 'ACQUISITION_LEAD'
@@ -157,7 +160,9 @@ export const homePathFor = (role) =>
             ? '/payouts'
             : isSales(role)
               ? '/sales'
-              : '/dashboard'
+              : isPermissionExecutive(role)
+                ? '/societies'
+                : '/dashboard'
 
 /** Route prefixes each role must never reach. */
 const COVERAGE_ONLY = ['/dashboard', '/admin']
@@ -189,6 +194,8 @@ const PARTNER_NETWORK = ['/partner-dashboard', '/partners', '/referrals', '/lead
 const ACCOUNTS_ALLOWED = ['/payouts', '/profile']
 /** The field-sales team reach only their own workspace and profile. */
 const SALES_ALLOWED = ['/sales', '/profile']
+/** A permission executive reaches only their society capture + profile. */
+const PERMISSION_ALLOWED = ['/societies', '/profile']
 export const isForbiddenPath = (role, pathname, user) => {
   // Checked before the per-role rules below, so a new role cannot reach the
   // partner network just by not appearing in any of them.
@@ -203,6 +210,8 @@ export const isForbiddenPath = (role, pathname, user) => {
   // Allow-list: the sales team reach only /sales and /profile, whatever new
   // staff route is added elsewhere.
   if (isSales(role)) return !SALES_ALLOWED.some((p) => pathname.startsWith(p))
+  // Allow-list: a permission executive reaches only /societies and /profile.
+  if (isPermissionExecutive(role)) return !PERMISSION_ALLOWED.some((p) => pathname.startsWith(p))
   if (isAcquisition(role)) return COVERAGE_ONLY.some((p) => pathname.startsWith(p))
   if (isSupervisor(role)) return OFF_LIMITS_FOR_SUPERVISOR.some((p) => pathname.startsWith(p))
   // Allow-list rather than deny-list: a new staff route must not silently
