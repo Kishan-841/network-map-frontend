@@ -59,7 +59,7 @@ function AddSociety() {
           entrancePhotoUrl: '',
         })
       })
-      .catch((err) => setToast(getApiErrorMessage(err, 'Could not load the society')))
+      .catch((err) => setToast(getApiErrorMessage(err, 'Could not load the building')))
   }, [editId])
 
   async function onSave(payload) {
@@ -72,9 +72,9 @@ function AddSociety() {
 
   return (
     <main className="mx-auto max-w-2xl">
-      <PageHeader eyebrow="Permission" title={editId ? 'Edit society' : 'Add society'} />
+      <PageHeader eyebrow="Permission" title={editId ? 'Edit building' : 'Add building'} />
       <Toast key={toast} message={toast} onDone={() => setToast(null)} />
-      <SocietyForm initial={initial} onSave={onSave} saveLabel={editId ? 'Save changes' : 'Add society'} />
+      <SocietyForm initial={initial} onSave={onSave} saveLabel={editId ? 'Save changes' : 'Add building'} />
     </main>
   )
 }

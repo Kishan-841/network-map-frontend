@@ -67,7 +67,7 @@ export function buildSocietyPayload(f) {
 /** Required-field check, mirrored from the API's shape. */
 export function societyFormErrors(f) {
   const fields = {}
-  if (!String(f?.buildingName ?? '').trim()) fields.buildingName = 'Enter the society name'
+  if (!String(f?.buildingName ?? '').trim()) fields.buildingName = 'Enter the building name'
   if (!String(f?.contactName ?? '').trim()) fields.contactName = 'Who did you meet?'
   if (!String(f?.contactPhone ?? '').trim()) fields.contactPhone = 'Contact number is required'
   if (!f?.permissionStatus) fields.permissionStatus = 'Choose the permission outcome'
