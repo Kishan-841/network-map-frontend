@@ -48,11 +48,14 @@ export default function SocietyForm({ initial, onSave, saveLabel = 'Save society
   // address from the geocoding API — the executive never types it.
   async function onPin({ latitude, longitude }) {
     setForm((f) => ({ ...f, latitude: String(latitude), longitude: String(longitude) }))
+    // The address is read-only and required, so it must never end up empty:
+    // use the reverse-geocoded address, or the coordinates as a last resort.
+    const coords = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
     try {
       const { formattedAddress } = await getMapProvider().reverseGeocode({ latitude, longitude })
-      if (formattedAddress) setForm((f) => ({ ...f, formattedAddress }))
+      setForm((f) => ({ ...f, formattedAddress: formattedAddress || coords }))
     } catch {
-      /* leave whatever address is already there */
+      setForm((f) => ({ ...f, formattedAddress: f.formattedAddress || coords }))
     }
   }
 
