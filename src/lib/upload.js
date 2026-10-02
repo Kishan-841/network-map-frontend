@@ -27,7 +27,12 @@ export async function compressImage(file) {
 }
 
 /**
- * Upload one file and get back its stored URL.
+ * Upload one file and get back a link to it the page can SHOW right away.
+ *
+ * That is the API's signed `previewUrl` when it sends one — once the bucket is
+ * private, the plain stored `url` no longer opens on its own — falling back to
+ * `url`. Saving the returned link is safe: every save path on the API turns a
+ * signed link back into the permanent one before storing it.
  *
  * `client` defaults to the staff API client. Partners pass their own client
  * so the request carries a PARTNER token — the uploads route accepts either
@@ -38,5 +43,5 @@ export async function uploadFile(file, client = apiClient) {
   const formData = new FormData()
   formData.append('file', prepared)
   const res = await client.post('/uploads', formData)
-  return res.data.data.url
+  return res.data.data.previewUrl ?? res.data.data.url
 }
