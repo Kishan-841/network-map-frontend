@@ -84,10 +84,10 @@ export function PartnerSignIn({ inviteToken, invitedBy }) {
       const data = res.data.data
       setKnown(Boolean(data.registered))
       setDevCode(data.devCode ?? null)
+      // Only the server knows whether this was a fresh send or the resend
+      // cooldown; with real SMS on, `devCode` is absent either way.
       setNotice(
-        data.devCode
-          ? null
-          : 'We have already sent you a code — please use that one.',
+        data.cooldown ? 'We have already sent you a code — please use that one.' : null,
       )
       setStep('code')
     })
