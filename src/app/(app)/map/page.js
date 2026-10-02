@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { useBuildings } from '@/hooks/useBuildings'
+import { useBuildingMarkers } from '@/hooks/useBuildingMarkers'
+import { filterMarkers } from '@/lib/building-filters'
 import { useZones } from '@/hooks/useZones'
 import { useFibers } from '@/hooks/useFibers'
 import { usePops } from '@/hooks/usePops'
@@ -83,12 +84,15 @@ function CoverageMapPage() {
   // Filled by the map once it is live: centre the view on one point.
   const centreRef = useRef(null)
 
-  const query = useMemo(
-    () => ({ ...filters, search: debouncedSearch || undefined }),
-    [filters, debouncedSearch],
+  // Every building in scope, fetched once per session — the map is not a page
+  // of results. Reading the paginated list at pageSize=500 is what capped it.
+  const { markers, loading } = useBuildingMarkers()
+  // Filtering happens here rather than on the server: the whole set is already
+  // in memory, so a filter change is instant and costs no request.
+  const buildings = useMemo(
+    () => filterMarkers(markers, { ...filters, search: debouncedSearch }),
+    [markers, filters, debouncedSearch],
   )
-  // The map wants everything the API allows in one page (markers, not rows).
-  const { buildings, loading } = useBuildings({ ...query, pageSize: 500 })
   const { zones } = useZones()
   const activeFilterCount = Object.values(filters).filter(Boolean).length
 

@@ -9,6 +9,7 @@ import { Input, Select, Textarea } from '@/components/ui/Input'
 import { ZoneSearchSelect } from '@/components/buildings/ZoneSearchSelect'
 import { useZones } from '@/hooks/useZones'
 import { useBuildingTypes } from '@/hooks/useBuildingTypes'
+import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { IconPin } from '@/components/ui/icons'
 
 const LocationPicker = dynamic(() => import('@/components/map/LocationPicker'), { ssr: false })
@@ -119,6 +120,8 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
               },
             }),
       })
+      // Name, zone and live flag all show on the map marker.
+      invalidateBuildingMarkers()
       onSaved()
       onClose()
     } catch (err) {
