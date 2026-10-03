@@ -309,7 +309,7 @@ export default function AcquisitionUsersPage() {
           ))}
         </Select>
         <Select id="team-status" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
+          <option value="">All status</option>
           <option value="active">Active</option>
           <option value="inactive">Deactivated</option>
         </Select>

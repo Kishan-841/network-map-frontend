@@ -1,0 +1,175 @@
+'use client'
+
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { partnerApi, getPartnerApiError } from '@/lib/partner-api-client'
+import { Button } from '@/components/ui/Button'
+import { Input, Select } from '@/components/ui/Input'
+import { DataTable } from '@/components/ui/DataTable'
+import {
+  LEAD_STATUSES,
+  leadStatusClass,
+  PARTNER_LEAD_STATUS_LABEL as STATUS_LABEL,
+} from '@/lib/lead-status'
+
+const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' })
+
+function StatusBadge({ status }) {
+  return (
+    <span
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${leadStatusClass(status)}`}
+    >
+      {STATUS_LABEL[status] ?? status}
+    </span>
+  )
+}
+
+function PartnerLeadsTable() {
+  const [leads, setLeads] = useState(null)
+  const [error, setError] = useState(null)
+  // Seeded from the URL so the Earnings tab can link to a subset of these.
+  const params = useSearchParams()
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState(() => params.get('status') ?? '')
+
+  useEffect(() => {
+    let cancelled = false
+    partnerApi
+      .get('/partner/leads')
+      .then((res) => !cancelled && setLeads(res.data.data))
+      .catch((err) => !cancelled && setError(getPartnerApiError(err, 'Could not load your leads')))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const shown = useMemo(() => {
+    if (!leads) return null
+    const q = search.trim().toLowerCase()
+    return leads.filter(
+      (lead) =>
+        (!status || lead.status === status) &&
+        (!q ||
+          [lead.customerName, lead.customerMobile, lead.building?.buildingName]
+            .filter(Boolean)
+            .some((field) => field.toLowerCase().includes(q))),
+    )
+  }, [leads, search, status])
+
+  const columns = [
+    {
+      key: 'customer',
+      header: 'Customer',
+      render: (lead) => <span className="text-sm font-medium">{lead.customerName}</span>,
+    },
+    {
+      key: 'mobile',
+      header: 'Mobile',
+      render: (lead) => lead.customerMobile,
+      className: 'whitespace-nowrap tabular-nums text-muted',
+    },
+    {
+      key: 'building',
+      header: 'Building',
+      render: (lead) => lead.building?.buildingName ?? lead.address ?? '—',
+      className: 'max-w-[180px] truncate text-muted',
+    },
+    { key: 'status', header: 'Status', render: (lead) => <StatusBadge status={lead.status} /> },
+    {
+      key: 'createdAt',
+      header: 'Sent',
+      render: (lead) => dateFormat.format(new Date(lead.createdAt)),
+      className: 'whitespace-nowrap tabular-nums text-muted',
+    },
+  ]
+
+  const renderCard = (lead) => (
+    <div className="rounded-card bg-card p-4 shadow-soft">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-bold">{lead.customerName}</p>
+          <p className="truncate text-sm font-normal text-muted">{lead.customerMobile}</p>
+        </div>
+        <StatusBadge status={lead.status} />
+      </div>
+      <p className="mt-3 truncate border-t border-line pt-3 text-xs font-normal text-faint">
+        {lead.building?.buildingName ?? lead.address ?? '—'} ·{' '}
+        {dateFormat.format(new Date(lead.createdAt))}
+      </p>
+    </div>
+  )
+
+  if (error) return <p className="text-sm font-normal text-bad">{error}</p>
+
+  return (
+    <>
+      <h1 className="text-2xl font-bold tracking-tight">My leads</h1>
+      <p className="mt-1 text-sm font-normal text-muted">
+        {leads === null
+          ? 'Loading…'
+          : leads.length === 0
+            ? 'Nothing yet.'
+            : `${leads.length} customer${leads.length === 1 ? '' : 's'} sent in so far`}
+      </p>
+
+      {/* The controls only earn their space once there is a list to narrow. */}
+      {leads?.length > 0 && (
+        <div className="mb-4 mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="sm:col-span-2">
+            <Input
+              id="my-leads-search"
+              placeholder="Search customer, mobile or building…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select id="my-leads-status" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All status</option>
+            {Object.entries(STATUS_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+
+      <div className={leads?.length > 0 ? '' : 'mt-4'}>
+        <DataTable
+          columns={columns}
+          rows={shown}
+          loading={leads === null}
+          keyField="id"
+          renderCard={renderCard}
+          emptyState={
+            <div className="rounded-card bg-card p-8 text-center shadow-soft">
+              <p className="font-bold">
+                {leads?.length ? 'Nothing matches these filters' : 'Refer your first customer'}
+              </p>
+              <p className="mt-1 text-sm font-normal text-muted">
+                {leads?.length
+                  ? 'Try a different search or status.'
+                  : 'Search for their building, and we will tell you whether we can serve it.'}
+              </p>
+              {!leads?.length && (
+                <Link href="/partner/refer">
+                  <Button className="mt-4">Refer a customer</Button>
+                </Link>
+              )}
+            </div>
+          }
+        />
+      </div>
+    </>
+  )
+}
+
+// useSearchParams must sit inside a Suspense boundary in the App Router.
+export default function PartnerLeadsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PartnerLeadsTable />
+    </Suspense>
+  )
+}

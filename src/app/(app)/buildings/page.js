@@ -10,6 +10,8 @@ import { useCities } from '@/hooks/useCities'
 import { useAuthStore } from '@/stores/auth-store'
 import { usePops } from '@/hooks/usePops'
 import { AssignOltModal } from '@/components/buildings/AssignOltModal'
+import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
+import { invalidateSalesBuildings } from '@/hooks/useSales'
 import { canAssignOlt as canAssignOltRole } from '@/lib/roles'
 import { BuildingCard, BuildingCardSkeleton } from '@/components/buildings/BuildingCard'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -229,6 +231,9 @@ function BuildingsList() {
   // Bulk go-live is a coverage-registry action, admins and managers only.
   const canBulkEdit = canManageBuildings(role)
   const canAssignOlt = canAssignOltRole(role)
+  // Admins bootstrap the sales pipeline: hand registry buildings to a manager.
+  const canAssignToSales = role === 'ADMIN'
+  const [assigningToSales, setAssigningToSales] = useState(false)
   // Show the selection checkboxes and bulk bar for anyone with a bulk action:
   // bulk go-live (admins/managers/supervisors) OR the OLT map (a ticked
   // surveyor). Without this a ticked surveyor could never select buildings.
@@ -644,6 +649,8 @@ function BuildingsList() {
           canDelete={role === 'ADMIN'}
           canAssignOlt={canAssignOlt}
           onAssignOlt={() => setAssigningOlt(true)}
+          canAssignToSales={canAssignToSales}
+          onAssignToSales={() => setAssigningToSales(true)}
           onSelectAllMatching={() => setSelectAllMatching(true)}
           onClear={() => {
             setSelectedIds(new Set())
@@ -679,6 +686,21 @@ function BuildingsList() {
             setSelectedIds(new Set())
             setSelectAllMatching(false)
             setToast(`${count} building${count === 1 ? '' : 's'} mapped to the OLT`)
+            refetch()
+          }}
+        />
+      )}
+
+      {assigningToSales && (
+        <AssignToTeamModal
+          buildingIds={[...selectedIds]}
+          onClose={() => setAssigningToSales(false)}
+          onDone={({ count }) => {
+            setAssigningToSales(false)
+            setSelectedIds(new Set())
+            setSelectAllMatching(false)
+            invalidateSalesBuildings()
+            setToast(`${count} building${count === 1 ? '' : 's'} assigned to sales`)
             refetch()
           }}
         />

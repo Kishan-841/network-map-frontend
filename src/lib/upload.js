@@ -26,10 +26,22 @@ export async function compressImage(file) {
   return new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' })
 }
 
-export async function uploadFile(file) {
+/**
+ * Upload one file and get back a link to it the page can SHOW right away.
+ *
+ * That is the API's signed `previewUrl` when it sends one — once the bucket is
+ * private, the plain stored `url` no longer opens on its own — falling back to
+ * `url`. Saving the returned link is safe: every save path on the API turns a
+ * signed link back into the permanent one before storing it.
+ *
+ * `client` defaults to the staff API client. Partners pass their own client
+ * so the request carries a PARTNER token — the uploads route accepts either
+ * identity, but the two never share a token.
+ */
+export async function uploadFile(file, client = apiClient) {
   const prepared = await compressImage(file)
   const formData = new FormData()
   formData.append('file', prepared)
-  const res = await apiClient.post('/uploads', formData)
-  return res.data.data.url
+  const res = await client.post('/uploads', formData)
+  return res.data.data.previewUrl ?? res.data.data.url
 }

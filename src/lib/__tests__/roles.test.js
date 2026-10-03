@@ -123,7 +123,7 @@ describe('canAssignOlt', () => {
   })
 
   it('denies acquisition and other roles', () => {
-    for (const role of ['ACQUISITION_AGENT', 'ACQUISITION_LEAD', undefined]) {
+    for (const role of ['ACQUISITION_AGENT', 'ACQUISITION_LEAD', 'PARTNER_MANAGER', 'ACCOUNTS', undefined]) {
       expect(canAssignOlt(role)).toBe(false)
     }
   })

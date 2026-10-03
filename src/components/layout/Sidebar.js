@@ -1,14 +1,25 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
-import { MANAGE_LINKS } from '@/lib/manage-links'
-import { isAgent, isLead, isSupervisor, isSales, isSalesExecutive, isPermissionExecutive, fiberNavFor, ROLE_LABELS } from '@/lib/roles'
+import { NAV_GROUPS } from '@/lib/manage-links'
+import {
+  isAgent,
+  isLead,
+  isSupervisor,
+  isPartnerManager,
+  isAccounts,
+  isSales,
+  isSalesExecutive,
+  isPermissionExecutive,
+  fiberNavFor,
+  ROLE_LABELS,
+} from '@/lib/roles'
 import {
   NodeMark,
   IconDashboard,
@@ -18,6 +29,10 @@ import {
   IconUser,
   IconUsers,
   IconUserPlus,
+  IconShare,
+  IconCalculator,
+  IconRupee,
+  IconChevronDown,
   IconSun,
   IconMoon,
   IconCollapse,
@@ -31,12 +46,37 @@ const COVERAGE_NAV = [
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+/**
+ * An admin does everything a partner manager does, so the partner tabs sit in
+ * the admin's own nav rather than only in a role that cannot see the registry.
+ * The calculator lives in Manage instead — an admin quotes rates far less
+ * often than they look at partners and leads, and six is what the bar holds.
+ */
+const ADMIN_NAV = [
+  { href: '/dashboard', label: 'Dashboard', icon: IconDashboard },
+  { href: '/map', label: 'Map', icon: IconMap },
+  { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+]
 const AGENT_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'My buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // Oversight role: everything the map and registry offer, no administration.
+// Recruits partners; no building or map access at all.
+const PARTNER_MANAGER_NAV = [
+  { href: '/partner-dashboard', label: 'Overview', icon: IconDashboard, exact: true },
+  { href: '/partners', label: 'Partners', icon: IconUsers },
+  { href: '/referrals', label: 'Referrals', icon: IconShare },
+  { href: '/leads', label: 'Leads', icon: IconUserPlus },
+  { href: '/calculator', label: 'Calculator', icon: IconCalculator },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
+/** Finance: one job, one tab. */
+const ACCOUNTS_NAV = [
+  { href: '/payouts', label: 'Payouts', icon: IconRupee },
+  { href: '/profile', label: 'Profile', icon: IconUser },
+]
 const SUPERVISOR_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'All buildings', icon: IconBuildings },
@@ -50,9 +90,8 @@ const LEAD_NAV = [
   { href: '/acquisition/users', label: 'Users', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
-
-// A sales executive gets Sales + their own "My work"; managers and team leaders
-// get Sales + the team Dashboard.
+// Field-sales team: their assigned buildings (and, for a manager/leader, the
+// pool they distribute) live on one page for now.
 const SALES_NAV = [
   { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
   { href: '/sales/map', label: 'Map', icon: IconMap },
@@ -60,6 +99,7 @@ const SALES_NAV = [
   { href: '/sales/dashboard', label: 'My work', icon: IconDashboard },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+// Managers and team leaders also get the team dashboard.
 const SALES_LEAD_NAV = [
   { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
   { href: '/sales/map', label: 'Map', icon: IconMap },
@@ -69,12 +109,66 @@ const SALES_LEAD_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
+/**
+ * One collapsible group in the admin sidebar.
+ *
+ * Opens itself when the current page is inside it, so you can always see
+ * where you are without hunting — and a group you opened by hand stays open
+ * until you close it.
+ */
+function NavGroup({ label, items, pathname, collapsed, renderLink, defaultOpen = false }) {
+  const holdsCurrent = items.some((item) =>
+    item.exact ? pathname === item.href : pathname.startsWith(item.href),
+  )
+  const [open, setOpen] = useState(holdsCurrent || defaultOpen)
+  const wasHolding = useRef(holdsCurrent)
+
+  // Navigating INTO the group opens it; navigating away leaves it as the
+  // reader left it.
+  useEffect(() => {
+    if (holdsCurrent && !wasHolding.current) setOpen(true)
+    wasHolding.current = holdsCurrent
+  }, [holdsCurrent])
+
+  // Collapsed rail has no room for headings — show the icons, always.
+  if (collapsed) {
+    return (
+      <>
+        <div className="mx-auto my-3 h-px w-8 bg-neutral-content/15" />
+        <div className="flex flex-col gap-1">{items.map((item) => renderLink(item))}</div>
+      </>
+    )
+  }
+
+  return (
+    <div className="pt-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-1.5 rounded-btn px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-wider text-neutral-content/40 transition-colors hover:text-neutral-content/70"
+      >
+        <IconChevronDown
+          className={`h-3 w-3 shrink-0 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+          strokeWidth={2.5}
+        />
+        {label}
+        {!open && holdsCurrent && (
+          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
+        )}
+      </button>
+      {open && <div className="mt-1 flex flex-col gap-1">{items.map((item) => renderLink(item))}</div>}
+    </div>
+  )
+}
+
 // A permission executive only captures societies and manages their own.
 const PERMISSION_NAV = [
   { href: '/societies', label: 'My buildings', icon: IconBuildings, exact: true },
   { href: '/societies/add', label: 'Add building', icon: IconPlus },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+
 function initials(name = '') {
   return name
     .split(' ')
@@ -97,28 +191,40 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
+  // Named to match BottomNav, which selects the role directly. The two files
+  // pick the same nav from the same role and have twice now drifted on how
+  // they spell it.
+  const role = user?.role
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const { sidebarCollapsed: collapsed, toggleSidebar } = useUiStore()
   const { theme, toggle: toggleTheme } = useTheme()
-  const NAV_ITEMS = isAgent(user?.role)
+  const NAV_ITEMS = isAgent(role)
     ? AGENT_NAV
-    : isLead(user?.role)
+    : isLead(role)
       ? LEAD_NAV
-      : isSupervisor(user?.role)
+      : isSupervisor(role)
         ? SUPERVISOR_NAV
-        : isSales(user?.role)
-          ? isSalesExecutive(user?.role)
-            ? SALES_NAV
-            : SALES_LEAD_NAV
-          : isPermissionExecutive(user?.role)
-            ? PERMISSION_NAV
-            : COVERAGE_NAV
+        : isAccounts(role)
+          ? ACCOUNTS_NAV
+          : isSales(role)
+            ? isSalesExecutive(role)
+              ? SALES_NAV
+              : SALES_LEAD_NAV
+            : isPartnerManager(role)
+              ? PARTNER_MANAGER_NAV
+              : isPermissionExecutive(role)
+                ? PERMISSION_NAV
+                : role === 'ADMIN'
+                  ? ADMIN_NAV
+                  : COVERAGE_NAV
 
   // Fiber access is granted per user (Users → Assign accesses). Whoever holds
   // it gets the same two links the admin has, icons and all, in a group of
-  // their own — looked up from MANAGE_LINKS so the two can't drift apart.
+  // their own — looked up from NAV_GROUPS so the two can't drift apart.
   const fiberHrefs = fiberNavFor(user).map((item) => item.href)
-  const FIBER_ITEMS = MANAGE_LINKS.filter((item) => fiberHrefs.includes(item.href))
+  const FIBER_ITEMS = NAV_GROUPS.flatMap((group) => group.items).filter((item) =>
+    fiberHrefs.includes(item.href),
+  )
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '80px' : '280px')
@@ -207,33 +313,29 @@ export function Sidebar() {
           {NAV_ITEMS.map((item) => navLink(item))}
         </div>
 
-        {/* Manage: the dashboard's admin grid, mirrored for big screens.
-            Sidebar entry is ADMIN-only (user decision). */}
-        {user?.role === 'ADMIN' && (
-          <>
-            {collapsed ? (
-              <div className="mx-auto my-3 h-px w-8 bg-neutral-content/15" />
-            ) : (
-              <p className="px-3.5 pb-1 pt-5 text-[11px] font-medium uppercase tracking-wider text-neutral-content/40">
-                Manage
-              </p>
-            )}
-            <div className="flex flex-col gap-1">{MANAGE_LINKS.map((item) => navLink(item))}</div>
-          </>
-        )}
-        {/* Fiber access is per user (Users → Assign accesses): whoever holds
-            it gets the admin's own two links, in the same flat style. */}
+        {/* Grouped, and ADMIN-only. Eighteen links as one flat list is a
+            wall nobody reads. */}
+        {role === 'ADMIN' &&
+          NAV_GROUPS.map((group) => (
+            <NavGroup
+              key={group.label}
+              label={group.label}
+              items={group.items}
+              pathname={pathname}
+              collapsed={collapsed}
+              renderLink={navLink}
+            />
+          ))}
         {FIBER_ITEMS.length > 0 && (
-          <>
-            {collapsed ? (
-              <div className="mx-auto my-3 h-px w-8 bg-neutral-content/15" />
-            ) : (
-              <p className="px-3.5 pb-1 pt-5 text-[11px] font-medium uppercase tracking-wider text-neutral-content/40">
-                Fiber
-              </p>
-            )}
-            <div className="flex flex-col gap-1">{FIBER_ITEMS.map((item) => navLink(item))}</div>
-          </>
+          <NavGroup
+            label="Fiber"
+            items={FIBER_ITEMS}
+            // Two links, and the whole reason this user was ticked — don't hide them.
+            defaultOpen
+            pathname={pathname}
+            collapsed={collapsed}
+            renderLink={navLink}
+          />
         )}
       </nav>
 
