@@ -21,4 +21,14 @@ describe('bank form', () => {
   it('builds the payload the API takes (no confirm field)', () => {
     expect(bankPayload(good)).toEqual({ accountHolderName: 'Asha Patil', accountNumber: '001234567890', ifsc: 'HDFC0001234', branchName: 'Cidco' })
   })
+  it('caps holder and branch at 120 chars', () => {
+    expect(bankFormErrors({ ...good, accountHolderName: 'a'.repeat(120) }).accountHolderName).toBeUndefined()
+    expect(bankFormErrors({ ...good, accountHolderName: 'a'.repeat(121) }).accountHolderName).toBeTruthy()
+    expect(bankFormErrors({ ...good, branchName: 'b'.repeat(120) }).branchName).toBeUndefined()
+    expect(bankFormErrors({ ...good, branchName: 'b'.repeat(121) }).branchName).toBeTruthy()
+  })
+  it('keeps bankName and clamps it to 120', () => {
+    expect(bankPayload({ ...good, bankName: 'HDFC Bank' }).bankName).toBe('HDFC Bank')
+    expect(bankPayload({ ...good, bankName: 'x'.repeat(130) }).bankName).toHaveLength(120)
+  })
 })
