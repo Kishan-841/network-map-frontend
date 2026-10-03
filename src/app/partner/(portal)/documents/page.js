@@ -7,10 +7,12 @@ import { usePartnerAuthStore } from '@/stores/partner-auth-store'
 import { uploadFile } from '@/lib/upload'
 import { Button } from '@/components/ui/Button'
 import { IconDoc, IconOkCircle } from '@/components/ui/icons'
+import { BankDetailsForm } from '@/components/partners/BankDetailsForm'
 
 const DOC_META = {
   AADHAAR: { label: 'Aadhaar card', hint: 'Front and back in one image, or a PDF' },
   PAN: { label: 'PAN card', hint: 'A clear photo of the card' },
+  CANCELLED_CHEQUE: { label: 'Cancelled cheque', hint: 'A cheque from this account with "CANCELLED" written across it' },
 }
 
 const STATUS_COPY = {
@@ -86,6 +88,7 @@ export default function PartnerDocumentsPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [tick, setTick] = useState(0)
+  const [savingBank, setSavingBank] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -134,6 +137,19 @@ export default function PartnerDocumentsPage() {
     }
   }
 
+  async function saveBank(payload) {
+    setSavingBank(true)
+    setError(null)
+    try {
+      await partnerApi.put('/partner/bank-account', payload)
+      setTick((t) => t + 1)
+    } catch (err) {
+      setError(getPartnerApiError(err, 'Could not save your bank details'))
+    } finally {
+      setSavingBank(false)
+    }
+  }
+
   async function submit() {
     setBusy(true)
     setError(null)
@@ -153,7 +169,7 @@ export default function PartnerDocumentsPage() {
   }
 
   const have = new Set(data.documents.map((d) => d.type))
-  const complete = data.required.every((t) => have.has(t))
+  const complete = data.required.every((t) => have.has(t)) && Boolean(data.bankAccount)
   const status = STATUS_COPY[data.status] ?? STATUS_COPY.REGISTERED
   const editable = data.status === 'REGISTERED' || data.status === 'REJECTED'
 
@@ -191,13 +207,45 @@ export default function PartnerDocumentsPage() {
               />
             ))}
           </div>
+        </>
+      )}
 
-          {error && (
-            <p className="mt-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
-              {error}
+      {(editable || data.bankAccount || data.bankEditable) && (
+        <section className="mt-4 rounded-card bg-card p-5 shadow-soft">
+          <h2 className="font-bold">Bank account</h2>
+          <p className="mt-1 text-sm font-normal text-muted">Where we pay your commission.</p>
+          {data.bankAccount && (
+            <p className="mt-3 text-sm font-medium">
+              {data.bankAccount.accountHolderName} · {data.bankAccount.accountNumberMasked} · {data.bankAccount.ifsc}
+              {data.bankAccount.bankName ? ` · ${data.bankAccount.bankName}` : ''}
             </p>
           )}
+          {data.bankEditable ? (
+            <div className="mt-4">
+              <BankDetailsForm
+                key={data.bankAccount?.accountNumberMasked ?? 'new'}
+                initial={data.bankAccount}
+                client={partnerApi}
+                lookupPath="/partner/ifsc"
+                busy={savingBank}
+                submitLabel={data.bankAccount ? 'Update bank details' : 'Save bank details'}
+                onSubmit={saveBank}
+              />
+            </div>
+          ) : (
+            <p className="mt-3 text-xs font-normal text-muted">Locked — contact your partner manager to change it.</p>
+          )}
+        </section>
+      )}
 
+      {error && (
+        <p className="mt-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
+          {error}
+        </p>
+      )}
+
+      {editable && (
+        <>
           <Button
             className="mt-4"
             fullWidth
@@ -205,7 +253,7 @@ export default function PartnerDocumentsPage() {
             disabled={!complete}
             onClick={submit}
           >
-            {complete ? 'Submit for approval' : 'Upload all documents to continue'}
+            {complete ? 'Submit for approval' : 'Add all documents and bank details to continue'}
           </Button>
 
           {/* Deliberately styled as scaffolding rather than a feature: dashed,
