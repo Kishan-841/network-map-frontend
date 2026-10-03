@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal'
 import { DataTable } from '@/components/ui/DataTable'
 import { IconPlus, IconUsers } from '@/components/ui/icons'
 import { AddPartnerModal } from '@/components/partners/AddPartnerModal'
+import { BankAccountModal } from '@/components/partners/BankAccountPanel'
 
 const STATUS_STYLE = {
   REGISTERED: 'bg-paper text-muted',
@@ -98,6 +99,7 @@ function InviteModal({ invite, onClose }) {
 export default function PartnersPage() {
   const role = useAuthStore((s) => s.user?.role)
   const [adding, setAdding] = useState(false)
+  const [bankFor, setBankFor] = useState(null)
   const [notice, setNotice] = useState(null)
   const [partners, setPartners] = useState(null)
   const [invites, setInvites] = useState([])
@@ -227,6 +229,23 @@ export default function PartnersPage() {
       render: (p) => dateFormat.format(new Date(p.onboardedAt)),
       className: 'tabular-nums text-muted',
     },
+    ...(role === 'ADMIN'
+      ? [
+          {
+            key: 'bank',
+            header: '',
+            render: (p) => (
+              <button
+                type="button"
+                onClick={() => setBankFor({ id: p.id, name: p.name })}
+                className="whitespace-nowrap text-sm font-medium text-fiber underline-offset-2 hover:underline"
+              >
+                Bank details
+              </button>
+            ),
+          },
+        ]
+      : []),
   ]
 
   const pendingInvites = invites.filter((i) => !i.usedAt && !i.revokedAt)
@@ -353,6 +372,15 @@ export default function PartnersPage() {
                 <p className="text-[11px] font-normal text-faint">Earned</p>
               </div>
             </div>
+            {role === 'ADMIN' && (
+              <button
+                type="button"
+                onClick={() => setBankFor({ id: p.id, name: p.name })}
+                className="mt-3 w-full rounded-btn border border-line py-2 text-sm font-medium text-fiber"
+              >
+                Bank details
+              </button>
+            )}
           </div>
         )}
         emptyState={
@@ -368,6 +396,14 @@ export default function PartnersPage() {
           </div>
         }
       />
+
+      {bankFor && (
+        <BankAccountModal
+          partnerId={bankFor.id}
+          partnerName={bankFor.name}
+          onClose={() => setBankFor(null)}
+        />
+      )}
 
       {newInvite && <InviteModal invite={newInvite} onClose={() => setNewInvite(null)} />}
     </main>

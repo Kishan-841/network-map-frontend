@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { IconOkCircle } from '@/components/ui/icons'
+import { BankAccountPanel } from '@/components/partners/BankAccountPanel'
 
 const TYPE_LABEL = {
   AGENT: 'Agent',
@@ -14,7 +15,7 @@ const TYPE_LABEL = {
   RETAIL_SHOP: 'Retail shop',
   DSA: 'DSA',
 }
-const DOC_LABEL = { AADHAAR: 'Aadhaar card', PAN: 'PAN card' }
+const DOC_LABEL = { AADHAAR: 'Aadhaar card', PAN: 'PAN card', CANCELLED_CHEQUE: 'Cancelled cheque' }
 const isPdf = (url = '') => url.split('?')[0].toLowerCase().endsWith('.pdf')
 
 /** Documents arrive as short-lived signed URLs; they are not public links. */
@@ -23,6 +24,7 @@ function PartnerCard({ partner, onDone, setError }) {
   const [busy, setBusy] = useState(false)
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  const [docsTick, setDocsTick] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -33,7 +35,7 @@ function PartnerCard({ partner, onDone, setError }) {
     return () => {
       cancelled = true
     }
-  }, [partner.id])
+  }, [partner.id, docsTick])
 
   async function decide(action, body) {
     setBusy(true)
@@ -98,6 +100,10 @@ function PartnerCard({ partner, onDone, setError }) {
         {docs?.length === 0 && (
           <p className="col-span-full text-sm font-normal text-muted">No documents uploaded.</p>
         )}
+      </div>
+
+      <div className="mt-4">
+        <BankAccountPanel partnerId={partner.id} onChanged={() => setDocsTick((t) => t + 1)} />
       </div>
 
       {rejecting && (
