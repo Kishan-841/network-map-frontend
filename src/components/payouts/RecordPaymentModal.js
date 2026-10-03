@@ -108,6 +108,9 @@ export function RecordPaymentModal({ row, onClose, onRecorded, submit }) {
           ['Customers', String(row.count)],
           ['Owed', rupees(row.amount)],
           ['Mobile', row.partnerMobile ? `+91 ${row.partnerMobile}` : null],
+          ['Pay to', row.bankAccount?.accountHolderName ?? 'No bank details on file'],
+          ['Account', row.bankAccount?.accountNumber ?? null],
+          ['IFSC', row.bankAccount ? [row.bankAccount.ifsc, row.bankAccount.bankName, row.bankAccount.branchName].filter(Boolean).join(' · ') : null],
         ]
           .filter(([, v]) => v)
           .map(([label, value]) => (

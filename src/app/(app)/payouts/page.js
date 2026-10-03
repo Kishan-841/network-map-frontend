@@ -98,6 +98,9 @@ export default function PayoutsPage() {
           <p className="truncate text-xs font-normal tabular-nums text-muted">
             +91 {r.partnerMobile}
           </p>
+          <p className="truncate text-xs font-normal text-faint">
+            {r.bankAccount ? `${r.bankAccount.accountNumber} · ${r.bankAccount.ifsc}` : 'No bank details on file'}
+          </p>
         </div>
       ),
     },
@@ -219,6 +222,9 @@ export default function PayoutsPage() {
               <div className="min-w-0">
                 <p className="truncate font-bold">{r.partnerName}</p>
                 <p className="truncate text-sm font-normal text-muted">{monthLabel(r.month)}</p>
+                <p className="truncate text-xs font-normal text-faint">
+                  {r.bankAccount ? `${r.bankAccount.accountNumber} · ${r.bankAccount.ifsc}` : 'No bank details on file'}
+                </p>
               </div>
               <p className="shrink-0 text-lg font-bold tabular-nums">{rupees(r.amount)}</p>
             </div>
