@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bankFormErrors, bankPayload, isIfsc, normalizeAccountNumber, normalizeIfsc } from '../bank'
+import { bankFormErrors, bankPayload, isIfsc, normalizeAccountNumber, normalizeIfsc, payeeLine } from '../bank'
 
 const good = { accountHolderName: 'Asha Patil', accountNumber: '0012 3456 7890', confirmAccountNumber: '001234567890', ifsc: 'hdfc0001234', branchName: 'Cidco', bankName: '' }
 
@@ -30,5 +30,21 @@ describe('bank form', () => {
   it('keeps bankName and clamps it to 120', () => {
     expect(bankPayload({ ...good, bankName: 'HDFC Bank' }).bankName).toBe('HDFC Bank')
     expect(bankPayload({ ...good, bankName: 'x'.repeat(130) }).bankName).toHaveLength(120)
+  })
+})
+
+describe('payeeLine', () => {
+  it('names the holder, number, IFSC and bank on one line', () => {
+    expect(payeeLine({ accountHolderName: 'Asha Patil', accountNumber: '001234567890', ifsc: 'HDFC0001234', bankName: 'HDFC Bank' }))
+      .toBe('Asha Patil · 001234567890 · HDFC0001234 · HDFC Bank')
+  })
+  it('leaves out a missing bank name', () => {
+    expect(payeeLine({ accountHolderName: 'Asha Patil', accountNumber: '001234567890', ifsc: 'HDFC0001234', bankName: null }))
+      .toBe('Asha Patil · 001234567890 · HDFC0001234')
+  })
+  it('says when there is nothing on file, or the row could not be read', () => {
+    expect(payeeLine(null)).toBe('No bank details on file')
+    expect(payeeLine({ accountHolderName: 'Ravi', accountNumber: null, ifsc: 'SBIN0000001', unreadable: true }))
+      .toBe('Bank details unreadable — contact an admin')
   })
 })

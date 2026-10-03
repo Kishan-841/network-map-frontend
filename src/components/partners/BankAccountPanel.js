@@ -96,7 +96,7 @@ export function BankAccountPanel({ partnerId, onChanged }) {
       {error && <p className="mt-2 rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">{error}</p>}
       {editing && (
         <Modal open onClose={() => !busy && setEditing(false)} title="Bank details">
-          <BankDetailsForm initial={bank} client={apiClient} lookupPath={null} busy={busy} onSubmit={save} />
+          <BankDetailsForm initial={bank} client={apiClient} lookupPath="/partners/ifsc" busy={busy} onSubmit={save} />
         </Modal>
       )}
     </div>

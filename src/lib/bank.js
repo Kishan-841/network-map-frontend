@@ -30,3 +30,15 @@ export function bankPayload(form) {
     ...(bankName ? { bankName } : {}),
   }
 }
+
+/**
+ * One line for the payouts list: who, where, which bank. An unreadable row
+ * (the server could not decrypt it) says so instead of showing a number.
+ */
+export function payeeLine(bankAccount) {
+  if (!bankAccount) return 'No bank details on file'
+  if (bankAccount.unreadable) return 'Bank details unreadable — contact an admin'
+  return [bankAccount.accountHolderName, bankAccount.accountNumber, bankAccount.ifsc, bankAccount.bankName]
+    .filter(Boolean)
+    .join(' · ')
+}

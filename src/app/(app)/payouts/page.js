@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { DataTable } from '@/components/ui/DataTable'
 import { IconOkCircle } from '@/components/ui/icons'
 import { RecordPaymentModal, METHODS } from '@/components/payouts/RecordPaymentModal'
+import { payeeLine } from '@/lib/bank'
 
 const methodLabel = (m) => METHODS.find((x) => x.value === m)?.label ?? m
 
@@ -99,7 +100,7 @@ export default function PayoutsPage() {
             +91 {r.partnerMobile}
           </p>
           <p className="truncate text-xs font-normal text-faint">
-            {r.bankAccount ? `${r.bankAccount.accountNumber} · ${r.bankAccount.ifsc}` : 'No bank details on file'}
+            {payeeLine(r.bankAccount)}
           </p>
         </div>
       ),
@@ -223,7 +224,7 @@ export default function PayoutsPage() {
                 <p className="truncate font-bold">{r.partnerName}</p>
                 <p className="truncate text-sm font-normal text-muted">{monthLabel(r.month)}</p>
                 <p className="truncate text-xs font-normal text-faint">
-                  {r.bankAccount ? `${r.bankAccount.accountNumber} · ${r.bankAccount.ifsc}` : 'No bank details on file'}
+                  {payeeLine(r.bankAccount)}
                 </p>
               </div>
               <p className="shrink-0 text-lg font-bold tabular-nums">{rupees(r.amount)}</p>

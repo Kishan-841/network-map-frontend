@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { bankFormErrors, bankPayload, isIfsc, normalizeIfsc } from '@/lib/bank'
@@ -24,17 +24,26 @@ export function BankDetailsForm({ initial, client, lookupPath, onSubmit, submitL
   const errors = attempted ? bankFormErrors(form) : {}
   const set = (patch) => setForm((f) => ({ ...f, ...patch }))
 
+  // The code the newest keystroke left in the box. A lookup answers only if it
+  // is still for that code, so a slow reply for an older code cannot win.
+  const latestIfsc = useRef(form.ifsc)
+
   async function onIfsc(value) {
-    set({ ifsc: value.toUpperCase() })
+    const code = normalizeIfsc(value)
+    latestIfsc.current = code
+    // A new code makes the old bank name wrong — clear it until a lookup for
+    // THIS code says otherwise.
+    set({ ifsc: value.toUpperCase(), bankName: '' })
     setLookup(null)
-    // Staff have no lookup route (it is partner-auth): they pass lookupPath={null}.
     if (!isIfsc(value) || !lookupPath) return
     try {
-      const res = await client.get(`${lookupPath}/${normalizeIfsc(value)}`)
+      const res = await client.get(`${lookupPath}/${code}`)
+      if (latestIfsc.current !== code) return
       const { bank, branch, city } = res.data.data
       setLookup({ text: [bank, branch, city].filter(Boolean).join(', ') })
-      setForm((f) => ({ ...f, bankName: bank ?? f.bankName, branchName: f.branchName || branch || '' }))
+      setForm((f) => ({ ...f, bankName: bank ?? '', branchName: f.branchName || branch || '' }))
     } catch (err) {
+      if (latestIfsc.current !== code) return
       setLookup({ error: err?.response?.status === 404 ? 'We could not find this IFSC code' : null })
     }
   }

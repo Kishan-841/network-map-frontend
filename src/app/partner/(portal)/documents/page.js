@@ -19,7 +19,7 @@ const STATUS_COPY = {
   REGISTERED: {
     tone: 'bg-doc-tint text-doc',
     title: 'Upload your documents',
-    body: 'We verify every partner before they can refer customers. Upload the documents below and we will review them.',
+    body: 'We verify every partner before they can refer customers. Upload the documents and your bank details below and we will review them.',
   },
   PENDING_APPROVAL: {
     tone: 'bg-doc-tint text-doc',
@@ -29,7 +29,7 @@ const STATUS_COPY = {
   REJECTED: {
     tone: 'bg-bad-tint text-bad',
     title: 'We need these again',
-    body: 'Please replace the documents below and submit once more.',
+    body: 'Please replace the Aadhaar, PAN and cheque below, check your bank details, and submit once more.',
   },
   APPROVED: {
     tone: 'bg-ok-tint text-ok',
@@ -169,7 +169,12 @@ export default function PartnerDocumentsPage() {
   }
 
   const have = new Set(data.documents.map((d) => d.type))
-  const complete = data.required.every((t) => have.has(t)) && Boolean(data.bankAccount)
+  // What still stops the submit, in the partner's words — the button names it.
+  const missing = [
+    ...data.required.filter((t) => !have.has(t)).map((t) => DOC_META[t]?.label ?? t),
+    ...(data.bankAccount ? [] : ['Bank account']),
+  ]
+  const complete = missing.length === 0
   const status = STATUS_COPY[data.status] ?? STATUS_COPY.REGISTERED
   const editable = data.status === 'REGISTERED' || data.status === 'REJECTED'
 
@@ -253,7 +258,7 @@ export default function PartnerDocumentsPage() {
             disabled={!complete}
             onClick={submit}
           >
-            {complete ? 'Submit for approval' : 'Add all documents and bank details to continue'}
+            {complete ? 'Submit for approval' : `Still needed: ${missing.join(', ')}`}
           </Button>
 
           {/* Deliberately styled as scaffolding rather than a feature: dashed,

@@ -1,11 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { usePartnerAuthStore } from '@/stores/partner-auth-store'
 import { partnerTypeLabel } from '@/lib/partner-api-client'
 import { ThemePicker } from '@/components/ui/ThemePicker'
 import { Button } from '@/components/ui/Button'
-import { IconLogout } from '@/components/ui/icons'
+import { IconChevronRight, IconDoc, IconLogout } from '@/components/ui/icons'
 
 const STATUS_STYLE = {
   REGISTERED: 'bg-paper text-muted',
@@ -68,6 +69,24 @@ export default function PartnerProfilePage() {
           Need any of these changed? Ask your contact at the company.
         </p>
       </section>
+
+      {/* The only way back to the documents page once approved — the nav drops
+          it then. Bank details (where commission is paid) live there too. */}
+      <Link
+        href="/partner/documents"
+        className="mt-4 flex items-center gap-3 rounded-card bg-card p-5 shadow-soft transition-colors hover:bg-paper"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-muted">
+          <IconDoc className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">Documents &amp; bank account</span>
+          <span className="block truncate text-xs font-normal text-muted">
+            Aadhaar, PAN, cheque and where we pay you
+          </span>
+        </span>
+        <IconChevronRight className="h-4.5 w-4.5 shrink-0 text-faint" />
+      </Link>
 
       <section className="mt-4 rounded-card bg-card p-5 shadow-soft">
         <p className="text-xs font-medium uppercase tracking-wide text-faint">Theme</p>
