@@ -12,6 +12,7 @@ import {
   PENDING_TABS,
   PENDING_ALLOWED,
 } from '@/components/partner/PartnerNav'
+import { CALCULATOR_HREF, isFixedPay, tabsForPartner } from '@/lib/partner-pay'
 
 /** Screens that are a table, and should use the full width available. */
 // Prefix matches. The earnings dashboard is listed separately because
@@ -84,6 +85,14 @@ export default function PartnerPortalLayout({ children }) {
     if (partner.status !== 'APPROVED' && !allowedWhilePending) router.replace('/partner/documents')
   }, [ready, partner, allowedWhilePending, router])
 
+  // Agents, society reps and shops are paid a flat amount per customer, so
+  // they have no calculator; an old link or bookmark lands them back home.
+  const onCalculator = pathname.startsWith(CALCULATOR_HREF)
+  useEffect(() => {
+    if (!ready || !isFixedPay(partner) || !onCalculator) return
+    router.replace(partner.status === 'APPROVED' ? '/partner' : '/partner/documents')
+  }, [ready, partner, onCalculator, router])
+
   if (!hydrated || !token || !ready) {
     return (
       <main className="flex min-h-dvh items-center justify-center">
@@ -95,7 +104,7 @@ export default function PartnerPortalLayout({ children }) {
   // Before approval there is nowhere else to go, so the nav would only offer
   // dead ends — the onboarding screen stands on its own.
   const approved = partner?.status === 'APPROVED'
-  const tabs = approved ? PARTNER_TABS : PENDING_TABS
+  const tabs = tabsForPartner(approved ? PARTNER_TABS : PENDING_TABS, partner)
 
   /**
    * Content width is decided here rather than per page, so there is one place

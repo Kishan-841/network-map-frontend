@@ -140,6 +140,8 @@ function LeadsTable() {
   // Why a conversion can't be priced, said out loud rather than leaving the
   // speed choices silently empty (production once had no rate card rows).
   const [rateCardProblem, setRateCardProblem] = useState(null)
+  // The flat amount per partner type ({ AGENT: 500, … }), for the convert preview.
+  const [fixedAmountByType, setFixedAmountByType] = useState({})
   const canUpdate = CAN_UPDATE_STATUS.includes(role)
 
   useEffect(() => {
@@ -163,6 +165,7 @@ function LeadsTable() {
         if (cancelled) return
         const loaded = res.data.data.rates ?? []
         setRates(loaded)
+        setFixedAmountByType(res.data.data.fixedAmountByType ?? {})
         setRateCardProblem(loaded.length ? null : "The rate card isn't set up yet, so a conversion can't be priced.")
       })
       .catch((err) => {
@@ -457,6 +460,7 @@ function LeadsTable() {
           lead={editing}
           rates={rates}
           rateCardProblem={rateCardProblem}
+          fixedAmountByType={fixedAmountByType}
           onCancel={() => setEditing(null)}
           onSave={async (changes) => {
             await saveLead(editing, changes)

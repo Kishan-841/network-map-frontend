@@ -34,7 +34,7 @@ const chip = (selected) =>
  * Mounted only while a lead is open and keyed on it, so the next lead starts
  * blank rather than inheriting this one's note.
  */
-export function EditLeadModal({ lead, rates, rateCardProblem = null, onCancel, onSave }) {
+export function EditLeadModal({ lead, rates, rateCardProblem = null, fixedAmountByType = {}, onCancel, onSave }) {
   const [status, setStatus] = useState(lead.status)
   const [note, setNote] = useState('')
   const [speedMbps, setSpeedMbps] = useState(lead.requirementMbps ?? null)
@@ -52,6 +52,12 @@ export function EditLeadModal({ lead, rates, rateCardProblem = null, onCancel, o
       null,
     [rates, speedMbps, billingPeriod],
   )
+  // `amount` above also says the plan is one we sell (null = not sold), so it
+  // stays the validity check. What the partner will actually earn: agents,
+  // society reps and shops are paid a flat amount (the server's
+  // fixedAmountByType); a DSA is paid the rate.
+  const flat = fixedAmountByType[lead.partner?.type]
+  const earns = amount != null && flat != null ? flat : amount
 
   // A plan is needed only when this lead is heading to Converted without an
   // earning already behind it.
@@ -84,7 +90,7 @@ export function EditLeadModal({ lead, rates, rateCardProblem = null, onCancel, o
           <span className="min-w-0 text-sm font-normal text-muted">
             {needsPlan && amount != null ? (
               <>
-                Partner earns <span className="font-bold text-ink">{rupees(amount)}</span>
+                Partner earns <span className="font-bold text-ink">{rupees(earns)}</span>
               </>
             ) : needsPlan ? (
               'Record the plan they took'
