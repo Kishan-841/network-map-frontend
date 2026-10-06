@@ -32,6 +32,8 @@ const ROLES = [
   'PERMISSION_EXECUTIVE',
 ]
 const roleLabel = (role) => ROLE_LABELS[role] ?? role
+// Roles that work by zone: surveyors, and team leaders (given zones by their manager).
+const ZONE_ROLES = ['SURVEYOR', 'TEAM_LEADER']
 
 // Keep the assigned-zones line short so it never widens the row (which would
 // push the action buttons into a horizontal scroll). Show a couple of names,
@@ -138,7 +140,7 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
         const patch = { name: form.name, email: form.email }
         if (!isSelf) patch.role = form.role // never let an admin change their own role
         if (form.password.trim()) patch.password = form.password
-        if (form.role === 'SURVEYOR') patch.zoneIds = form.zoneIds
+        if (ZONE_ROLES.includes(form.role)) patch.zoneIds = form.zoneIds
         if (form.role === 'ACQUISITION_AGENT') {
           patch.cityId = territory.cityId || null
           patch.pincodes = pincodeList
@@ -154,7 +156,7 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
         await apiClient.patch(`/users/${initial.id}`, patch)
       } else {
         const body = { ...form }
-        if (body.role !== 'SURVEYOR') delete body.zoneIds
+        if (!ZONE_ROLES.includes(body.role)) delete body.zoneIds
         if (body.role === 'ACQUISITION_AGENT') {
           body.cityId = territory.cityId || null
           body.pincodes = pincodeList
@@ -247,7 +249,7 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
           </>
         )}
 
-        {form.role === 'SURVEYOR' && (
+        {ZONE_ROLES.includes(form.role) && (
           <ZoneMultiSelect
             zones={zones}
             selectedIds={form.zoneIds}
@@ -418,7 +420,7 @@ export default function AdminUsersPage() {
             {youTag(u)}
           </p>
           <p className="truncate text-xs font-normal text-muted">{u.email}</p>
-          {u.role === 'SURVEYOR' && u.assignedZones?.length > 0 && (
+          {ZONE_ROLES.includes(u.role) && u.assignedZones?.length > 0 && (
             <p
               className="mt-0.5 truncate text-xs font-normal text-faint"
               title={u.assignedZones.map((zone) => zone.name).join(', ')}
@@ -461,7 +463,7 @@ export default function AdminUsersPage() {
             {youTag(u)}
           </p>
           <p className="truncate text-sm font-normal text-muted">{u.email}</p>
-          {u.role === 'SURVEYOR' && u.assignedZones?.length > 0 && (
+          {ZONE_ROLES.includes(u.role) && u.assignedZones?.length > 0 && (
             <p
               className="mt-0.5 truncate text-xs font-normal text-faint"
               title={u.assignedZones.map((zone) => zone.name).join(', ')}

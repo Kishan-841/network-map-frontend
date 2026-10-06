@@ -5,12 +5,13 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { ROLE_LABELS } from '@/lib/roles'
+import { ROLE_LABELS, assignTargets } from '@/lib/roles'
 
 /**
  * Assign / distribute the selected buildings to one person on the actor's team.
  * The picker is the actor's own reports (fetched from GET /sales/team); the API
  * re-checks both the target and that every building is in the actor's pool.
+ * Team leaders are not offered: they are given zones (Sales → Team zones).
  */
 export function AssignToTeamModal({ buildingIds, onClose, onDone }) {
   const [team, setTeam] = useState(null) // null = loading
@@ -30,7 +31,7 @@ export function AssignToTeamModal({ buildingIds, onClose, onDone }) {
     }
   }, [])
 
-  const target = (team ?? []).find((u) => u.id === assignedToId) ?? null
+  const target = assignTargets(team).find((u) => u.id === assignedToId) ?? null
 
   async function confirm() {
     setBusy(true)
@@ -74,7 +75,7 @@ export function AssignToTeamModal({ buildingIds, onClose, onDone }) {
           onChange={(e) => setAssignedToId(e.target.value)}
         >
           <option value="">{team === null ? 'Loading your team…' : 'Choose a team member…'}</option>
-          {(team ?? []).map((u) => (
+          {assignTargets(team).map((u) => (
             <option key={u.id} value={u.id}>
               {u.name} · {ROLE_LABELS[u.role] ?? u.role}
             </option>

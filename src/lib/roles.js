@@ -42,6 +42,12 @@ export const isTeamLeader = (role) => role === 'TEAM_LEADER'
 export const isSalesExecutive = (role) => role === 'SALES_EXECUTIVE'
 /** May assign / distribute buildings down the sales chain (mirrors the API's ASSIGNER). */
 export const canAssignSalesBuildings = (role) => ['ADMIN', 'SALES_MANAGER', 'TEAM_LEADER'].includes(role)
+
+/** May give team leaders zones (mirrors the API's /sales/team-leaders gate). */
+export const canManageTeamZones = (role) => role === 'ADMIN' || role === 'SALES_MANAGER'
+
+/** Who the assign picker offers: never a team leader — they work zones now. */
+export const assignTargets = (team) => (team ?? []).filter((u) => u.role !== 'TEAM_LEADER')
 /**
  * May create and edit building CONTENT, whoever logged it. Distinct from
  * administration (users, zones, operators, logs), which stays with ADMIN.

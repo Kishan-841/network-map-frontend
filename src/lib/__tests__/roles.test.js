@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  assignTargets,
+  canManageTeamZones,
   canAssignOlt,
   canEditBuilding,
   canManageFiber,
@@ -153,5 +155,22 @@ describe('permission executive', () => {
     expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/profile')).toBe(false)
     expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/map')).toBe(true)
     expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/admin/users')).toBe(true)
+  })
+})
+
+describe('team zones', () => {
+  it('only admins and sales managers manage team-leader zones', () => {
+    expect(canManageTeamZones('ADMIN')).toBe(true)
+    expect(canManageTeamZones('SALES_MANAGER')).toBe(true)
+    expect(['TEAM_LEADER', 'SALES_EXECUTIVE', 'MANAGER', undefined].some(canManageTeamZones)).toBe(false)
+  })
+  it('the assign picker never offers a team leader (they get zones instead)', () => {
+    const team = [
+      { id: 't', role: 'TEAM_LEADER' },
+      { id: 's', role: 'SALES_EXECUTIVE' },
+      { id: 'm', role: 'SALES_MANAGER' },
+    ]
+    expect(assignTargets(team).map((u) => u.id)).toEqual(['s', 'm'])
+    expect(assignTargets(null)).toEqual([])
   })
 })
