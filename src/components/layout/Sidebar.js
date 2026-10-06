@@ -18,6 +18,7 @@ import {
   isSalesExecutive,
   isPermissionExecutive,
   fiberNavFor,
+  partnerNavFor,
   ROLE_LABELS,
 } from '@/lib/roles'
 import {
@@ -108,9 +109,13 @@ const SALES_LEAD_NAV = [
   { href: '/sales/meetings', label: 'Meetings', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
-// A sales manager also gives their team leaders zones.
+// A sales manager also gives their team leaders zones. They also run the
+// partner network, whose Leads tab means partner leads — so their own sales
+// leads tab says so.
 const SALES_MANAGER_NAV = [
-  ...SALES_LEAD_NAV.slice(0, -1),
+  ...SALES_LEAD_NAV.slice(0, -1).map((item) =>
+    item.href === '/sales/leads' ? { ...item, label: 'Sales leads' } : item,
+  ),
   { href: '/sales/zones', label: 'Team zones', icon: IconMap },
   SALES_LEAD_NAV[SALES_LEAD_NAV.length - 1],
 ]
@@ -233,6 +238,12 @@ export function Sidebar() {
   const FIBER_ITEMS = NAV_GROUPS.flatMap((group) => group.items).filter((item) =>
     fiberHrefs.includes(item.href),
   )
+  // A sales manager also runs four partner-network pages — the admin's own
+  // links, looked up the same way.
+  const partnerHrefs = partnerNavFor(role)
+  const PARTNER_ITEMS = NAV_GROUPS.flatMap((group) => group.items).filter((item) =>
+    partnerHrefs.includes(item.href),
+  )
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', collapsed ? '80px' : '280px')
@@ -339,6 +350,16 @@ export function Sidebar() {
             label="Fiber"
             items={FIBER_ITEMS}
             // Two links, and the whole reason this user was ticked — don't hide them.
+            defaultOpen
+            pathname={pathname}
+            collapsed={collapsed}
+            renderLink={navLink}
+          />
+        )}
+        {PARTNER_ITEMS.length > 0 && (
+          <NavGroup
+            label="Partner network"
+            items={PARTNER_ITEMS}
             defaultOpen
             pathname={pathname}
             collapsed={collapsed}

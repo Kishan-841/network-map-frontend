@@ -10,6 +10,10 @@ const LINKS = [
   { href: '/admin/pops', label: 'POPs' },
   { href: '/admin/closures', label: 'Closures' },
   { href: '/admin/users', label: 'Users' },
+  { href: '/partner-dashboard', label: 'Overview' },
+  { href: '/referrals', label: 'Referrals' },
+  { href: '/payouts', label: 'Payouts' },
+  { href: '/admin/partner-approvals', label: 'Partner approvals' },
 ]
 const user = (role, canManageFiber = false) => ({ role, canManageFiber })
 
@@ -54,5 +58,16 @@ describe('pickExtraNav', () => {
     expect(pickExtraNav(LINKS, undefined)).toEqual([])
     expect(pickExtraNav(LINKS, null)).toEqual([])
     expect(pickExtraNav(undefined, user('ADMIN'))).toEqual([])
+  })
+
+  it('a sales manager gets exactly the four partner-network pages', () => {
+    expect(pickExtraNav(LINKS, user('SALES_MANAGER')).map((i) => i.href).sort()).toEqual(
+      ['/admin/partner-approvals', '/leads', '/partner-dashboard', '/partners'],
+    )
+  })
+
+  it('the rest of the sales team gets none of them', () => {
+    expect(pickExtraNav(LINKS, user('TEAM_LEADER'))).toEqual([])
+    expect(pickExtraNav(LINKS, user('SALES_EXECUTIVE'))).toEqual([])
   })
 })

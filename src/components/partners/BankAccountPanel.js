@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { BankDetailsForm } from './BankDetailsForm'
 
-/** ADMIN only: the full account number, an edit, and a cheque replace. */
+/** Admin and sales manager only: the full account number, an edit, and a cheque replace. */
 export function BankAccountPanel({ partnerId, onChanged }) {
   const [bank, setBank] = useState(undefined)
   const [editing, setEditing] = useState(false)

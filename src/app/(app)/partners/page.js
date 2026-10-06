@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
+import { canApprovePartners } from '@/lib/roles'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -229,7 +230,7 @@ export default function PartnersPage() {
       render: (p) => dateFormat.format(new Date(p.onboardedAt)),
       className: 'tabular-nums text-muted',
     },
-    ...(role === 'ADMIN'
+    ...(canApprovePartners(role)
       ? [
           {
             key: 'bank',
@@ -372,7 +373,7 @@ export default function PartnersPage() {
                 <p className="text-[11px] font-normal text-faint">Earned</p>
               </div>
             </div>
-            {role === 'ADMIN' && (
+            {canApprovePartners(role) && (
               <button
                 type="button"
                 onClick={() => setBankFor({ id: p.id, name: p.name })}

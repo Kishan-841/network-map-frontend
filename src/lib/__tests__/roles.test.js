@@ -8,9 +8,11 @@ import {
   fiberNavFor,
   homePathFor,
   isForbiddenPath,
+  canApprovePartners,
+  mayOpenAdminPath,
+  canManagePartners,
   isPermissionExecutive,
   mayHoldAccess,
-  mayOpenAdminPath,
   ROLE_LABELS,
 } from '../roles'
 
@@ -172,5 +174,41 @@ describe('team zones', () => {
     ]
     expect(assignTargets(team).map((u) => u.id)).toEqual(['s', 'm'])
     expect(assignTargets(null)).toEqual([])
+  })
+})
+
+describe('sales manager and the partner network', () => {
+  it('reaches the four partner pages and their own sales pages, nothing else', () => {
+    for (const path of ['/partner-dashboard', '/partners', '/leads', '/admin/partner-approvals', '/sales', '/sales/leads', '/profile']) {
+      expect(isForbiddenPath('SALES_MANAGER', path)).toBe(false)
+    }
+    for (const path of ['/referrals', '/payouts', '/calculator', '/admin/users', '/buildings', '/map']) {
+      expect(isForbiddenPath('SALES_MANAGER', path)).toBe(true)
+    }
+  })
+
+  it('team leaders and executives stay out of the partner network', () => {
+    for (const role of ['TEAM_LEADER', 'SALES_EXECUTIVE']) {
+      for (const path of ['/partner-dashboard', '/partners', '/leads', '/admin/partner-approvals']) {
+        expect(isForbiddenPath(role, path)).toBe(true)
+      }
+    }
+  })
+
+  it('approves partners like an admin; a partner manager does not', () => {
+    expect(canManagePartners('SALES_MANAGER')).toBe(true)
+    expect(canApprovePartners('SALES_MANAGER')).toBe(true)
+    expect(canApprovePartners('ADMIN')).toBe(true)
+    expect(canApprovePartners('PARTNER_MANAGER')).toBe(false)
+    expect(canApprovePartners('TEAM_LEADER')).toBe(false)
+  })
+
+  it('opens the Partner approvals page inside /admin, and no other admin page', () => {
+    const sm = { role: 'SALES_MANAGER' }
+    expect(mayOpenAdminPath(sm, '/admin/partner-approvals')).toBe(true)
+    expect(mayOpenAdminPath(sm, '/admin/users')).toBe(false)
+    expect(mayOpenAdminPath({ role: 'ADMIN' }, '/admin/partner-approvals')).toBe(true)
+    expect(mayOpenAdminPath({ role: 'PARTNER_MANAGER' }, '/admin/partner-approvals')).toBe(false)
+    expect(mayOpenAdminPath({ role: 'TEAM_LEADER' }, '/admin/partner-approvals')).toBe(false)
   })
 })

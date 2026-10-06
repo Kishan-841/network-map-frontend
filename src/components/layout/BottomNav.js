@@ -80,9 +80,13 @@ const SALES_LEAD_NAV = [
   { href: '/sales/meetings', label: 'Meetings', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
-// A sales manager also gives their team leaders zones.
+// A sales manager also gives their team leaders zones. They also run the
+// partner network, whose Leads tab means partner leads — so their own sales
+// leads tab says so.
 const SALES_MANAGER_NAV = [
-  ...SALES_LEAD_NAV.slice(0, -1),
+  ...SALES_LEAD_NAV.slice(0, -1).map((item) =>
+    item.href === '/sales/leads' ? { ...item, label: 'Sales leads' } : item,
+  ),
   { href: '/sales/zones', label: 'Team zones', icon: IconMap },
   SALES_LEAD_NAV[SALES_LEAD_NAV.length - 1],
 ]

@@ -118,10 +118,17 @@ const isFiberPage = (pathname) =>
 
 /**
  * The /admin section's gate. The fiber pages follow the tick — so an unticked
- * manager is kept out of them — and everything else stays ADMIN / MANAGER.
+ * manager is kept out of them; partner approvals follow canApprovePartners —
+ * and everything else stays ADMIN / MANAGER.
  */
 export const mayOpenAdminPath = (user, pathname) =>
-  isFiberPage(pathname) ? canManageFiber(user) : ['ADMIN', 'MANAGER'].includes(user?.role)
+  isFiberPage(pathname)
+    ? canManageFiber(user)
+    : // Partner approvals follow who may approve (admin, sales manager) — the
+      // same people the API lets through.
+      pathname.startsWith('/admin/partner-approvals')
+      ? canApprovePartners(user?.role)
+      : ['ADMIN', 'MANAGER'].includes(user?.role)
 
 /**
  * Sidebar links for a ticked user who is not an admin. The admin already has
@@ -132,11 +139,24 @@ export const fiberNavFor = (user) =>
 
 /**
  * May work the partner network — recruit partners, see their leads, quote the
- * rate card. An admin does everything a partner manager does; the difference
- * is that a partner manager does ONLY this, and sees only their own partners.
- * Mirrors the API, which scopes every partner query by `role !== 'ADMIN'`.
+ * rate card. A partner manager does ONLY this and sees only their own
+ * partners; an admin and a sales manager see the whole network. Mirrors the
+ * API (`backend/src/lib/partner-access.js`).
  */
-export const canManagePartners = (role) => ['ADMIN', 'PARTNER_MANAGER'].includes(role)
+export const canManagePartners = (role) => ['ADMIN', 'PARTNER_MANAGER', 'SALES_MANAGER'].includes(role)
+
+/**
+ * May approve or reject partners, and see / edit their documents and bank
+ * details (full account number) — an admin, and a sales manager (owner's
+ * choice, 6 Oct). Mirrors the API's PARTNER_APPROVERS.
+ */
+export const canApprovePartners = (role) => ['ADMIN', 'SALES_MANAGER'].includes(role)
+
+/** The four partner-network pages a sales manager works, beside their sales tabs. */
+export const SALES_MANAGER_PARTNER_HREFS = ['/partner-dashboard', '/partners', '/leads', '/admin/partner-approvals']
+
+/** Partner-network links this role gets on top of its own nav (sidebar group / phone More). */
+export const partnerNavFor = (role) => (role === 'SALES_MANAGER' ? SALES_MANAGER_PARTNER_HREFS : [])
 
 export const DESIGNATIONS = [
   { value: 'CHAIRMAN', label: 'Chairman' },
@@ -216,7 +236,12 @@ export const isForbiddenPath = (role, pathname, user) => {
   if (isFiberPage(pathname) && canManageFiber(user)) return false
   // Allow-list: the sales team reach only /sales and /profile, whatever new
   // staff route is added elsewhere.
-  if (isSales(role)) return !SALES_ALLOWED.some((p) => pathname.startsWith(p))
+  // A sales manager also runs four partner-network pages (and only those —
+  // not referrals, payouts or the calculator).
+  if (isSales(role)) {
+    const allowed = role === 'SALES_MANAGER' ? [...SALES_ALLOWED, ...SALES_MANAGER_PARTNER_HREFS] : SALES_ALLOWED
+    return !allowed.some((p) => pathname.startsWith(p))
+  }
   // Allow-list: a permission executive reaches only /societies and /profile.
   if (isPermissionExecutive(role)) return !PERMISSION_ALLOWED.some((p) => pathname.startsWith(p))
   if (isAcquisition(role)) return COVERAGE_ONLY.some((p) => pathname.startsWith(p))
