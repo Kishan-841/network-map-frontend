@@ -137,6 +137,9 @@ function LeadsTable() {
   const [calling, setCalling] = useState(null)
   const now = useMinute()
   const [rates, setRates] = useState([])
+  // Why a conversion can't be priced, said out loud rather than leaving the
+  // speed choices silently empty (production once had no rate card rows).
+  const [rateCardProblem, setRateCardProblem] = useState(null)
   const canUpdate = CAN_UPDATE_STATUS.includes(role)
 
   useEffect(() => {
@@ -156,8 +159,15 @@ function LeadsTable() {
     let cancelled = false
     apiClient
       .get('/rate-card')
-      .then((res) => !cancelled && setRates(res.data.data.rates ?? []))
-      .catch(() => {})
+      .then((res) => {
+        if (cancelled) return
+        const loaded = res.data.data.rates ?? []
+        setRates(loaded)
+        setRateCardProblem(loaded.length ? null : "The rate card isn't set up yet, so a conversion can't be priced.")
+      })
+      .catch((err) => {
+        if (!cancelled) setRateCardProblem(getApiErrorMessage(err, "Couldn't load the rate card, so a conversion can't be priced."))
+      })
     return () => {
       cancelled = true
     }
@@ -446,6 +456,7 @@ function LeadsTable() {
           key={editing.id}
           lead={editing}
           rates={rates}
+          rateCardProblem={rateCardProblem}
           onCancel={() => setEditing(null)}
           onSave={async (changes) => {
             await saveLead(editing, changes)

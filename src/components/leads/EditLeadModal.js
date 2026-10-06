@@ -34,7 +34,7 @@ const chip = (selected) =>
  * Mounted only while a lead is open and keyed on it, so the next lead starts
  * blank rather than inheriting this one's note.
  */
-export function EditLeadModal({ lead, rates, onCancel, onSave }) {
+export function EditLeadModal({ lead, rates, rateCardProblem = null, onCancel, onSave }) {
   const [status, setStatus] = useState(lead.status)
   const [note, setNote] = useState('')
   const [speedMbps, setSpeedMbps] = useState(lead.requirementMbps ?? null)
@@ -150,6 +150,11 @@ export function EditLeadModal({ lead, rates, onCancel, onSave }) {
             <legend className="text-xs font-medium uppercase tracking-wide text-faint">
               Speed they took
             </legend>
+            {rateCardProblem && (
+              <p role="alert" className="mt-2 rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">
+                {rateCardProblem}
+              </p>
+            )}
             <div className="mt-2 flex flex-wrap gap-2">
               {speeds.map((value) => (
                 <button
