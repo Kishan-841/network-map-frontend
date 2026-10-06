@@ -92,7 +92,7 @@ export default function AppReleasesPage() {
         <div className="mt-4 flex flex-col gap-3">
           <Input id="rel-version" label="Version (as in app.json)" placeholder="1.2.0" value={version} error={formError} onChange={(e) => setVersion(e.target.value)} />
           <Input id="rel-notes" label="What changed (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          <input type="file" accept=".apk,application/vnd.android.package-archive" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          <input key={tick} type="file" aria-label="APK file" accept=".apk,application/vnd.android.package-archive" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           {progress != null && (
             <div className="h-2 w-full overflow-hidden rounded-full bg-paper">
               <div className="h-full bg-fiber transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
@@ -111,6 +111,7 @@ export default function AppReleasesPage() {
           <b>{data?.minimumSupportedVersion ?? '…'}</b>.
         </p>
         <select
+          aria-label="Minimum version allowed"
           className="mt-3 rounded-btn border border-line bg-card px-3 py-2 text-sm"
           value={data?.minimumSupportedVersion ?? '0.0.0'}
           onChange={(e) => setMinimum(e.target.value)}
