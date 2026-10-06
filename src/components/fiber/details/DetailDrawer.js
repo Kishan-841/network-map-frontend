@@ -8,9 +8,22 @@ import PopDetails from './PopDetails'
 import FiberDetails from './FiberDetails'
 import ClosureDetails from './ClosureDetails'
 import BuildingDetails from './BuildingDetails'
+import SplitterDetails from './SplitterDetails'
 
-const TITLES = { pop: 'POP details', fiber: 'Fiber details', closure: 'Closure details', building: 'Building details' }
-const BODIES = { pop: PopDetails, fiber: FiberDetails, closure: ClosureDetails, building: BuildingDetails }
+const TITLES = {
+  pop: 'POP details',
+  fiber: 'Fiber details',
+  closure: 'Closure details',
+  building: 'Building details',
+  splitter: 'Splitter details',
+}
+const BODIES = {
+  pop: PopDetails,
+  fiber: FiberDetails,
+  closure: ClosureDetails,
+  building: BuildingDetails,
+  splitter: SplitterDetails,
+}
 
 /**
  * The one place a POP, fiber, closure or building is read in full — on the
@@ -114,6 +127,8 @@ export default function DetailDrawer({ stack, onOpen, onBack, onClose, onCentre,
             onOpen={onOpen}
             onCentre={onCentre}
             onEdit={entry.kind === 'fiber' ? onEditFiber : entry.kind === 'pop' ? onEditPop : undefined}
+            // A deleted record has nothing left to show.
+            onDeleted={() => onClose?.()}
           />
         </div>
       </aside>

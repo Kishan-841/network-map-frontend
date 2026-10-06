@@ -104,6 +104,7 @@ const FIBER_PAGES = [
   { href: '/admin/fiber', label: 'Fibers' },
   { href: '/admin/closures', label: 'Closures' },
   { href: '/admin/pops', label: 'POPs' },
+  { href: '/admin/splitters', label: 'Splitters' },
 ]
 export const FIBER_PAGE_HREFS = FIBER_PAGES.map(({ href }) => href)
 const isFiberPage = (pathname) =>

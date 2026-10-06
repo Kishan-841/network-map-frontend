@@ -14,6 +14,7 @@ import {
   IconDashboard,
   IconHome,
   IconCrosshair,
+  IconDiamond,
 } from '@/components/ui/icons'
 
 /**
@@ -55,6 +56,7 @@ export const NAV_GROUPS = [
       { href: '/admin/fiber', label: 'Fibers', icon: IconNavigate },
       { href: '/admin/pops', label: 'POPs', icon: IconHome },
       { href: '/admin/closures', label: 'Closures', icon: IconCrosshair },
+      { href: '/admin/splitters', label: 'Splitters', icon: IconDiamond },
       { href: '/admin/building-types', label: 'Building types', icon: IconBuildings },
       { href: '/admin/users', label: 'Users', icon: IconUser },
       { href: '/admin/system-logs', label: 'System logs', icon: IconLogs },
@@ -82,6 +84,7 @@ const SUBTITLES = {
   '/admin/fiber': 'Cables on the map',
   '/admin/pops': 'Sites and OLTs',
   '/admin/closures': 'Splice boxes and splitters',
+  '/admin/splitters': 'Splitters and their ports',
   '/admin/building-types': 'Form options',
   '/admin/users': 'Team & roles',
   '/admin/system-logs': 'Audit trail',
@@ -99,6 +102,7 @@ export const MANAGE_LINKS = NAV_GROUPS.flatMap((group) =>
       '/admin/fiber',
       '/admin/pops',
       '/admin/closures',
+      '/admin/splitters',
       '/admin/building-types',
     ].includes(item.href),
   })),

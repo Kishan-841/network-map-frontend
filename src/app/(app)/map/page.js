@@ -116,6 +116,7 @@ function CoverageMapPage() {
         onPopSelect={(pop) => details.open('pop', pop.id)}
         onFiberSelect={(id) => details.open('fiber', id)}
         onClosureSelect={(id) => details.open('closure', id)}
+        onSplitterSelect={(id) => details.open('splitter', id)}
         centreRef={centreRef}
       />
 

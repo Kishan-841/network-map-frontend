@@ -1,6 +1,7 @@
 'use client'
 
 import { createSessionResource } from '@/lib/session-resource'
+import { invalidateSplitters } from './useSplitters'
 
 const useClosuresResource = createSessionResource('/closures')
 
@@ -10,4 +11,9 @@ export function useClosures() {
   return { closures: data, loading }
 }
 
-export const invalidateClosures = () => useClosuresResource.invalidate()
+// Every splitter change (add/delete in a closure, a line splitter saved with a
+// fiber) already invalidates closures, so the Splitters list refreshes with it.
+export const invalidateClosures = () => {
+  useClosuresResource.invalidate()
+  invalidateSplitters()
+}

@@ -59,6 +59,7 @@ export default function GoogleBuildingsMap({
   onSelect,
   onFiberSelect,
   onClosureSelect,
+  onSplitterSelect,
   onPopSelect,
   centreRef,
 }) {
@@ -261,9 +262,10 @@ export default function GoogleBuildingsMap({
       focusRef.current?.(fiber.points)
     },
     onPointClick: (point, fiber) => {
-      // A closure — splitter icon or not — opens the closure popup; a splitter
-      // that IS a point on the line belongs to the fiber, so open that.
+      // A closure — splitter icon or not — opens the closure drawer; a splitter
+      // point opens its own drawer (which links to the fiber it sits on).
       if (point.type === 'CLOSURE' && point.closureId) onClosureSelect?.(point.closureId)
+      else if (point.type === 'SPLITTER' && point.splitterId && onSplitterSelect) onSplitterSelect(point.splitterId)
       else if (point.type === 'SPLITTER' && fiber) onFiberSelect?.(fiber.id)
       focusRef.current?.(point)
     },

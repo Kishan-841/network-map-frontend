@@ -3,9 +3,9 @@
  *
  * The drawer holds a short history, so following a link inside it (a closure →
  * a fiber through it → the POP that fiber starts at) can be walked back one
- * step at a time. Entries are `{ kind: 'pop' | 'fiber' | 'closure', id }`.
+ * step at a time. Entries are `{ kind: 'pop' | 'fiber' | 'closure' | 'building' | 'splitter', id }`.
  */
-export const DETAIL_KINDS = ['pop', 'fiber', 'closure', 'building']
+export const DETAIL_KINDS = ['pop', 'fiber', 'closure', 'building', 'splitter']
 
 const same = (a, b) => a?.kind === b?.kind && a?.id === b?.id
 const valid = (entry) => DETAIL_KINDS.includes(entry?.kind) && Boolean(entry?.id)

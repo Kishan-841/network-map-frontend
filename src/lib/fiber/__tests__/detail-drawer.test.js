@@ -21,6 +21,12 @@ describe('detail drawer history', () => {
     expect(pushEntry([closure, fiber], closure)).toEqual([closure])
   })
 
+  it('opens a splitter, and walks from a closure into one of its splitters', () => {
+    const splitter = { kind: 'splitter', id: 's1' }
+    expect(openEntry([], splitter)).toEqual([splitter])
+    expect(pushEntry([closure], splitter)).toEqual([closure, splitter])
+  })
+
   it('ignores opening what is already on top, and anything malformed', () => {
     const stack = [fiber]
     expect(pushEntry(stack, fiber)).toBe(stack)

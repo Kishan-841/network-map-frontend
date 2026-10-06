@@ -54,9 +54,13 @@ function SplitterCard({ splitter, fiberById, canManage, busy, onOpen, onDelete }
   return (
     <div className="flex flex-col gap-2 rounded-card border border-line p-3">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-bold text-ink">
+        <button
+          type="button"
+          onClick={() => onOpen({ kind: 'splitter', id: splitter.id })}
+          className="min-h-11 text-left text-sm font-bold text-ink underline-offset-2 hover:underline"
+        >
           {splitter.code ?? 'Splitter'} · {RATIO_LABELS[splitter.ratio] ?? splitter.ratio}
-        </p>
+        </button>
         {canManage && (
           <button
             type="button"

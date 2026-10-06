@@ -74,11 +74,12 @@ describe('isForbiddenPath', () => {
 })
 
 describe('fiberNavFor', () => {
-  it('gives a ticked non-admin the Fibers and Closures links', () => {
+  it('gives a ticked non-admin the Fibers, Closures, POPs and Splitters links', () => {
     expect(fiberNavFor(user('SURVEYOR', true)).map((item) => item.href)).toEqual([
       '/admin/fiber',
       '/admin/closures',
       '/admin/pops',
+      '/admin/splitters',
     ])
   })
 
