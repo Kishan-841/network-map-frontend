@@ -14,6 +14,7 @@ import { CheckInModal } from '@/components/sales/CheckInModal'
 import { OpenVisitCard } from '@/components/sales/OpenVisitCard'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
 import { Toast } from '@/components/ui/Toast'
+import MapSearchBox from '@/components/map/MapSearchBox'
 
 const BuildingsMap = dynamic(() => import('@/components/map/BuildingsMap'), { ssr: false })
 const DetailDrawer = dynamic(() => import('@/components/fiber/details/DetailDrawer'), { ssr: false })
@@ -56,6 +57,9 @@ export default function SalesMapPage() {
   const { zones } = useZones(isTL)
   const details = useDetailStack()
   const centreRef = useRef(null)
+  const viewRef = useRef(null)
+  // The place picked in the search box — a red pin, only on this screen.
+  const [searchPin, setSearchPin] = useState(null)
   const shownFibers = useMemo(() => (isTL && fiberShown && fibers ? fibers : NONE), [isTL, fiberShown, fibers])
   const shownPops = isTL && popsShown && pops?.length ? pops : NONE
 
@@ -98,10 +102,28 @@ export default function SalesMapPage() {
         onClosureSelect={(id) => details.open('closure', id)}
         onSplitterSelect={(id) => details.open('splitter', id)}
         centreRef={centreRef}
+        viewRef={viewRef}
+        searchPin={searchPin}
       />
 
-      {/* Title + hint */}
-      <div className="pointer-events-none absolute inset-x-3 top-3 z-40 lg:inset-x-6 lg:top-6">
+      {/* Search, then title + hint */}
+      <div className="pointer-events-none absolute inset-x-3 top-3 z-40 flex flex-col items-start gap-2 lg:inset-x-6 lg:top-6">
+        <div className="pointer-events-auto flex w-full">
+          <MapSearchBox
+            buildings={buildings}
+            getCenter={() => viewRef.current?.()}
+            pinned={searchPin != null}
+            onPlace={(pin) => {
+              setSearchPin(pin)
+              centreRef.current?.(pin)
+            }}
+            onBuilding={(building) => {
+              centreRef.current?.(building)
+              onSelect(building)
+            }}
+            onClear={() => setSearchPin(null)}
+          />
+        </div>
         <div className="inline-flex flex-col rounded-xl border border-line bg-card/95 px-4 py-2 shadow-md backdrop-blur">
           <span className="text-sm font-semibold text-ink">Field map</span>
           <span className="text-xs font-normal text-muted">

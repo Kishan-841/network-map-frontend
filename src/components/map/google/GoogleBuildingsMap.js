@@ -62,6 +62,8 @@ export default function GoogleBuildingsMap({
   onSplitterSelect,
   onPopSelect,
   centreRef,
+  viewRef,
+  searchPin = null,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
@@ -133,6 +135,13 @@ export default function GoogleBuildingsMap({
       }
       focusRef.current = focus
       if (centreRef) centreRef.current = focus
+      // Where the user is looking, so a place search finds the nearby match first.
+      if (viewRef) {
+        viewRef.current = () => {
+          const centre = pooledMap.getCenter()
+          return centre ? { latitude: centre.lat(), longitude: centre.lng() } : {}
+        }
+      }
       clustererRef.current = new MarkerClusterer({
         map: mapRef.current,
         markers: [],
@@ -149,6 +158,7 @@ export default function GoogleBuildingsMap({
       markersRef.current.clear()
       focusRef.current = null
       if (centreRef) centreRef.current = null
+      if (viewRef) viewRef.current = null
       zoneOverlaysRef.current.forEach((overlay) => overlay.setMap(null))
       zoneOverlaysRef.current = []
       // Detach (never destroy) the pooled map so the next visit is free.
@@ -291,6 +301,22 @@ export default function GoogleBuildingsMap({
       focusRef.current?.(pop.position)
     },
   })
+
+  // The searched place: Google's own red pin, like Google Maps. Not clustered,
+  // above every building and POP pin, and it never hides another layer.
+  const searchLat = searchPin?.latitude
+  const searchLng = searchPin?.longitude
+  const searchLabel = searchPin?.label
+  useEffect(() => {
+    if (!map || !ready || searchLat == null || searchLng == null) return
+    const marker = new google.maps.Marker({
+      map,
+      position: { lat: searchLat, lng: searchLng },
+      title: searchLabel || 'Searched place',
+      zIndex: google.maps.Marker.MAX_ZINDEX + 200000,
+    })
+    return () => marker.setMap(null)
+  }, [map, ready, searchLat, searchLng, searchLabel])
 
   // Diff markers against the buildings prop — never tear down the world.
   // Selection is handled in its own effect so a tap only re-icons two pins.

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useBuildingMarkers } from '@/hooks/useBuildingMarkers'
@@ -15,7 +15,7 @@ import { FilterSheet } from '@/components/map/FilterSheet'
 import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 import { MapLegend } from '@/components/map/MapLegend'
 import { Fab } from '@/components/ui/Fab'
-import { IconSearch } from '@/components/ui/icons'
+import MapSearchBox from '@/components/map/MapSearchBox'
 
 const BuildingsMap = dynamic(() => import('@/components/map/BuildingsMap'), { ssr: false })
 // Client-only, and only ever mounted once something on the map is clicked.
@@ -40,14 +40,9 @@ function CoverageMapPage() {
   const user = useAuthStore((s) => s.user)
   const readOnlyFiber = !canManageFiber(user)
   const [filters, setFilters] = useState({})
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-
-  // One API call per pause in typing — not one per keystroke.
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 350)
-    return () => clearTimeout(timer)
-  }, [search])
+  // The place picked in the search box: a red pin, on top of whatever layers
+  // are switched on. Only on this screen — never saved.
+  const [searchPin, setSearchPin] = useState(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
   // Legend-driven declutter toggles.
   const [buildingsShown, setBuildingsShown] = useState(true)
@@ -83,6 +78,8 @@ function CoverageMapPage() {
   const details = useDetailStack()
   // Filled by the map once it is live: centre the view on one point.
   const centreRef = useRef(null)
+  // Filled by the map once it is live: where the view is centred now.
+  const viewRef = useRef(null)
 
   // Every building in scope, fetched once per session — the map is not a page
   // of results. Reading the paginated list at pageSize=500 is what capped it.
@@ -90,8 +87,8 @@ function CoverageMapPage() {
   // Filtering happens here rather than on the server: the whole set is already
   // in memory, so a filter change is instant and costs no request.
   const buildings = useMemo(
-    () => filterMarkers(markers, { ...filters, search: debouncedSearch }),
-    [markers, filters, debouncedSearch],
+    () => filterMarkers(markers, filters),
+    [markers, filters],
   )
   const { zones } = useZones()
   const activeFilterCount = Object.values(filters).filter(Boolean).length
@@ -118,18 +115,26 @@ function CoverageMapPage() {
         onClosureSelect={(id) => details.open('closure', id)}
         onSplitterSelect={(id) => details.open('splitter', id)}
         centreRef={centreRef}
+        viewRef={viewRef}
+        searchPin={searchPin}
       />
 
-      <div className="absolute inset-x-3 top-3 z-40 flex gap-2 lg:inset-x-6 lg:top-6">
-        <div className="relative flex-1 lg:max-w-md">
-          <IconSearch className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-faint" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search building, address, zone…"
-            className="min-h-12 w-full rounded-xl border border-line bg-card pl-11 pr-4 text-base shadow-md outline-none focus:ring-2 focus:ring-fiber/30"
-          />
-        </div>
+      {/* z-[45]: an open results list must sit above the building-count pill (z-40) below it. */}
+      <div className="absolute inset-x-3 top-3 z-[45] flex items-start gap-2 lg:inset-x-6 lg:top-6">
+        <MapSearchBox
+          buildings={markers}
+          getCenter={() => viewRef.current?.()}
+          pinned={searchPin != null}
+          onPlace={(pin) => {
+            setSearchPin(pin)
+            centreRef.current?.(pin)
+          }}
+          onBuilding={(building) => {
+            details.open('building', building.id)
+            centreRef.current?.(building)
+          }}
+          onClear={() => setSearchPin(null)}
+        />
         <button
           onClick={() => setFiltersOpen(true)}
           className="relative min-h-12 rounded-xl border border-line bg-card px-4 font-medium shadow-md transition-colors active:bg-paper"

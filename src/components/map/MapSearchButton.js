@@ -1,24 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { GOOGLE_MAPS_API_KEY } from '@/lib/map-config'
-import { getMapProvider } from '@/lib/map-providers'
-import { googlePlacesProvider } from '@/lib/map-providers/google-places-provider'
+import { MIN_SEARCH_CHARS } from '@/lib/map-search'
 import { IconClose, IconSearch } from '@/components/ui/icons'
+import { newSessionToken, resolvePlace, usePlaceSearch } from './usePlaceSearch'
 
-const MIN_CHARS = 3
-const DEBOUNCE_MS = 350
 const MAX_RESULTS = 6
 // A small map (the form pickers are 16rem tall) clips a long list — fewer rows.
 const MAX_RESULTS_COMPACT = 4
-
-// Google Places (New) whenever the key is configured — a technician searching
-// an Indian address needs Google's index, whatever NEXT_PUBLIC_MAP_PROVIDER
-// says the *display* stack is. Nominatim stays the keyless fallback.
-const searchProvider = () => (GOOGLE_MAPS_API_KEY ? googlePlacesProvider : getMapProvider())
-
-const newToken = () =>
-  typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
 
 /**
  * Location search, folded away until it is wanted: a round button in a top
@@ -36,80 +25,39 @@ const newToken = () =>
 export default function MapSearchButton({ getCenter, onJump, align = 'right', compact = false }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState([])
-  const [status, setStatus] = useState('idle') // idle | loading | done | error
   const [token, setToken] = useState(null)
+  const { results, status } = usePlaceSearch({
+    query,
+    token,
+    enabled: open,
+    getCenter,
+    limit: compact ? MAX_RESULTS_COMPACT : MAX_RESULTS,
+  })
+  const [pickError, setPickError] = useState(false)
 
-  // Mirrors so a caller passing fresh arrows never re-runs the debounce.
-  const getCenterRef = useRef(getCenter)
+  // Mirror so a caller passing a fresh arrow never matters.
   const onJumpRef = useRef(onJump)
   useEffect(() => {
-    getCenterRef.current = getCenter
     onJumpRef.current = onJump
   })
 
   const close = useCallback(() => {
     setOpen(false)
     setQuery('')
-    setResults([])
-    setStatus('idle')
     setToken(null)
+    setPickError(false)
   }, [])
 
-  useEffect(() => {
-    if (!open) return
-    const input = query.trim()
-    const controller = new AbortController()
-    const timer = setTimeout(
-      () => {
-        if (input.length < MIN_CHARS) {
-          setResults([])
-          setStatus('idle')
-          return
-        }
-        setStatus('loading')
-        const center = getCenterRef.current?.() ?? {}
-        searchProvider()
-          .autocomplete({
-            input,
-            latitude: center.latitude,
-            longitude: center.longitude,
-            sessionToken: token,
-            signal: controller.signal,
-          })
-          .then((predictions) => {
-            setResults(predictions.slice(0, compact ? MAX_RESULTS_COMPACT : MAX_RESULTS))
-            setStatus('done')
-          })
-          .catch((err) => {
-            if (err?.name === 'AbortError') return
-            setResults([])
-            setStatus('error')
-          })
-      },
-      input.length < MIN_CHARS ? 0 : DEBOUNCE_MS,
-    )
-    return () => {
-      clearTimeout(timer)
-      controller.abort()
-    }
-  }, [query, open, token, compact])
-
   async function pick(prediction) {
-    let { latitude, longitude } = prediction
-    if (latitude == null) {
-      try {
-        ;({ latitude, longitude } = await searchProvider().getPlaceDetails({
-          placeId: prediction.placeId,
-          sessionToken: token,
-        }))
-      } catch {
-        setStatus('error')
-        return
-      }
+    let coords
+    try {
+      coords = await resolvePlace(prediction, token)
+    } catch {
+      setPickError(true)
+      return
     }
     close()
-    onJumpRef.current?.({ latitude, longitude })
+    onJumpRef.current?.(coords)
   }
 
   if (!open) {
@@ -117,7 +65,7 @@ export default function MapSearchButton({ getCenter, onJump, align = 'right', co
       <button
         type="button"
         onClick={() => {
-          setToken(newToken())
+          setToken(newSessionToken())
           setOpen(true)
         }}
         aria-label="Search for a location"
@@ -130,7 +78,7 @@ export default function MapSearchButton({ getCenter, onJump, align = 'right', co
     )
   }
 
-  const tooShort = query.trim().length < MIN_CHARS
+  const tooShort = query.trim().length < MIN_SEARCH_CHARS
 
   return (
     // Open, the field spans the map — so it must sit above the layer switch
@@ -168,7 +116,7 @@ export default function MapSearchButton({ getCenter, onJump, align = 'right', co
             compact ? 'max-h-44' : 'max-h-72'
           }`}
         >
-          {status === 'error' && (
+          {(status === 'error' || pickError) && (
             <p className="px-3 py-3 text-sm font-normal text-bad">
               Search is unavailable right now.
             </p>
