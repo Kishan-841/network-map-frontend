@@ -37,6 +37,7 @@ export {
   ScrollText as IconLogs,
   Upload as IconUpload,
   Download as IconDownload,
+  Smartphone as IconSmartphone,
   Eye as IconEye,
   ChevronDown as IconChevronDown,
   Share2 as IconShare,

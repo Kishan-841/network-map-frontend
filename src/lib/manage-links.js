@@ -15,6 +15,7 @@ import {
   IconHome,
   IconCrosshair,
   IconDiamond,
+  IconSmartphone,
 } from '@/components/ui/icons'
 
 /**
@@ -59,6 +60,7 @@ export const NAV_GROUPS = [
       { href: '/admin/splitters', label: 'Splitters', icon: IconDiamond },
       { href: '/admin/building-types', label: 'Building types', icon: IconBuildings },
       { href: '/admin/users', label: 'Users', icon: IconUser },
+      { href: '/admin/app-releases', label: 'App releases', icon: IconSmartphone },
       { href: '/admin/system-logs', label: 'System logs', icon: IconLogs },
     ],
   },
@@ -87,6 +89,7 @@ const SUBTITLES = {
   '/admin/splitters': 'Splitters and their ports',
   '/admin/building-types': 'Form options',
   '/admin/users': 'Team & roles',
+  '/admin/app-releases': 'Partner app versions',
   '/admin/system-logs': 'Audit trail',
 }
 
