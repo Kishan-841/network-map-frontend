@@ -49,7 +49,7 @@ export default function AppReleasesPage() {
       const { data: up } = await apiClient.post('/app-releases/upload-url', { version: v })
       setProgress(0)
       await putFile(up.data.uploadUrl, file, up.data.contentType, setProgress)
-      await apiClient.post('/app-releases', { version: v, ...(notes.trim() ? { notes: notes.trim() } : {}) })
+      await apiClient.post('/app-releases', { version: v, apkKey: up.data.apkKey, ...(notes.trim() ? { notes: notes.trim() } : {}) })
       setNotice(`Version ${v} released. Raise the minimum below if older apps must update.`)
       setVersion('')
       setNotes('')
@@ -109,6 +109,9 @@ export default function AppReleasesPage() {
         <p className="mt-1 text-sm font-normal text-muted">
           Apps older than this show &quot;Update Required&quot; and cannot be used until they update. Currently{' '}
           <b>{data?.minimumSupportedVersion ?? '…'}</b>.
+        </p>
+        <p className="mt-1 text-sm font-normal text-muted">
+          Before raising it, install the new APK over the current one on one real phone — if Android refuses it or it still reports the old version, everyone below the minimum is stuck.
         </p>
         <select
           aria-label="Minimum version allowed"
