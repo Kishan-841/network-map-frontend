@@ -108,6 +108,12 @@ const SALES_LEAD_NAV = [
   { href: '/sales/meetings', label: 'Meetings', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+// A sales manager also gives their team leaders zones.
+const SALES_MANAGER_NAV = [
+  ...SALES_LEAD_NAV.slice(0, -1),
+  { href: '/sales/zones', label: 'Team zones', icon: IconMap },
+  SALES_LEAD_NAV[SALES_LEAD_NAV.length - 1],
+]
 
 /**
  * One collapsible group in the admin sidebar.
@@ -209,7 +215,9 @@ export function Sidebar() {
           : isSales(role)
             ? isSalesExecutive(role)
               ? SALES_NAV
-              : SALES_LEAD_NAV
+              : role === 'SALES_MANAGER'
+                ? SALES_MANAGER_NAV
+                : SALES_LEAD_NAV
             : isPartnerManager(role)
               ? PARTNER_MANAGER_NAV
               : isPermissionExecutive(role)
