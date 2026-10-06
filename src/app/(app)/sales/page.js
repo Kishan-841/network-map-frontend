@@ -332,7 +332,7 @@ function FieldPool({ role }) {
       <PageHeader
         eyebrow="Field sales"
         title="Sales"
-        sub={isExec ? 'The buildings assigned to you' : "Your team's building pool — select to assign"}
+        sub={isExec ? 'The buildings assigned to you' : 'Buildings in your zones and held by your team — select to assign'}
       />
       <Toast key={toast} message={toast} onDone={() => setToast(null)} />
 
@@ -364,7 +364,7 @@ function FieldPool({ role }) {
         renderCard={renderCard}
         emptyState={
           <p className="text-sm font-normal text-muted">
-            {isExec ? 'No buildings are assigned to you yet.' : 'No buildings in your pool yet.'}
+            {isExec ? 'No buildings are assigned to you yet.' : 'No buildings yet. Ask your sales manager to give you a zone.'}
           </p>
         }
       />

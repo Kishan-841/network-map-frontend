@@ -34,6 +34,7 @@ export const NAV_GROUPS = [
     items: [
       { href: '/sales/dashboard', label: 'Sales overview', icon: IconDashboard, exact: true },
       { href: '/sales', label: 'Assign buildings', icon: IconBuildings, exact: true },
+      { href: '/sales/zones', label: 'Team zones', icon: IconMap, exact: true },
     ],
   },
   {
