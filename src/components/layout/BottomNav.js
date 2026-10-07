@@ -10,6 +10,7 @@ import {
   IconPlus,
   IconUser,
   IconCalendar,
+  IconTeamPlan,
   IconWarn,
   IconUsers,
   IconUserPlus,
@@ -23,6 +24,8 @@ import { isAgent, isLead, isSupervisor, isPartnerManager, isAccounts, isSales, i
 import { MANAGE_LINKS } from '@/lib/manage-links'
 import { pickExtraNav } from '@/lib/nav-extras'
 import { MoreSheet, splitNav } from '@/components/layout/MoreSheet'
+import { useOverdueCount, OVERDUE_HREF } from '@/hooks/useOverdueCount'
+import { NavBadge } from '@/components/layout/NavBadge'
 
 const COVERAGE_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
@@ -84,7 +87,7 @@ const SALES_LEAD_NAV = [
   { href: '/sales/overdue', label: 'Overdue', icon: IconWarn },
   { href: '/sales/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/sales/meetings', label: 'Meetings', icon: IconUsers },
-  { href: '/sales/plan', label: 'Team plan', icon: IconCalendar },
+  { href: '/sales/plan', label: 'Team plan', icon: IconTeamPlan },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // A sales manager also gives their team leaders zones. They also run the
@@ -151,6 +154,7 @@ export function BottomNav() {
   ]
 
   const [moreOpen, setMoreOpen] = useState(false)
+  const overdue = useOverdueCount()
   const { visible, overflow } = splitNav(NAV_ITEMS)
   const isActive = (item, path) => (item.exact ? path === item.href : path.startsWith(item.href))
   // "More" lights up when the page you are on lives inside it, so the bar
@@ -176,7 +180,12 @@ export function BottomNav() {
                 aria-current={active ? 'page' : undefined}
                 className={tab(active)}
               >
-                <NavIcon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
+                <span className="relative">
+                  <NavIcon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
+                  {item.href === OVERDUE_HREF && (
+                    <NavBadge count={overdue} className="absolute -right-3 -top-2" />
+                  )}
+                </span>
                 {item.label}
               </Link>
             )
@@ -189,7 +198,12 @@ export function BottomNav() {
               aria-expanded={moreOpen}
               className={tab(inOverflow)}
             >
-              <IconMore className="h-5 w-5" strokeWidth={inOverflow ? 2.2 : 1.8} />
+              <span className="relative">
+                <IconMore className="h-5 w-5" strokeWidth={inOverflow ? 2.2 : 1.8} />
+                {overflow.some((item) => item.href === OVERDUE_HREF) && (
+                  <NavBadge count={overdue} className="absolute -right-3 -top-2" />
+                )}
+              </span>
               More
             </button>
           )}
@@ -201,6 +215,7 @@ export function BottomNav() {
           items={overflow}
           pathname={pathname}
           isActive={isActive}
+          badges={{ [OVERDUE_HREF]: overdue }}
           onClose={() => setMoreOpen(false)}
         />
       )}

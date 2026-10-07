@@ -8,6 +8,8 @@ import { useUiStore } from '@/stores/ui-store'
 import { apiClient } from '@/lib/api-client'
 import { useTheme } from '@/hooks/useTheme'
 import { NAV_GROUPS } from '@/lib/manage-links'
+import { useOverdueCount, OVERDUE_HREF } from '@/hooks/useOverdueCount'
+import { NavBadge } from '@/components/layout/NavBadge'
 import {
   isAgent,
   isLead,
@@ -29,6 +31,7 @@ import {
   IconPlus,
   IconUser,
   IconCalendar,
+  IconTeamPlan,
   IconWarn,
   IconUsers,
   IconUserPlus,
@@ -113,7 +116,7 @@ const SALES_LEAD_NAV = [
   { href: '/sales/overdue', label: 'Overdue', icon: IconWarn },
   { href: '/sales/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/sales/meetings', label: 'Meetings', icon: IconUsers },
-  { href: '/sales/plan', label: 'Team plan', icon: IconCalendar },
+  { href: '/sales/plan', label: 'Team plan', icon: IconTeamPlan },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // A sales manager also gives their team leaders zones. They also run the
@@ -218,6 +221,7 @@ export function Sidebar() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const { sidebarCollapsed: collapsed, toggleSidebar } = useUiStore()
   const { theme, toggle: toggleTheme } = useTheme()
+  const overdue = useOverdueCount()
   const NAV_ITEMS = isAgent(role)
     ? AGENT_NAV
     : isLead(role)
@@ -274,7 +278,7 @@ export function Sidebar() {
         href={href}
         title={collapsed ? label : undefined}
         aria-current={active ? 'page' : undefined}
-        className={`group flex items-center gap-3 rounded-btn py-2.5 text-sm font-medium transition-colors duration-200 ${
+        className={`group relative flex items-center gap-3 rounded-btn py-2.5 text-sm font-medium transition-colors duration-200 ${
           collapsed ? 'justify-center px-0' : 'px-3.5'
         } ${
           active
@@ -289,6 +293,9 @@ export function Sidebar() {
           strokeWidth={1.8}
         />
         {!collapsed && label}
+        {href === OVERDUE_HREF && (
+          <NavBadge count={overdue} className={collapsed ? 'absolute right-3 top-1' : 'ml-auto'} />
+        )}
       </Link>
     )
   }

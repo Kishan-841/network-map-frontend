@@ -11,6 +11,7 @@ export {
   CircleCheck as IconOkCircle,
   Clock as IconClock,
   Calendar as IconCalendar,
+  ClipboardList as IconTeamPlan,
   House as IconHome,
   Triangle as IconTriangle,
   Plus as IconPlus,

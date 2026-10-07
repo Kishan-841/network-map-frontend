@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { IconClose } from '@/components/ui/icons'
+import { NavBadge } from '@/components/layout/NavBadge'
 
 /**
  * The overflow behind a bottom bar's "More" tab.
@@ -11,9 +12,10 @@ import { IconClose } from '@/components/ui/icons'
  * closes it, so escaping never needs a second precise tap.
  *
  * An admin's overflow runs to a dozen or more links, so the list scrolls
- * rather than growing past the top of the screen.
+ * rather than growing past the top of the screen. `badges` maps an href to a
+ * count shown beside that row (the Overdue tab's).
  */
-export function MoreSheet({ items, pathname, onClose, isActive }) {
+export function MoreSheet({ items, pathname, onClose, isActive, badges = {} }) {
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 lg:hidden"
@@ -50,6 +52,7 @@ export function MoreSheet({ items, pathname, onClose, isActive }) {
                 >
                   <Icon className="h-5 w-5 shrink-0" strokeWidth={1.8} />
                   {item.label}
+                  <NavBadge count={badges[item.href]} className="ml-auto" />
                 </Link>
               </li>
             )

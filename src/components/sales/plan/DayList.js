@@ -6,7 +6,7 @@ import { istTime } from '@/lib/visit-task-status'
 import { TaskCard } from './TaskCard'
 
 /** One day's tasks in time order, then the visits that matched no task. */
-export function DayList({ tasks, offPlan = [], canCheckIn = false, onCheckIn }) {
+export function DayList({ tasks, offPlan = [], canCheckIn = false, checkInPending = false, onCheckIn }) {
   return (
     <div>
       {tasks.length === 0 ? (
@@ -17,7 +17,7 @@ export function DayList({ tasks, offPlan = [], canCheckIn = false, onCheckIn }) 
         <ul className="flex flex-col gap-3">
           {tasks.map((t) => (
             <li key={t.id}>
-              <TaskCard task={t} canCheckIn={canCheckIn} onCheckIn={onCheckIn} />
+              <TaskCard task={t} canCheckIn={canCheckIn} checkInPending={checkInPending} onCheckIn={onCheckIn} />
             </li>
           ))}
         </ul>

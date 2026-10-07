@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useOpenVisit } from '@/hooks/useSales'
+import { invalidateOverdueCount } from '@/hooks/useOverdueCount'
 import { monthGrid, weekDays, shiftMonth, todayIst, plusDays } from '@/lib/calendar-grid'
 import { dayLabel } from '@/lib/visit-task-status'
 import { CheckInModal } from '@/components/sales/CheckInModal'
@@ -35,35 +36,36 @@ export function PlanCalendar({ userId, canCheckIn = false }) {
   const [view, setView] = useState('day')
   const [day, setDay] = useState(todayIst)
   const [tick, setTick] = useState(0)
-  // The last response, tagged with the request it answers — "loading" is
-  // simply "the data on hand is for some other range".
+  // The last response, tagged with the range it answers — "loading" is simply
+  // "the data on hand is for some other range". A same-range refetch (after a
+  // check-in) keeps showing the previous data until the new data lands.
   const [data, setData] = useState(null)
   const [checkInFor, setCheckInFor] = useState(null)
   const [notice, setNotice] = useState(null)
   const [toast, setToast] = useState(null)
-  const { visit: openVisit, refresh: refreshOpen } = useOpenVisit(canCheckIn)
+  const { visit: openVisit, loading: openLoading, refresh: refreshOpen } = useOpenVisit(canCheckIn)
 
   const month = day.slice(0, 7)
   const grid = view === 'month' ? monthGrid(month) : null
   const week = view === 'week' ? weekDays(day) : null
   const from = grid ? grid[0][0] : week ? week[0] : day
   const to = grid ? grid.at(-1).at(-1) : week ? week[6] : day
-  const key = `${userId ?? ''}|${from}|${to}|${tick}`
+  const rangeKey = `${userId ?? ''}|${from}|${to}`
 
   useEffect(() => {
     let alive = true
     apiClient
       .get('/sales/tasks', { params: { from, to, ...(userId ? { userId } : {}) } })
-      .then((res) => alive && setData({ key, tasks: res.data.data.tasks, offPlan: res.data.data.offPlan, error: null }))
+      .then((res) => alive && setData({ rangeKey, tasks: res.data.data.tasks, offPlan: res.data.data.offPlan, error: null }))
       .catch((err) =>
-        alive && setData({ key, tasks: [], offPlan: [], error: getApiErrorMessage(err, 'Could not load the plan') }),
+        alive && setData({ rangeKey, tasks: [], offPlan: [], error: getApiErrorMessage(err, 'Could not load the plan') }),
       )
     return () => {
       alive = false
     }
-  }, [key, from, to, userId])
+  }, [rangeKey, tick, from, to, userId])
 
-  const loading = data?.key !== key
+  const loading = data?.rangeKey !== rangeKey
   const tasks = loading ? [] : data.tasks
   const offPlan = loading ? [] : data.offPlan
 
@@ -77,10 +79,15 @@ export function PlanCalendar({ userId, canCheckIn = false }) {
     setView('day')
   }
   function onCheckIn(building) {
+    // Until we know whether a visit is open, a check-in could start a second one.
+    if (openLoading) return
     if (openVisit) setNotice('Check out of your current building first')
     else setCheckInFor(building)
   }
-  const refetch = () => setTick((t) => t + 1)
+  const refetch = () => {
+    setTick((t) => t + 1)
+    invalidateOverdueCount()
+  }
 
   const title =
     view === 'month'
@@ -98,6 +105,7 @@ export function PlanCalendar({ userId, canCheckIn = false }) {
         <OpenVisitCard
           visit={openVisit}
           onChanged={() => {
+            setNotice(null)
             refreshOpen()
             refetch()
           }}
@@ -159,7 +167,13 @@ export function PlanCalendar({ userId, canCheckIn = false }) {
       ) : view === 'week' ? (
         <WeekColumns days={week} tasks={tasks} onPickDay={pickDay} />
       ) : (
-        <DayList tasks={tasks} offPlan={offPlan} canCheckIn={canCheckIn} onCheckIn={onCheckIn} />
+        <DayList
+          tasks={tasks}
+          offPlan={offPlan}
+          canCheckIn={canCheckIn}
+          checkInPending={canCheckIn && openLoading}
+          onCheckIn={onCheckIn}
+        />
       )}
 
       {view !== 'day' && !loading && offPlan.length > 0 && (

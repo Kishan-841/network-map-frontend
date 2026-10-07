@@ -8,9 +8,10 @@ import { todayIst } from '@/lib/calendar-grid'
 
 /**
  * One planned visit: when, where, and how it stands. A visited task links to
- * its visit; today's unvisited task offers Check in (when `canCheckIn`).
+ * its visit; today's unvisited task offers Check in (when `canCheckIn`) —
+ * disabled while `checkInPending` (we don't yet know if a visit is open).
  */
-export function TaskCard({ task, canCheckIn = false, onCheckIn }) {
+export function TaskCard({ task, canCheckIn = false, checkInPending = false, onCheckIn }) {
   const st = TASK_STATUS[task.status] ?? TASK_STATUS.UPCOMING
   const showCheckIn = canCheckIn && !task.visit && task.taskDate === todayIst()
 
@@ -41,7 +42,11 @@ export function TaskCard({ task, canCheckIn = false, onCheckIn }) {
       )}
 
       {showCheckIn && (
-        <Button className="mt-3 h-10 min-h-10 w-full sm:w-auto" onClick={() => onCheckIn?.(task.building)}>
+        <Button
+          className="mt-3 h-10 min-h-10 w-full sm:w-auto"
+          loading={checkInPending}
+          onClick={() => onCheckIn?.(task.building)}
+        >
           <IconLocate className="h-4 w-4" aria-hidden="true" />
           Check in
         </Button>
