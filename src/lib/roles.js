@@ -43,6 +43,9 @@ export const isSalesExecutive = (role) => role === 'SALES_EXECUTIVE'
 /** May assign / distribute buildings down the sales chain (mirrors the API's ASSIGNER). */
 export const canAssignSalesBuildings = (role) => ['ADMIN', 'SALES_MANAGER', 'TEAM_LEADER'].includes(role)
 
+/** May upload and edit a team's visit plan (mirrors the API's /sales/tasks PLANNER gate). */
+export const canPlanVisits = (role) => ['ADMIN', 'SALES_MANAGER', 'TEAM_LEADER'].includes(role)
+
 /** May give team leaders zones (mirrors the API's /sales/team-leaders gate). */
 export const canManageTeamZones = (role) => role === 'ADMIN' || role === 'SALES_MANAGER'
 

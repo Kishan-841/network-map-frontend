@@ -5,9 +5,11 @@ import { IconClose } from '@/components/ui/icons'
 /**
  * Centered dialog: dim backdrop, click-outside / ✕ to close.
  * Header stays pinned; only the body scrolls; an optional `footer` is pinned
- * at the bottom so primary actions never scroll out of reach.
+ * at the bottom so primary actions never scroll out of reach. `wide` gives
+ * review screens (an upload preview) room on a desktop; a phone is full width
+ * either way.
  */
-export function Modal({ open, onClose, title, children, footer }) {
+export function Modal({ open, onClose, title, children, footer, wide = false }) {
   if (!open) return null
   return (
     <div
@@ -15,7 +17,7 @@ export function Modal({ open, onClose, title, children, footer }) {
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90dvh] w-full max-w-md flex-col rounded-card bg-card shadow-lift"
+        className={`flex max-h-[90dvh] w-full ${wide ? 'max-w-3xl' : 'max-w-md'} flex-col rounded-card bg-card shadow-lift`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between p-5 pb-3">

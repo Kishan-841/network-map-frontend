@@ -10,6 +10,7 @@ export {
   Calculator as IconCalculator,
   CircleCheck as IconOkCircle,
   Clock as IconClock,
+  Calendar as IconCalendar,
   House as IconHome,
   Triangle as IconTriangle,
   Plus as IconPlus,

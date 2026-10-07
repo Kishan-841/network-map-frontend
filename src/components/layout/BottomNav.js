@@ -9,6 +9,7 @@ import {
   IconBuildings,
   IconPlus,
   IconUser,
+  IconCalendar,
   IconUsers,
   IconUserPlus,
   IconShare,
@@ -78,6 +79,7 @@ const SALES_LEAD_NAV = [
   { href: '/sales/leads', label: 'Leads', icon: IconUserPlus },
   { href: '/sales/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/sales/meetings', label: 'Meetings', icon: IconUsers },
+  { href: '/sales/plan', label: 'Team plan', icon: IconCalendar },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // A sales manager also gives their team leaders zones. They also run the

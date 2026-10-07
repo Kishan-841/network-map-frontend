@@ -16,6 +16,7 @@ import {
   IconCrosshair,
   IconDiamond,
   IconSmartphone,
+  IconCalendar,
 } from '@/components/ui/icons'
 
 /**
@@ -35,6 +36,7 @@ export const NAV_GROUPS = [
       { href: '/sales/dashboard', label: 'Sales overview', icon: IconDashboard, exact: true },
       { href: '/sales', label: 'Assign buildings', icon: IconBuildings, exact: true },
       { href: '/sales/zones', label: 'Team zones', icon: IconMap, exact: true },
+      { href: '/sales/plan', label: 'Team plan', icon: IconCalendar, exact: true },
     ],
   },
   {

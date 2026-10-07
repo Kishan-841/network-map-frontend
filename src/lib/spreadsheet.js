@@ -24,6 +24,30 @@ export async function parseSpreadsheet(file) {
   return rows.map((row) => (row ?? []).map((cell) => String(cell ?? '').trim()))
 }
 
+/**
+ * Every sheet of an .xlsx (or the one sheet of a .csv), cells left raw — dates
+ * stay Dates. read-excel-file v9's default export already returns every sheet
+ * as [{ sheet, data }].
+ */
+export async function parseSpreadsheetSheets(file) {
+  const ext = file.name.toLowerCase().split('.').pop()
+  if (ext === 'xlsx') {
+    const readXlsxFile = (await import('read-excel-file/browser')).default
+    const parsed = await readXlsxFile(file)
+    return Array.isArray(parsed?.[0]?.data)
+      ? parsed.map((s) => ({ name: s.sheet, rows: s.data }))
+      : [{ name: 'Sheet1', rows: parsed ?? [] }]
+  }
+  if (ext === 'csv') {
+    const Papa = (await import('papaparse')).default
+    const result = await new Promise((resolve, reject) =>
+      Papa.parse(file, { skipEmptyLines: 'greedy', complete: resolve, error: reject }),
+    )
+    return [{ name: file.name, rows: result.data }]
+  }
+  throw new Error('Unsupported file type — upload a .xlsx or .csv file')
+}
+
 /** Client-side CSV download without any dependency. */
 export function downloadCsvTemplate(filename, content) {
   const blob = new Blob([content], { type: 'text/csv' })

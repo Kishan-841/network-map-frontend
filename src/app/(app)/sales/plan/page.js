@@ -1,0 +1,121 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { apiClient, getApiErrorMessage } from '@/lib/api-client'
+import { useAuthStore } from '@/stores/auth-store'
+import { canPlanVisits } from '@/lib/roles'
+import { downloadCsvTemplate } from '@/lib/spreadsheet'
+import { PLAN_TEMPLATE_CSV, fmtDay } from '@/lib/visit-plan-sheet'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Button } from '@/components/ui/Button'
+import { Toast } from '@/components/ui/Toast'
+import { UploadPlanModal } from '@/components/sales/plan/UploadPlanModal'
+import { IconUpload, IconDownload, IconCalendar } from '@/components/ui/icons'
+
+const fmtWhen = (iso) =>
+  new Date(iso).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Asia/Kolkata',
+  })
+
+/**
+ * Team plan: a team leader, sales manager or admin uploads a sheet of which
+ * building each person visits on which day (spec 2026-10-07 §2), and sees the
+ * uploads made so far. Phase 3 adds the day-by-day review above the uploads.
+ */
+export default function TeamPlanPage() {
+  const role = useAuthStore((s) => s.user?.role)
+  const allowed = canPlanVisits(role)
+  const [uploads, setUploads] = useState(null) // null = loading
+  const [error, setError] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const load = useCallback(() => {
+    apiClient
+      .get('/sales/tasks/uploads')
+      .then((res) => {
+        setUploads(res.data.data)
+        setError(null)
+      })
+      .catch((err) => {
+        setUploads([])
+        setError(getApiErrorMessage(err, 'Could not load the uploads'))
+      })
+  }, [])
+  useEffect(() => {
+    if (allowed) load()
+  }, [allowed, load])
+
+  if (!allowed) {
+    return <PageHeader title="Team plan" sub="Only team leaders, sales managers and admins plan visits." />
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      <PageHeader title="Team plan" sub="Plan your team's visits" />
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
+        <Button onClick={() => setUploading(true)} className="sm:flex-none">
+          <IconUpload className="h-4.5 w-4.5" /> Upload sheet
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => downloadCsvTemplate('visit-plan-template.csv', PLAN_TEMPLATE_CSV)}
+          className="sm:flex-none"
+        >
+          <IconDownload className="h-4.5 w-4.5" /> Download template
+        </Button>
+      </div>
+
+      {toast && <Toast key={toast} message={toast} onDone={() => setToast(null)} />}
+      {error && <p className="mb-4 rounded-btn bg-bad-tint px-4 py-3 text-sm font-medium text-bad">{error}</p>}
+
+      <h2 className="mb-3 text-base font-bold">Uploads</h2>
+      {uploads === null ? (
+        <p className="text-sm text-muted">Loading…</p>
+      ) : uploads.length === 0 ? (
+        <div className="rounded-card border border-line bg-card px-4 py-8 text-center text-sm text-muted">
+          No plan uploaded yet. Download the template, fill it in, and upload it.
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-3" aria-label="Uploads">
+          {uploads.map((u) => (
+            <li key={u.id} className="flex items-start gap-3 rounded-card border border-line bg-card p-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-fiber">
+                <IconCalendar className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-ink">
+                  {fmtDay(u.fromDate)}
+                  {u.toDate && u.toDate !== u.fromDate ? ` – ${fmtDay(u.toDate)}` : ''} · {u.assigneeCount}{' '}
+                  {u.assigneeCount === 1 ? 'person' : 'people'}
+                </p>
+                <p className="mt-0.5 truncate text-sm text-muted">
+                  {fmtWhen(u.createdAt)} by {u.uploadedBy?.name ?? 'someone'}
+                  {u.fileName ? ` · ${u.fileName}` : ''}
+                </p>
+                <p className="mt-1.5 text-sm text-ink">
+                  {u.created} created · {u.replaced} replaced · {u.assigned} assigned
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {uploading && (
+        <UploadPlanModal
+          onClose={() => setUploading(false)}
+          onSaved={(message) => {
+            setUploading(false)
+            setToast(message)
+            load()
+          }}
+        />
+      )}
+    </div>
+  )
+}
