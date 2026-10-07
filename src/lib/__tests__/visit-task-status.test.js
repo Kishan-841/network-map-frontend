@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { daySummary } from '../visit-task-status'
+import { daySummary, visitedLabel } from '../visit-task-status'
 
 const t = (status) => ({ status })
 
@@ -15,5 +15,19 @@ describe('daySummary', () => {
   it('still says nothing was planned when only off-plan visits happened', () => {
     expect(daySummary([], [{}])).toBe('0 planned · 1 off-plan')
     expect(daySummary()).toBe('0 planned')
+  })
+})
+
+describe('visitedLabel', () => {
+  // 04:53 UTC = 10:23 IST
+  const own = { visitedAt: '2026-10-07T04:53:00Z', checkOutAt: '2026-10-07T05:31:00Z' }
+  it('own visit: time in IST and the time on site', () => {
+    expect(visitedLabel(own)).toBe('Visited 10:23 am · 38 min')
+  })
+  it('a visit made with the team leader names them', () => {
+    expect(visitedLabel({ ...own, viaCompanion: true, byName: 'Ravi' })).toBe('Visited with Ravi 10:23 am · 38 min')
+  })
+  it('still on site', () => {
+    expect(visitedLabel({ ...own, checkOutAt: null, viaCompanion: true, byName: 'Ravi' })).toBe('Visited with Ravi 10:23 am · on site')
   })
 })

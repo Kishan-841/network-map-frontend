@@ -36,7 +36,12 @@ export function TaskCard({ task, canCheckIn = false, checkInPending = false, onC
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${st.chip}`}>{st.label}</span>
       </div>
 
-      {task.visit && (
+      {/* A visit made WITH the team leader belongs to them — an executive can't
+          open it, so on their own calendar it is plain text. Planners can. */}
+      {task.visit && task.visit.viaCompanion && !onEdit && (
+        <p className="mt-3 rounded-btn bg-paper px-3 py-2 text-sm font-medium text-ink">{visitedLabel(task.visit)}</p>
+      )}
+      {task.visit && !(task.visit.viaCompanion && !onEdit) && (
         <Link
           href={`/sales/visits/${task.visit.id}`}
           className="mt-3 flex items-center justify-between gap-2 rounded-btn bg-paper px-3 py-2 text-sm font-medium text-ink transition-colors hover:text-fiber"

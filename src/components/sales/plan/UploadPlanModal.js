@@ -340,6 +340,12 @@ export function UploadPlanModal({ onClose, onSaved }) {
                   <li key={p.assigneeId} className="min-w-0">
                     <b>{p.name}</b>: {p.tasks} task{p.tasks === 1 ? '' : 's'} · {fmtDay(p.from)}–{fmtDay(p.to)} · replaces{' '}
                     {p.replaces} · assigns {p.assigns}
+                    {(p.takesFrom ?? []).map((t) => (
+                      <span key={t.buildingId} className="block text-warn">
+                        Takes {t.buildingName} from {t.fromName}
+                        {t.tasks > 0 ? ` (${t.tasks} planned visit${t.tasks === 1 ? '' : 's'} removed)` : ''}
+                      </span>
+                    ))}
                   </li>
                 ))}
               </ul>

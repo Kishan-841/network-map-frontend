@@ -20,7 +20,9 @@ export const istTime = (iso) =>
 
 /** "Visited 09:52 · 38 min" — or "· on site" while the visit is still open. */
 export function visitedLabel(visit) {
-  const at = `Visited ${istTime(visit.visitedAt)}`
+  // A team leader's check-in that listed this executive counts as their visit.
+  const who = visit.viaCompanion && visit.byName ? ` with ${visit.byName}` : ''
+  const at = `Visited${who} ${istTime(visit.visitedAt)}`
   if (!visit.checkOutAt) return `${at} · on site`
   const mins = Math.max(0, Math.round((new Date(visit.checkOutAt) - new Date(visit.visitedAt)) / 60000))
   const h = Math.floor(mins / 60)
