@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
-import { canPlanVisits } from '@/lib/roles'
+import { canPlanVisits, ROLE_LABELS } from '@/lib/roles'
 import { downloadCsvTemplate } from '@/lib/spreadsheet'
 import { PLAN_TEMPLATE_CSV, fmtDay } from '@/lib/visit-plan-sheet'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Toast } from '@/components/ui/Toast'
 import { UploadPlanModal } from '@/components/sales/plan/UploadPlanModal'
+import { PlanCalendar } from '@/components/sales/plan/PlanCalendar'
+import { Select } from '@/components/ui/Input'
 import { IconUpload, IconDownload, IconCalendar } from '@/components/ui/icons'
 
 const fmtWhen = (iso) =>
@@ -24,7 +26,9 @@ const fmtWhen = (iso) =>
 /**
  * Team plan: a team leader, sales manager or admin uploads a sheet of which
  * building each person visits on which day (spec 2026-10-07 §2), and sees the
- * uploads made so far. Phase 3 adds the day-by-day review above the uploads.
+ * uploads made so far. Above the uploads, the planner picks one person and
+ * reviews their plan day by day — live status, off-plan visits, a one-line
+ * summary — and adds, edits, moves or deletes single tasks (§3–§4).
  */
 export default function TeamPlanPage() {
   const role = useAuthStore((s) => s.user?.role)
@@ -33,6 +37,9 @@ export default function TeamPlanPage() {
   const [error, setError] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [toast, setToast] = useState(null)
+  const [team, setTeam] = useState(null) // { people, error } — null = loading
+  const [picked, setPicked] = useState('')
+  const [planVersion, setPlanVersion] = useState(0) // bumps after an upload so the calendar refetches
 
   const load = useCallback(() => {
     apiClient
@@ -49,14 +56,54 @@ export default function TeamPlanPage() {
   useEffect(() => {
     if (allowed) load()
   }, [allowed, load])
+  useEffect(() => {
+    if (!allowed) return undefined
+    let alive = true
+    apiClient
+      .get('/sales/tasks/assignees')
+      .then((res) => alive && setTeam({ people: res.data.data, error: null }))
+      .catch((err) => alive && setTeam({ people: [], error: getApiErrorMessage(err, 'Could not load your team') }))
+    return () => {
+      alive = false
+    }
+  }, [allowed])
+  // Default to the first person until the planner picks one.
+  const personId = picked || team?.people[0]?.id || ''
 
   if (!allowed) {
     return <PageHeader title="Team plan" sub="Only team leaders, sales managers and admins plan visits." />
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <PageHeader title="Team plan" sub="Plan your team's visits" />
+
+      <section className="mb-8" aria-label="Person's plan">
+        {team === null ? (
+          <p className="text-sm text-muted">Loading your team…</p>
+        ) : team.error ? (
+          <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-medium text-bad">{team.error}</p>
+        ) : team.people.length === 0 ? (
+          <div className="rounded-card border border-line bg-card px-4 py-8 text-center text-sm text-muted">
+            Nobody on your team is given visits yet.
+          </div>
+        ) : (
+          <>
+            <div className="mb-4 sm:max-w-sm">
+              <Select id="plan-person" label="Person" value={personId} onChange={(e) => setPicked(e.target.value)}>
+                {team.people.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} · {ROLE_LABELS[p.role] ?? p.role}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <PlanCalendar key={planVersion} userId={personId} editable assignees={team.people} />
+          </>
+        )}
+      </section>
+
+      <h2 className="mb-3 text-base font-bold">Upload a plan</h2>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
         <Button onClick={() => setUploading(true)} className="sm:flex-none">
           <IconUpload className="h-4.5 w-4.5" /> Upload sheet
@@ -113,6 +160,7 @@ export default function TeamPlanPage() {
             setUploading(false)
             setToast(message)
             load()
+            setPlanVersion((v) => v + 1)
           }}
         />
       )}

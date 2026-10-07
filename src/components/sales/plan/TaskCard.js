@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
-import { IconClock, IconLocate, IconChevronRight } from '@/components/ui/icons'
+import { IconClock, IconLocate, IconChevronRight, IconEdit, IconTrash } from '@/components/ui/icons'
 import { TASK_STATUS, windowLabel, visitedLabel } from '@/lib/visit-task-status'
 import { todayIst } from '@/lib/calendar-grid'
 
@@ -10,10 +10,15 @@ import { todayIst } from '@/lib/calendar-grid'
  * One planned visit: when, where, and how it stands. A visited task links to
  * its visit; today's unvisited task offers Check in (when `canCheckIn`) —
  * disabled while `checkInPending` (we don't yet know if a visit is open).
+ * With `onEdit` (planner mode) an unvisited task offers Edit — "Move" once
+ * its day has passed, since it can only go forward — and Delete; a visited
+ * task is read-only.
  */
-export function TaskCard({ task, canCheckIn = false, checkInPending = false, onCheckIn }) {
+export function TaskCard({ task, canCheckIn = false, checkInPending = false, onCheckIn, onEdit, onDelete }) {
   const st = TASK_STATUS[task.status] ?? TASK_STATUS.UPCOMING
   const showCheckIn = canCheckIn && !task.visit && task.taskDate === todayIst()
+  const editable = Boolean(onEdit) && !task.visit
+  const isPast = task.taskDate < todayIst()
 
   return (
     <article className="rounded-card border border-line bg-card p-4">
@@ -50,6 +55,19 @@ export function TaskCard({ task, canCheckIn = false, checkInPending = false, onC
           <IconLocate className="h-4 w-4" aria-hidden="true" />
           Check in
         </Button>
+      )}
+
+      {editable && (
+        <div className="mt-3 flex gap-2">
+          <Button variant="secondary" className="h-10 min-h-10 flex-1 sm:flex-none" onClick={() => onEdit(task)}>
+            <IconEdit className="h-4 w-4" aria-hidden="true" />
+            {isPast ? 'Move' : 'Edit'}
+          </Button>
+          <Button variant="dangerGhost" className="h-10 min-h-10 flex-1 sm:flex-none" onClick={() => onDelete?.(task)}>
+            <IconTrash className="h-4 w-4" aria-hidden="true" />
+            Delete
+          </Button>
+        </div>
       )}
     </article>
   )

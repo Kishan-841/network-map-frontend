@@ -36,3 +36,21 @@ export const dayLabel = (day, opts = {}) =>
     month: 'short',
     ...opts,
   })
+
+/**
+ * One day at a glance: "6 planned · 4 visited (1 outside window) · 1 overdue
+ * · 1 due now · 1 upcoming · 2 off-plan". Visited includes visits outside the
+ * window; counts of zero are left out (except "planned").
+ */
+export function daySummary(tasks = [], offPlan = []) {
+  const n = (s) => tasks.filter((t) => t.status === s).length
+  const outside = n('VISITED_OUTSIDE')
+  const visited = n('VISITED') + outside
+  const parts = [`${tasks.length} planned`]
+  if (visited) parts.push(`${visited} visited${outside ? ` (${outside} outside window)` : ''}`)
+  if (n('OVERDUE')) parts.push(`${n('OVERDUE')} overdue`)
+  if (n('DUE_NOW')) parts.push(`${n('DUE_NOW')} due now`)
+  if (n('UPCOMING')) parts.push(`${n('UPCOMING')} upcoming`)
+  if (offPlan.length) parts.push(`${offPlan.length} off-plan`)
+  return parts.join(' · ')
+}

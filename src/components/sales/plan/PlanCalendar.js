@@ -13,6 +13,8 @@ import { IconChevronLeft, IconChevronRight } from '@/components/ui/icons'
 import { DayList } from './DayList'
 import { WeekColumns } from './WeekColumns'
 import { MonthGrid } from './MonthGrid'
+import { DaySummary } from './DaySummary'
+import { TaskEditModal } from './TaskEditModal'
 
 const VIEWS = [
   { id: 'day', label: 'Day' },
@@ -31,8 +33,12 @@ const monthTitle = (ym) =>
  *
  * Fetches its own data for the visible range, so a team-plan screen can show
  * someone else's calendar by passing their id.
+ *
+ * `editable` = planner mode (Team plan): the Day view leads with a one-line
+ * summary, unvisited tasks get Edit / Delete, and days from today on get Add
+ * task — all through TaskEditModal, whose Person list is `assignees`.
  */
-export function PlanCalendar({ userId, canCheckIn = false }) {
+export function PlanCalendar({ userId, canCheckIn = false, editable = false, assignees = [] }) {
   const [view, setView] = useState('day')
   const [day, setDay] = useState(todayIst)
   const [tick, setTick] = useState(0)
@@ -43,6 +49,7 @@ export function PlanCalendar({ userId, canCheckIn = false }) {
   const [checkInFor, setCheckInFor] = useState(null)
   const [notice, setNotice] = useState(null)
   const [toast, setToast] = useState(null)
+  const [editing, setEditing] = useState(null) // { task, day, deleting } while the edit modal is open
   const { visit: openVisit, loading: openLoading, refresh: refreshOpen } = useOpenVisit(canCheckIn)
 
   const month = day.slice(0, 7)
@@ -165,15 +172,26 @@ export function PlanCalendar({ userId, canCheckIn = false }) {
       ) : view === 'month' ? (
         <MonthGrid grid={grid} month={month} tasks={tasks} onPickDay={pickDay} />
       ) : view === 'week' ? (
-        <WeekColumns days={week} tasks={tasks} onPickDay={pickDay} />
-      ) : (
-        <DayList
+        <WeekColumns
+          days={week}
           tasks={tasks}
-          offPlan={offPlan}
-          canCheckIn={canCheckIn}
-          checkInPending={canCheckIn && openLoading}
-          onCheckIn={onCheckIn}
+          onPickDay={pickDay}
+          onAdd={editable ? (d) => setEditing({ task: null, day: d }) : undefined}
         />
+      ) : (
+        <>
+          {editable && <DaySummary tasks={tasks} offPlan={offPlan} />}
+          <DayList
+            tasks={tasks}
+            offPlan={offPlan}
+            canCheckIn={canCheckIn}
+            checkInPending={canCheckIn && openLoading}
+            onCheckIn={onCheckIn}
+            onEdit={editable ? (task) => setEditing({ task, day }) : undefined}
+            onDelete={editable ? (task) => setEditing({ task, day, deleting: true }) : undefined}
+            onAdd={editable && day >= todayIst() ? () => setEditing({ task: null, day }) : undefined}
+          />
+        </>
       )}
 
       {view !== 'day' && !loading && offPlan.length > 0 && (
@@ -183,6 +201,22 @@ export function PlanCalendar({ userId, canCheckIn = false }) {
       )}
 
       {toast && <Toast key={toast} message={toast} onDone={() => setToast(null)} />}
+
+      {editing && (
+        <TaskEditModal
+          task={editing.task}
+          day={editing.day}
+          userId={userId}
+          assignees={assignees}
+          startDeleting={Boolean(editing.deleting)}
+          onClose={() => setEditing(null)}
+          onSaved={(message) => {
+            setEditing(null)
+            setToast(message)
+            refetch()
+          }}
+        />
+      )}
 
       {checkInFor && (
         <CheckInModal

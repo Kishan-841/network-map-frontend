@@ -2,12 +2,14 @@
 
 import { TASK_STATUS, windowLabel, dayLabel } from '@/lib/visit-task-status'
 import { todayIst } from '@/lib/calendar-grid'
+import { IconPlus } from '@/components/ui/icons'
 
 /**
  * A week as seven columns (stacked on a phone), each day's tasks in time
- * order with a status dot. Tapping a day opens it in the Day view.
+ * order with a status dot. Tapping a day opens it in the Day view. With
+ * `onAdd` (planner mode) each day from today on gets an Add button.
  */
-export function WeekColumns({ days, tasks, onPickDay }) {
+export function WeekColumns({ days, tasks, onPickDay, onAdd }) {
   const today = todayIst()
   return (
     <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
@@ -15,36 +17,50 @@ export function WeekColumns({ days, tasks, onPickDay }) {
         const own = tasks.filter((t) => t.taskDate === day)
         const isToday = day === today
         return (
-          <button
+          <div
             key={day}
-            type="button"
-            onClick={() => onPickDay(day)}
-            aria-label={`${dayLabel(day)}: ${own.length} planned`}
-            className={`flex min-w-0 flex-col rounded-card border bg-card p-3 text-left transition-colors hover:border-fiber/50 md:min-h-40 ${
+            className={`flex min-w-0 flex-col rounded-card border bg-card transition-colors hover:border-fiber/50 md:min-h-40 ${
               isToday ? 'border-fiber ring-1 ring-fiber/30' : 'border-line'
             }`}
           >
-            <span className="flex items-center justify-between gap-2">
-              <span className={`text-sm font-bold ${isToday ? 'text-fiber' : 'text-ink'}`}>{dayLabel(day)}</span>
-              <span className="text-xs font-medium text-muted md:hidden">{own.length || '—'}</span>
-            </span>
-            {own.length > 0 && (
-              <ul className="mt-2 flex flex-col gap-1.5">
-                {own.map((t) => {
-                  const st = TASK_STATUS[t.status] ?? TASK_STATUS.UPCOMING
-                  return (
-                    <li key={t.id} className="flex min-w-0 items-start gap-2 text-xs">
-                      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${st.dot}`} title={st.label} />
-                      <span className="min-w-0">
-                        <span className="block font-semibold tabular-nums text-muted">{windowLabel(t)}</span>
-                        <span className="block truncate font-medium text-ink">{t.building?.buildingName}</span>
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
+            <button
+              type="button"
+              onClick={() => onPickDay(day)}
+              aria-label={`${dayLabel(day)}: ${own.length} planned`}
+              className="flex min-w-0 flex-1 flex-col p-3 text-left"
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className={`text-sm font-bold ${isToday ? 'text-fiber' : 'text-ink'}`}>{dayLabel(day)}</span>
+                <span className="text-xs font-medium text-muted md:hidden">{own.length || '—'}</span>
+              </span>
+              {own.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {own.map((t) => {
+                    const st = TASK_STATUS[t.status] ?? TASK_STATUS.UPCOMING
+                    return (
+                      <li key={t.id} className="flex min-w-0 items-start gap-2 text-xs">
+                        <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${st.dot}`} title={st.label} />
+                        <span className="min-w-0">
+                          <span className="block font-semibold tabular-nums text-muted">{windowLabel(t)}</span>
+                          <span className="block truncate font-medium text-ink">{t.building?.buildingName}</span>
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </button>
+            {onAdd && day >= today && (
+              <button
+                type="button"
+                onClick={() => onAdd(day)}
+                aria-label={`Add task on ${dayLabel(day)}`}
+                className="mx-3 mb-3 inline-flex h-8 items-center justify-center gap-1 rounded-btn border border-line text-xs font-semibold text-fiber transition-colors hover:bg-paper"
+              >
+                <IconPlus className="h-3.5 w-3.5" aria-hidden="true" /> Add
+              </button>
             )}
-          </button>
+          </div>
         )
       })}
     </div>
