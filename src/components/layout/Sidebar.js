@@ -29,6 +29,7 @@ import {
   IconPlus,
   IconUser,
   IconCalendar,
+  IconWarn,
   IconUsers,
   IconUserPlus,
   IconShare,
@@ -98,6 +99,8 @@ const SALES_NAV = [
   { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
   { href: '/sales/map', label: 'Map', icon: IconMap },
   { href: '/sales/leads', label: 'Leads', icon: IconUserPlus },
+  { href: '/sales/calendar', label: 'Calendar', icon: IconCalendar },
+  { href: '/sales/overdue', label: 'Overdue', icon: IconWarn },
   { href: '/sales/dashboard', label: 'My work', icon: IconDashboard },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
@@ -106,6 +109,8 @@ const SALES_LEAD_NAV = [
   { href: '/sales', label: 'Sales', icon: IconBuildings, exact: true },
   { href: '/sales/map', label: 'Map', icon: IconMap },
   { href: '/sales/leads', label: 'Leads', icon: IconUserPlus },
+  { href: '/sales/calendar', label: 'Calendar', icon: IconCalendar },
+  { href: '/sales/overdue', label: 'Overdue', icon: IconWarn },
   { href: '/sales/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/sales/meetings', label: 'Meetings', icon: IconUsers },
   { href: '/sales/plan', label: 'Team plan', icon: IconCalendar },
@@ -114,10 +119,12 @@ const SALES_LEAD_NAV = [
 // A sales manager also gives their team leaders zones. They also run the
 // partner network, whose Leads tab means partner leads — so their own sales
 // leads tab says so.
+// …but no Calendar / Overdue: a manager plans visits and is never given one.
+const VISIT_TASK_TABS = ['/sales/calendar', '/sales/overdue']
 const SALES_MANAGER_NAV = [
-  ...SALES_LEAD_NAV.slice(0, -1).map((item) =>
-    item.href === '/sales/leads' ? { ...item, label: 'Sales leads' } : item,
-  ),
+  ...SALES_LEAD_NAV.slice(0, -1)
+    .filter((item) => !VISIT_TASK_TABS.includes(item.href))
+    .map((item) => (item.href === '/sales/leads' ? { ...item, label: 'Sales leads' } : item)),
   { href: '/sales/zones', label: 'Team zones', icon: IconMap },
   SALES_LEAD_NAV[SALES_LEAD_NAV.length - 1],
 ]

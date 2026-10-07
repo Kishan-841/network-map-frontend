@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   assignTargets,
+  receivesVisitTasks,
   canManageTeamZones,
   canAssignOlt,
   canEditBuilding,
@@ -210,5 +211,12 @@ describe('sales manager and the partner network', () => {
     expect(mayOpenAdminPath({ role: 'ADMIN' }, '/admin/partner-approvals')).toBe(true)
     expect(mayOpenAdminPath({ role: 'PARTNER_MANAGER' }, '/admin/partner-approvals')).toBe(false)
     expect(mayOpenAdminPath({ role: 'TEAM_LEADER' }, '/admin/partner-approvals')).toBe(false)
+  })
+
+  it('gives visit-plan tasks (Calendar, Overdue) to executives and team leaders only', () => {
+    expect(receivesVisitTasks('SALES_EXECUTIVE')).toBe(true)
+    expect(receivesVisitTasks('TEAM_LEADER')).toBe(true)
+    expect(receivesVisitTasks('SALES_MANAGER')).toBe(false)
+    expect(receivesVisitTasks('ADMIN')).toBe(false)
   })
 })

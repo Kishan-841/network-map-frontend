@@ -46,6 +46,9 @@ export const canAssignSalesBuildings = (role) => ['ADMIN', 'SALES_MANAGER', 'TEA
 /** May upload and edit a team's visit plan (mirrors the API's /sales/tasks PLANNER gate). */
 export const canPlanVisits = (role) => ['ADMIN', 'SALES_MANAGER', 'TEAM_LEADER'].includes(role)
 
+/** Is given visit-plan tasks (mirrors the API's assignees): sees Calendar and Overdue. */
+export const receivesVisitTasks = (role) => role === 'SALES_EXECUTIVE' || role === 'TEAM_LEADER'
+
 /** May give team leaders zones (mirrors the API's /sales/team-leaders gate). */
 export const canManageTeamZones = (role) => role === 'ADMIN' || role === 'SALES_MANAGER'
 
