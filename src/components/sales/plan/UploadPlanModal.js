@@ -27,7 +27,7 @@ function daysText(dates) {
  * The debounce lives in the change handler, not an effect — every setState
  * here runs in an event or a promise callback.
  */
-function BuildingSearch({ rowNumber, candidates, onPick }) {
+function BuildingSearch({ rowNumber, candidates, onPick, disabled = false }) {
   const [q, setQ] = useState('')
   const [results, setResults] = useState(null) // null = not searched
   const timer = useRef(null)
@@ -63,9 +63,10 @@ function BuildingSearch({ rowNumber, candidates, onPick }) {
         <input
           value={q}
           onChange={change}
+          disabled={disabled}
           placeholder="Search a building"
           aria-label={`Search a building for row ${rowNumber}`}
-          className="h-10 w-full rounded-btn border border-line bg-card pl-9 pr-3 text-sm text-ink outline-none placeholder:text-faint focus:border-fiber focus:ring-2 focus:ring-fiber/15"
+          className="h-10 w-full rounded-btn border border-line bg-card pl-9 pr-3 text-sm text-ink outline-none placeholder:text-faint focus:border-fiber focus:ring-2 focus:ring-fiber/15 disabled:opacity-50"
         />
       </div>
       {results !== null && results.length === 0 && <p className="text-xs text-muted">No building you can plan matches.</p>}
@@ -76,7 +77,8 @@ function BuildingSearch({ rowNumber, candidates, onPick }) {
               <button
                 type="button"
                 onClick={() => onPick(b)}
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-paper"
+                disabled={disabled}
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-paper disabled:opacity-50"
               >
                 <span className="block truncate font-medium text-ink">{b.buildingName}</span>
                 {b.formattedAddress && <span className="block truncate text-xs text-muted">{b.formattedAddress}</span>}
@@ -109,8 +111,15 @@ export function UploadPlanModal({ onClose, onSaved }) {
   const [assignees, setAssignees] = useState(null)
   const [busy, setBusy] = useState(null) // 'preview' | 'save' | null
   const [error, setError] = useState(null)
+  // Every preview, pick, tick and reset bumps this; a preview answer is applied
+  // only if nothing happened since it was asked — else it describes a plan the
+  // screen no longer shows (or a different file whose row numbers collide).
+  const previewSeq = useRef(0)
+  const inFlight = useRef(null)
 
   function reset() {
+    previewSeq.current += 1
+    inFlight.current = null
     setFileName(null)
     setSheetRows(null)
     setItems({})
@@ -124,6 +133,8 @@ export function UploadPlanModal({ onClose, onSaved }) {
 
   /** Preview `rows` (with any picks attached) and merge the answers in. */
   async function runPreview(rows, pickMap, { first = false } = {}) {
+    const seq = ++previewSeq.current
+    inFlight.current = seq
     setBusy('preview')
     setError(null)
     try {
@@ -137,6 +148,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
           }
         }),
       })
+      if (seq !== previewSeq.current) return
       const data = res.data.data
       setItems((prev) => ({ ...(first ? {} : prev), ...Object.fromEntries(data.rows.map((r) => [r.rowNumber, r])) }))
       setSummary({ people: data.people, totals: data.totals, errors: data.errors ?? [] })
@@ -152,9 +164,20 @@ export function UploadPlanModal({ onClose, onSaved }) {
         }
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not check the sheet — try again'))
+      if (seq !== previewSeq.current) return
+      const message = getApiErrorMessage(err, 'Could not check the sheet — try again')
+      if (first) {
+        // Nothing to review — back to the file step, with the reason.
+        reset()
+        setError(message)
+      } else {
+        setError(message)
+      }
     } finally {
-      setBusy(null)
+      if (inFlight.current === seq) {
+        inFlight.current = null
+        setBusy(null)
+      }
     }
   }
 
@@ -178,14 +201,26 @@ export function UploadPlanModal({ onClose, onSaved }) {
   }
 
   function pick(rowNumber, patch) {
+    previewSeq.current += 1
     setPicks((prev) => ({ ...prev, [rowNumber]: { ...prev[rowNumber], ...patch } }))
     setInclude((prev) => ({ ...prev, [rowNumber]: true }))
     setStale(true)
   }
   function toggle(rowNumber, on) {
+    previewSeq.current += 1
     setInclude((prev) => ({ ...prev, [rowNumber]: on }))
     setStale(true)
   }
+
+  const hasPicks = Object.keys(picks).length > 0
+  const confirmLoss = () => !hasPicks || window.confirm('Close and lose your fixes?')
+  const close = () => {
+    if (confirmLoss()) onClose()
+  }
+  const back = () => {
+    if (confirmLoss()) reset()
+  }
+  const checking = busy === 'preview'
 
   const included = (sheetRows ?? []).filter((r) => include[r.rowNumber])
   const recheck = () => runPreview(included, picks)
@@ -237,7 +272,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
         </p>
       )}
       <div className="flex gap-3">
-        <Button variant="secondary" className="flex-1" onClick={reset} disabled={busy === 'save'}>
+        <Button variant="secondary" className="flex-1" onClick={back} disabled={Boolean(busy)}>
           Back
         </Button>
         {stale ? (
@@ -254,7 +289,14 @@ export function UploadPlanModal({ onClose, onSaved }) {
   ) : null
 
   return (
-    <Modal open onClose={onClose} title="Upload a visit plan" footer={footer} wide={Boolean(sheetRows)}>
+    <Modal
+      open
+      onClose={close}
+      title="Upload a visit plan"
+      footer={footer}
+      wide={Boolean(sheetRows)}
+      dismissable={!sheetRows}
+    >
       {!sheetRows && (
         <div className="flex flex-col gap-4">
           <p className="text-sm font-normal text-muted">
@@ -334,6 +376,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
                         type="checkbox"
                         className="checkbox checkbox-sm"
                         checked={on}
+                        disabled={checking}
                         onChange={(e) => toggle(row.rowNumber, e.target.checked)}
                         aria-label={`Include row ${row.rowNumber}`}
                       />
@@ -361,6 +404,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
                           className="mt-1.5 h-10 w-full rounded-btn border border-line bg-card px-3 text-sm"
                           aria-label={`Pick the employee for row ${row.rowNumber}`}
                           value={p.assigneeId ?? ''}
+                          disabled={checking}
                           onChange={(e) => {
                             const opts = item.employee.candidates.length ? item.employee.candidates : (assignees ?? [])
                             const who = opts.find((u) => u.id === e.target.value)
@@ -393,6 +437,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
                           <BuildingSearch
                             rowNumber={row.rowNumber}
                             candidates={item.building.candidates}
+                            disabled={checking}
                             onPick={(b) => pick(row.rowNumber, { buildingId: b.id, buildingName: b.buildingName })}
                           />
                         </div>

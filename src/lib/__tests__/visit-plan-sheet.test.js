@@ -1,3 +1,8 @@
+// Pin a non-UTC zone so the UTC-getter tests discriminate: with local getters,
+// IST turns a 09:30 time cell into 14:51 (1899 LMT offset). Node honours TZ
+// changes at runtime; Dates are only built inside the tests.
+process.env.TZ = 'Asia/Kolkata'
+
 import { describe, it, expect } from 'vitest'
 import { cellToDate, cellToTime, readPlanSheet, PLAN_TEMPLATE_CSV, fmtDay } from '../visit-plan-sheet'
 
@@ -9,6 +14,16 @@ describe('visit plan sheet', () => {
     expect(cellToTime(new Date(Date.UTC(1899, 11, 30, 9, 30)))).toBe('09:30')
     expect(cellToDate(' 02-11-2026 ')).toBe('02-11-2026')
     expect(cellToTime(null)).toBe('')
+  })
+  it('keeps the calendar day west of UTC too (local getters would give the day before)', () => {
+    const before = process.env.TZ
+    process.env.TZ = 'America/Los_Angeles'
+    try {
+      expect(cellToDate(new Date(Date.UTC(2026, 10, 2)))).toBe('2026-11-02')
+      expect(fmtDay('2026-11-02')).toBe('2 Nov')
+    } finally {
+      process.env.TZ = before
+    }
   })
   it('finds the header row on any sheet, maps by name, ignores extra columns', () => {
     const sheets = [

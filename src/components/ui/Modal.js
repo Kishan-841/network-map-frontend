@@ -7,14 +7,15 @@ import { IconClose } from '@/components/ui/icons'
  * Header stays pinned; only the body scrolls; an optional `footer` is pinned
  * at the bottom so primary actions never scroll out of reach. `wide` gives
  * review screens (an upload preview) room on a desktop; a phone is full width
- * either way.
+ * either way. `dismissable={false}` ignores backdrop clicks (only ✕ closes) —
+ * for a step where a stray tap would lose the user's work.
  */
-export function Modal({ open, onClose, title, children, footer, wide = false }) {
+export function Modal({ open, onClose, title, children, footer, wide = false, dismissable = true }) {
   if (!open) return null
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
+      onClick={dismissable ? onClose : undefined}
     >
       <div
         className={`flex max-h-[90dvh] w-full ${wide ? 'max-w-3xl' : 'max-w-md'} flex-col rounded-card bg-card shadow-lift`}
