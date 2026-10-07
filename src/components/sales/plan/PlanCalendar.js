@@ -15,6 +15,7 @@ import { WeekColumns } from './WeekColumns'
 import { MonthGrid } from './MonthGrid'
 import { DaySummary } from './DaySummary'
 import { TaskEditModal } from './TaskEditModal'
+import { CalendarItemPanel } from './CalendarItemPanel'
 
 const VIEWS = [
   { id: 'day', label: 'Day' },
@@ -34,12 +35,14 @@ const monthTitle = (ym) =>
  * Fetches its own data for the visible range, so a team-plan screen can show
  * someone else's calendar by passing their id.
  *
- * `editable` = planner mode (Team plan): the Day view leads with a one-line
- * summary, unvisited tasks get Edit / Delete, and days from today on get Add
+ * `editable` = planner mode (Team plan): opens on Month; Month and Week list
+ * every task and off-plan visit, each opening a details panel; the Day view
+ * leads with a one-line summary, unvisited tasks get Edit / Delete, and days from today on get Add
  * task — all through TaskEditModal, whose Person list is `assignees`.
  */
 export function PlanCalendar({ userId, canCheckIn = false, editable = false, assignees = [] }) {
-  const [view, setView] = useState('day')
+  // A planner reviews a whole month at a glance; an executive starts on today.
+  const [view, setView] = useState(editable ? 'month' : 'day')
   const [day, setDay] = useState(todayIst)
   const [tick, setTick] = useState(0)
   // The last response, tagged with the range it answers — "loading" is simply
@@ -50,6 +53,7 @@ export function PlanCalendar({ userId, canCheckIn = false, editable = false, ass
   const [notice, setNotice] = useState(null)
   const [toast, setToast] = useState(null)
   const [editing, setEditing] = useState(null) // { task, day, deleting } while the edit modal is open
+  const [openItem, setOpenItem] = useState(null) // the calendar entry whose details panel is open (planner mode)
   const { visit: openVisit, loading: openLoading, refresh: refreshOpen } = useOpenVisit(canCheckIn)
 
   const month = day.slice(0, 7)
@@ -170,13 +174,24 @@ export function PlanCalendar({ userId, canCheckIn = false, editable = false, ass
       {loading ? (
         <p className="py-8 text-center text-sm text-muted">Loading…</p>
       ) : view === 'month' ? (
-        <MonthGrid grid={grid} month={month} tasks={tasks} onPickDay={pickDay} />
+        <MonthGrid
+          grid={grid}
+          month={month}
+          tasks={tasks}
+          offPlan={offPlan}
+          onPickDay={pickDay}
+          detailed={editable}
+          onOpenItem={setOpenItem}
+        />
       ) : view === 'week' ? (
         <WeekColumns
           days={week}
           tasks={tasks}
+          offPlan={offPlan}
           onPickDay={pickDay}
           onAdd={editable ? (d) => setEditing({ task: null, day: d }) : undefined}
+          detailed={editable}
+          onOpenItem={setOpenItem}
         />
       ) : (
         <>
@@ -194,13 +209,31 @@ export function PlanCalendar({ userId, canCheckIn = false, editable = false, ass
         </>
       )}
 
-      {view !== 'day' && !loading && offPlan.length > 0 && (
+      {/* The planner's detailed calendar shows off-plan visits in place. */}
+      {view !== 'day' && !editable && !loading && offPlan.length > 0 && (
         <p className="mt-3 text-sm text-muted">
           {offPlan.length} off-plan visit{offPlan.length === 1 ? '' : 's'} — open a day to see them.
         </p>
       )}
 
       {toast && <Toast key={toast} message={toast} onDone={() => setToast(null)} />}
+
+      {openItem && (
+        <CalendarItemPanel
+          key={openItem.key}
+          item={openItem}
+          editable={editable}
+          onClose={() => setOpenItem(null)}
+          onEdit={(task) => {
+            setOpenItem(null)
+            setEditing({ task, day: task.taskDate })
+          }}
+          onDelete={(task) => {
+            setOpenItem(null)
+            setEditing({ task, day: task.taskDate, deleting: true })
+          }}
+        />
+      )}
 
       {editing && (
         <TaskEditModal

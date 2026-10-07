@@ -9,6 +9,8 @@ export const TASK_STATUS = {
   DUE_NOW: { label: 'Due now', dot: 'bg-fiber', chip: 'bg-fiber-tint text-fiber' },
   UPCOMING: { label: 'Upcoming', dot: 'bg-faint', chip: 'bg-paper text-muted' },
   OVERDUE: { label: 'Overdue', dot: 'bg-bad', chip: 'bg-bad-tint text-bad' },
+  // Not a task: a visit that matched nothing planned that day (planner calendar).
+  OFF_PLAN: { label: 'Off-plan visit', dot: 'bg-info', chip: 'border border-dashed border-line bg-card text-muted' },
 }
 
 /** "09:30–11:00", or "Any time" for an all-day task. */
