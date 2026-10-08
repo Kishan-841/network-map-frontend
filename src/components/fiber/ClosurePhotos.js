@@ -13,7 +13,9 @@ import { IconCamera } from '@/components/ui/icons'
  * soon as it is picked; the closure is only saved when the caller presses
  * Save, and the API turns the signed preview links back into stored ones.
  *
- * `accept="image/*"` lets a phone offer its camera as well as the gallery.
+ * The picker accepts only what the uploads API stores (JPEG, PNG, WebP); a
+ * phone still offers its camera, and an iPhone then hands over a JPEG rather
+ * than HEIC.
  * `onUploadingChange` lets the caller hold Save while an upload is running.
  */
 export default function ClosurePhotos({ images, setImages, onUploadingChange, disabled = false, compact = false }) {
@@ -80,7 +82,7 @@ export default function ClosurePhotos({ images, setImages, onUploadingChange, di
           {uploading ? 'Uploading…' : 'Add photo'}
           <input
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             multiple
             className="hidden"
             disabled={uploading || disabled}

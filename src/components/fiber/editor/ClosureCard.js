@@ -14,6 +14,7 @@ import {
   RATIO_LABELS,
   TUBE_COUNTS,
 } from '@/lib/fiber/constants'
+import { closureCardPayload, closureCardState } from '@/lib/fiber/closure-card'
 import BottomSheet, { SHEET_ANCHORED } from './BottomSheet'
 import ClosurePhotos from '../ClosurePhotos'
 
@@ -36,37 +37,40 @@ const SHEET_AT_PIXEL =
  *    it off the line (the point stays as a plain bend) via `onRemove`.
  */
 export default function ClosureCard({ mode = 'create', initial, splitter, at, bounds, saving, error, onSave, onRemove, onRemoveSplitter, onCancel }) {
-  const [kind, setKind] = useState(() => initial?.kind || CLOSURE_KINDS[0].value)
-  const [notes, setNotes] = useState(() => initial?.notes ?? '')
-  // The survey sheet: which cable this sits on, its tubes, and the cores in
-  // and out. All optional — a closure dropped while drawing is often recorded
-  // before anyone has opened it.
-  const [sheet, setSheet] = useState(() => ({
-    fiberType: initial?.fiberType ?? '',
-    tubeCount: initial?.tubeCount ?? '',
-    inCoreCount: initial?.inCoreCount ?? '',
-    outCoreCount: initial?.outCoreCount ?? '',
-  }))
-  // Photos. A new closure starts with none; a saved one's are read from the
-  // API (the line's points do not carry them). Until that read lands the list
-  // is `undefined` and Save leaves the stored photos alone.
-  const [images, setImages] = useState(() => (mode === 'edit' ? undefined : []))
-  const [photosFailed, setPhotosFailed] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  // Edit mode reads the closure itself (GET /closures/:id): the line's
+  // points carry only its code, kind and note, never the survey sheet or the
+  // photos. Until that read lands the form is not shown, so nothing typed can
+  // be overwritten by it and Save can never send blanks for unread fields.
   const closureId = mode === 'edit' ? initial?.closureId : null
+  const [load, setLoad] = useState(() => (closureId ? 'loading' : 'ready'))
+  const [kind, setKind] = useState(() => closureCardState(initial).kind)
+  const [notes, setNotes] = useState(() => closureCardState(initial).notes)
+  const [sheet, setSheet] = useState(() => closureCardState(initial).sheet)
+  const [images, setImages] = useState(() => closureCardState(initial).images)
+  const [uploading, setUploading] = useState(false)
   useEffect(() => {
     if (!closureId) return undefined
     let cancelled = false
     apiClient
       .get(`/closures/${closureId}`)
-      .then((res) => !cancelled && setImages(res.data.data.images ?? []))
-      .catch(() => !cancelled && setPhotosFailed(true))
+      .then((res) => {
+        if (cancelled) return
+        const state = closureCardState(res.data.data)
+        setKind(state.kind)
+        setNotes(state.notes)
+        setSheet(state.sheet)
+        setImages(state.images)
+        setLoad('ready')
+      })
+      .catch(() => !cancelled && setLoad('failed'))
     return () => {
       cancelled = true
     }
   }, [closureId])
+  // A failed read falls back to what the line knows (kind and note); the
+  // sheet and photos are then hidden and left out of the save.
+  const known = load === 'ready'
   const setField = (key) => (e) => setSheet((s) => ({ ...s, [key]: e.target.value }))
-  const numberOrNull = (v) => (v === '' || v === null ? null : Number(v))
 
   // A closure saved before these three were the only choices keeps its own
   // wording, shown as a chip it cannot be put back to once it is changed.
@@ -119,87 +123,101 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1.5">
-        {legacyKind && (
-          <span
-            aria-current="true"
-            className="min-h-11 w-full rounded-btn border border-line bg-paper px-2 py-2.5 text-center text-sm font-medium text-muted"
-          >
-            {legacyKind}
-          </span>
-        )}
-        {CLOSURE_KINDS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={kind === option.value}
-            onClick={() => setKind(option.value)}
-            className={`min-h-11 flex-1 rounded-btn border px-2 text-sm font-medium transition-colors ${
-              kind === option.value
-                ? 'border-fiber bg-fiber text-white'
-                : 'border-line bg-card text-muted hover:text-ink'
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-
-      <label className="flex flex-col gap-1">
-        <span className="text-[11px] font-medium text-muted">Cable type</span>
-        <Select id="closure-fiber-type" value={sheet.fiberType} onChange={setField('fiberType')}>
-          <option value="">Not recorded</option>
-          {FIBER_TYPES.map((type) => (
-            <option key={type.value} value={type.value}>
-              {type.label}
-            </option>
-          ))}
-        </Select>
-      </label>
-
-      {/* Labelled above rather than crammed into the option text: three
-          side-by-side dropdowns truncate to "0 ·", "In", "Ou" otherwise. */}
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          { id: 'closure-tubes', key: 'tubeCount', label: 'Tubes', values: TUBE_COUNTS },
-          { id: 'closure-in-core', key: 'inCoreCount', label: 'Core in', values: CORE_COUNTS },
-          { id: 'closure-out-core', key: 'outCoreCount', label: 'Core out', values: CORE_COUNTS },
-        ].map((field) => (
-          <label key={field.id} className="flex min-w-0 flex-col gap-1">
-            <span className="text-[11px] font-medium text-muted">{field.label}</span>
-            <Select id={field.id} value={sheet[field.key]} onChange={setField(field.key)}>
-              <option value="">—</option>
-              {field.values.map((count) => (
-                <option key={count} value={count}>
-                  {count}
-                </option>
-              ))}
-            </Select>
-          </label>
-        ))}
-      </div>
-
-      <Input
-        id="closure-note"
-        placeholder="Note (optional)"
-        maxLength={500}
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-      />
-
-      {images !== undefined ? (
-        <ClosurePhotos
-          images={images}
-          setImages={setImages}
-          onUploadingChange={setUploading}
-          disabled={saving}
-          compact
-        />
-      ) : mode === 'edit' && closureId ? (
-        <p className="text-sm font-normal text-faint">
-          {photosFailed ? 'Photos could not be loaded — edit them on the Closures page.' : 'Loading photos…'}
+      {load === 'loading' ? (
+        <p className="flex min-h-11 items-center gap-2 text-sm font-normal text-faint">
+          <span className="loading loading-spinner loading-sm" aria-hidden="true" />
+          Loading closure…
         </p>
-      ) : null}
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            {legacyKind && (
+              <span
+                aria-current="true"
+                className="min-h-11 w-full rounded-btn border border-line bg-paper px-2 py-2.5 text-center text-sm font-medium text-muted"
+              >
+                {legacyKind}
+              </span>
+            )}
+            {CLOSURE_KINDS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={kind === option.value}
+                onClick={() => setKind(option.value)}
+                className={`min-h-11 flex-1 rounded-btn border px-2 text-sm font-medium transition-colors ${
+                  kind === option.value
+                    ? 'border-fiber bg-fiber text-white'
+                    : 'border-line bg-card text-muted hover:text-ink'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {known && (
+            <>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-medium text-muted">Cable type</span>
+                <Select id="closure-fiber-type" value={sheet.fiberType} onChange={setField('fiberType')}>
+                  <option value="">Not recorded</option>
+                  {FIBER_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+
+              {/* Labelled above rather than crammed into the option text: three
+                  side-by-side dropdowns truncate to "0 ·", "In", "Ou" otherwise. */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'closure-tubes', key: 'tubeCount', label: 'Tubes', values: TUBE_COUNTS },
+                  { id: 'closure-in-core', key: 'inCoreCount', label: 'Core in', values: CORE_COUNTS },
+                  { id: 'closure-out-core', key: 'outCoreCount', label: 'Core out', values: CORE_COUNTS },
+                ].map((field) => (
+                  <label key={field.id} className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[11px] font-medium text-muted">{field.label}</span>
+                    <Select id={field.id} value={sheet[field.key]} onChange={setField(field.key)}>
+                      <option value="">—</option>
+                      {field.values.map((count) => (
+                        <option key={count} value={count}>
+                          {count}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+
+          <Input
+            id="closure-note"
+            placeholder="Note (optional)"
+            maxLength={500}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+
+          {known ? (
+            <ClosurePhotos
+              images={images}
+              setImages={setImages}
+              onUploadingChange={setUploading}
+              disabled={saving}
+              compact
+            />
+          ) : (
+            <p className="text-sm font-normal text-faint">
+              The rest of this closure could not be loaded — edit its cable, cores and photos on the
+              Closures page.
+            </p>
+          )}
+        </>
+      )}
 
       {error && <p className="rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">{error}</p>}
 
@@ -211,18 +229,11 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
           type="button"
           className="flex-1 min-h-11"
           loading={saving}
-          disabled={saving || uploading}
+          disabled={saving || uploading || load === 'loading'}
           onClick={() =>
-            onSave({
-              // Left out until known, so a save never wipes photos it never saw.
-              ...(images !== undefined && (mode === 'edit' || images.length) ? { images } : {}),
-              kind: kind || null,
-              notes: notes.trim() || null,
-              fiberType: sheet.fiberType || null,
-              tubeCount: numberOrNull(sheet.tubeCount),
-              inCoreCount: numberOrNull(sheet.inCoreCount),
-              outCoreCount: numberOrNull(sheet.outCoreCount),
-            })
+            onSave(
+              closureCardPayload({ kind, notes, sheet, images }, { mode, sheetKnown: known, imagesKnown: known }),
+            )
           }
         >
           Save
