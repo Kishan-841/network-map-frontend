@@ -239,7 +239,9 @@ export const isForbiddenPath = (role, pathname, user) => {
   // an admin's POST /buildings makes a coverage building). Nobody else.
   if (pathname.startsWith('/societies')) {
     if (isPermissionExecutive(role)) return false
-    if (role === 'ADMIN') return pathname.startsWith('/societies/add')
+    // Phase 3: the zone's surveyor reads approved societies in their zones
+    // (the API scopes the list) to fill the site survey — and never adds one.
+    if (role === 'ADMIN' || role === 'SURVEYOR') return pathname.startsWith('/societies/add')
     return true
   }
   // Checked before the per-role rules below, so a new role cannot reach the

@@ -13,22 +13,25 @@ const shared = { key: null, promise: null }
 let version = 0
 const listeners = new Set()
 
-/** Re-count after an approve / reject, or anything that sends one for approval. */
+/** Re-count after an approve / reject (society or materials), or anything that sends one for a decision. */
 export function invalidatePendingSocietyCount() {
   version += 1
   listeners.forEach((notify) => notify())
 }
 
+const ZERO = { approvals: 0, surveys: 0, total: 0 }
+const count = (p) => p.then((res) => Number(res.data.data?.count) || 0).catch(() => 0)
+
 /**
- * How many societies wait for the admin's approval — the badge on the
- * admin's "Society permissions" link. ADMIN only; 0 for everyone else and on
- * any error (a badge that cannot load is simply not shown).
+ * The admin's two to-dos on societies: how many wait for approval and how
+ * many surveys (material requests) wait for a decision. ADMIN only; zeros for
+ * everyone else and on any error (a badge that cannot load is simply not shown).
  */
-export function usePendingSocietyCount() {
+export function usePendingSocietyCounts() {
   const user = useAuthStore((s) => s.user)
   const enabled = user?.role === 'ADMIN'
   const pathname = usePathname()
-  const [count, setCount] = useState(0)
+  const [counts, setCounts] = useState(ZERO)
   const [tick, setTick] = useState(0)
 
   useEffect(() => {
@@ -42,19 +45,28 @@ export function usePendingSocietyCount() {
     const key = `${user?.id}|${pathname}|${version}`
     if (shared.key !== key) {
       shared.key = key
-      shared.promise = apiClient
-        .get('/permission-buildings/pending-count')
-        .then((res) => Number(res.data.data?.count) || 0)
+      shared.promise = Promise.all([
+        count(apiClient.get('/permission-buildings/pending-count')),
+        count(apiClient.get('/permission-buildings/survey-pending-count')),
+      ]).then(([approvals, surveys]) => ({ approvals, surveys, total: approvals + surveys }))
     }
     let alive = true
     shared.promise.then(
-      (n) => alive && setCount(n),
-      () => alive && setCount(0),
+      (c) => alive && setCounts(c),
+      () => alive && setCounts(ZERO),
     )
     return () => {
       alive = false
     }
   }, [enabled, user?.id, pathname, tick])
 
-  return enabled ? count : 0
+  return enabled ? counts : ZERO
+}
+
+/**
+ * The one number on the admin's "Society permissions" nav link: societies
+ * waiting for approval plus surveys waiting for a materials decision.
+ */
+export function usePendingSocietyCount() {
+  return usePendingSocietyCounts().total
 }

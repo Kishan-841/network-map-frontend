@@ -7,6 +7,7 @@ import {
   IconDashboard,
   IconMap,
   IconBuildings,
+  IconShield,
   IconPlus,
   IconUser,
   IconCalendar,
@@ -34,6 +35,14 @@ const COVERAGE_NAV = [
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+
+// A surveyor also fills the site survey on approved societies in their zones.
+const SURVEYOR_NAV = [
+  ...COVERAGE_NAV.slice(0, -1),
+  { href: '/societies', label: 'Societies', icon: IconShield },
+  COVERAGE_NAV[COVERAGE_NAV.length - 1],
+]
+
 // Mirrors the sidebar: an admin does everything a partner manager does.
 // Ordered deliberately: the first four are what a thumb reaches without
 // opening More, so the registry work an admin does daily comes first.
@@ -144,7 +153,9 @@ export function BottomNav() {
                 ? PERMISSION_NAV
                 : role === 'ADMIN'
                   ? ADMIN_NAV
-                  : COVERAGE_NAV
+                  : role === 'SURVEYOR'
+                    ? SURVEYOR_NAV
+                    : COVERAGE_NAV
 
   // The admin pages a phone could not reach at all — every Manage link for an
   // admin, the fiber pages for whoever was ticked. They go after the role's
@@ -160,7 +171,7 @@ export function BottomNav() {
   const pendingSocieties = usePendingSocietyCount()
   const badges = {
     [OVERDUE_HREF]: { count: overdue, label: 'overdue' },
-    [SOCIETIES_HREF]: { count: role === 'ADMIN' ? pendingSocieties : 0, label: 'waiting for approval' },
+    [SOCIETIES_HREF]: { count: role === 'ADMIN' ? pendingSocieties : 0, label: 'waiting for a decision' },
   }
   const { visible, overflow } = splitNav(NAV_ITEMS)
   const isActive = (item, path) => (item.exact ? path === item.href : path.startsWith(item.href))

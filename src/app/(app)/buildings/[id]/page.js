@@ -139,12 +139,12 @@ export default function BuildingDetailPage({ params }) {
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-card bg-card px-5 py-3 shadow-soft">
           <SocietyBadge />
           <span className="text-sm font-normal text-muted">Added by a permission executive</span>
-          {isAdmin && (
+          {(isAdmin || role === 'SURVEYOR') && (
             <Link
               href={`/societies/${building.id}`}
               className="ml-auto text-sm font-medium text-fiber underline-offset-2 hover:underline"
             >
-              Permission history
+              {isAdmin ? 'Permission history' : 'Site survey & materials'}
             </Link>
           )}
         </div>

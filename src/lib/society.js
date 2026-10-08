@@ -40,6 +40,13 @@ const KIND_LABEL = {
   WITHDRAWN: 'Withdrawn',
   APPROVED: 'Approved',
   REJECTED: 'Rejected',
+  // Phase 3: the site survey + material request, and going live.
+  SURVEY_SAVED: 'Survey saved',
+  SURVEY_SUBMITTED: 'Survey submitted',
+  SURVEY_EDITED: 'Survey edited',
+  MATERIALS_APPROVED: 'Materials approved',
+  MATERIALS_REJECTED: 'Materials rejected',
+  MARKED_LIVE: 'Marked live',
 }
 /** A history row's kind (PermissionVisit.kind) in words. */
 export const visitKindLabel = (k) => KIND_LABEL[k] ?? k ?? ''
@@ -68,6 +75,11 @@ const CHANGE_LABEL = {
   offer: 'Offer',
   permission: 'Permission details',
   photos: 'Photos',
+  // SURVEY_EDITED rows: which parts of the survey changed.
+  checks: 'Checks',
+  wings: 'Wings',
+  links: 'Wing links',
+  materials: 'Materials',
 }
 /** Words for an edit's changed-field keys; an unknown key reads straight back. */
 export const changeLabels = (keys) => (keys ?? []).map((k) => CHANGE_LABEL[k] ?? k)

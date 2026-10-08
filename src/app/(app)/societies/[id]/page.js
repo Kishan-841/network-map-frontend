@@ -14,6 +14,8 @@ import { VisitUpdateModal } from '@/components/societies/VisitUpdateModal'
 import { SocietyHistory } from '@/components/societies/SocietyHistory'
 import { ApprovalNotice } from '@/components/societies/ApprovalNotice'
 import { ApproveModal, RejectModal } from '@/components/societies/ApprovalModals'
+import { SurveySection } from '@/components/societies/SurveySection'
+import { ProgressChip } from '@/components/societies/ProgressChip'
 import { invalidatePendingSocietyCount } from '@/hooks/usePendingSocietyCount'
 import { IconEdit, IconPin, IconPlus, IconDoc, IconOkCircle, IconClose } from '@/components/ui/icons'
 import {
@@ -24,6 +26,7 @@ import {
   canDecideApproval,
   canChangeSocietyStatus,
   peCanEdit,
+  isApprovedSociety,
 } from '@/lib/society'
 
 const mapHref = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`
@@ -96,6 +99,9 @@ export default function SocietyPage() {
   const { id } = useParams()
   const role = useAuthStore((s) => s.user?.role)
   const isPE = isPermissionExecutive(role)
+  // Phase 3: the zone's surveyor reads the society and fills the site survey;
+  // visit updates stay the executive's and the admin's.
+  const isSurveyor = role === 'SURVEYOR'
 
   const [tick, setTick] = useState(0)
   // { id, data } or { id, error, notFound }. Kept across a reload so the page
@@ -145,6 +151,12 @@ export default function SocietyPage() {
     invalidatePendingSocietyCount()
   }
 
+  function onSurveyChanged(message) {
+    setToast(message)
+    setTick((t) => t + 1)
+    invalidatePendingSocietyCount()
+  }
+
   const approval = b?.approval ?? null
   const canDecide = canDecideApproval(role, approval)
 
@@ -155,7 +167,7 @@ export default function SocietyPage() {
       <PageHeader
         title={b?.buildingName ?? 'Society'}
         backHref="/societies"
-        backLabel="Society permissions"
+        backLabel={isSurveyor ? 'Society surveys' : 'Society permissions'}
       />
       <Toast key={toast} message={toast} onDone={() => setToast(null)} />
 
@@ -175,7 +187,11 @@ export default function SocietyPage() {
           <section className="mb-4 min-w-0 rounded-card border border-line bg-card p-4">
             <div className="flex items-start justify-between gap-3">
               <p className="min-w-0 break-words text-sm font-normal text-ink">{b.formattedAddress}</p>
-              <StatusChip status={b.permission?.permissionStatus} approval={approval} className="shrink-0" />
+              {isApprovedSociety(approval) ? (
+                <ProgressChip approval={approval} survey={b.survey} isLive={b.isLive} className="shrink-0 items-end" />
+              ) : (
+                <StatusChip status={b.permission?.permissionStatus} approval={approval} className="shrink-0" />
+              )}
             </div>
             <a
               href={mapHref(b.latitude, b.longitude)}
@@ -202,27 +218,31 @@ export default function SocietyPage() {
                 </Button>
               </div>
             )}
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="button"
-                variant={canDecide ? 'secondary' : 'primary'}
-                onClick={() => setVisitOpen(true)}
-                className="sm:flex-1"
-              >
-                <IconPlus className="h-4 w-4" aria-hidden="true" />
-                Add visit update
-              </Button>
-              {isPE && peCanEdit(role, approval) && (
-                <Link
-                  href={`/societies/add?edit=${b.id}`}
-                  className="btn btn-outline h-12 min-h-12 gap-2 rounded-btn text-[15px] font-medium normal-case sm:flex-1"
+            {!isSurveyor && (
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant={canDecide ? 'secondary' : 'primary'}
+                  onClick={() => setVisitOpen(true)}
+                  className="sm:flex-1"
                 >
-                  <IconEdit className="h-4 w-4" aria-hidden="true" />
-                  Edit details
-                </Link>
-              )}
-            </div>
+                  <IconPlus className="h-4 w-4" aria-hidden="true" />
+                  Add visit update
+                </Button>
+                {isPE && peCanEdit(role, approval) && (
+                  <Link
+                    href={`/societies/add?edit=${b.id}`}
+                    className="btn btn-outline h-12 min-h-12 gap-2 rounded-btn text-[15px] font-medium normal-case sm:flex-1"
+                  >
+                    <IconEdit className="h-4 w-4" aria-hidden="true" />
+                    Edit details
+                  </Link>
+                )}
+              </div>
+            )}
           </section>
+
+          {isApprovedSociety(approval) && <SurveySection building={b} role={role} onChanged={onSurveyChanged} />}
 
           <Section title="Person met">
             {b.contact ? (

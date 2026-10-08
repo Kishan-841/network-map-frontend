@@ -171,10 +171,15 @@ describe('permission executive', () => {
     expect(isForbiddenPath('ADMIN', '/societies')).toBe(false)
     expect(isForbiddenPath('ADMIN', '/societies/abc123')).toBe(false)
     expect(isForbiddenPath('ADMIN', '/societies/add')).toBe(true)
-    for (const role of ['MANAGER', 'SURVEYOR', 'SUPERVISOR', 'ACQUISITION_AGENT', 'ACQUISITION_LEAD']) {
+    for (const role of ['MANAGER', 'SUPERVISOR', 'ACQUISITION_AGENT', 'ACQUISITION_LEAD']) {
       expect(isForbiddenPath(role, '/societies')).toBe(true)
       expect(isForbiddenPath(role, '/societies/abc123')).toBe(true)
     }
+  })
+  it('society surveys: a surveyor reads the list + detail (their zones) but does not add', () => {
+    expect(isForbiddenPath('SURVEYOR', '/societies')).toBe(false)
+    expect(isForbiddenPath('SURVEYOR', '/societies/abc123')).toBe(false)
+    expect(isForbiddenPath('SURVEYOR', '/societies/add')).toBe(true)
   })
 })
 

@@ -18,6 +18,7 @@ import { useDetail } from './useDetail'
 import { useAuthStore } from '@/stores/auth-store'
 import { isSociety } from '@/lib/society'
 import { SocietyBadge } from '@/components/societies/SocietyBadge'
+import { SocietyMaterials } from '@/components/societies/SocietyMaterials'
 
 const titleCase = (value) =>
   value ? value.toLowerCase().replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) : null
@@ -25,7 +26,8 @@ const titleCase = (value) =>
 /** One building in full, opened from the map: its details and its OLT mapping. */
 export default function BuildingDetails({ id, onOpen, onCentre }) {
   const { data: b, loading, error, retry } = useDetail(`/buildings/${id}`, 'Could not load this building')
-  const isAdmin = useAuthStore((s) => s.user?.role) === 'ADMIN'
+  const role = useAuthStore((s) => s.user?.role)
+  const isAdmin = role === 'ADMIN'
 
   if (loading) return <Skeleton />
   if (error) return <LoadError error={error} onRetry={retry} />
@@ -63,6 +65,15 @@ export default function BuildingDetails({ id, onOpen, onCentre }) {
           className="-mt-1 inline-flex min-h-11 w-fit items-center text-sm font-medium text-fiber underline-offset-2 hover:underline"
         >
           Permission history
+        </Link>
+      )}
+      {/* The zone's surveyor fills the society's site survey there. */}
+      {isSociety(b) && role === 'SURVEYOR' && (
+        <Link
+          href={`/societies/${b.id}`}
+          className="-mt-1 inline-flex min-h-11 w-fit items-center text-sm font-medium text-fiber underline-offset-2 hover:underline"
+        >
+          Site survey &amp; materials
         </Link>
       )}
 
@@ -114,6 +125,8 @@ export default function BuildingDetails({ id, onOpen, onCentre }) {
           ]}
         />
       </Section>
+
+      {isSociety(b) && <SocietyMaterials buildingId={b.id} />}
 
       <LocationBlock latitude={b.latitude} longitude={b.longitude} onCentre={onCentre} />
 

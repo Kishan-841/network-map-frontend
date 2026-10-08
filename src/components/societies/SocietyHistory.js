@@ -9,7 +9,16 @@ const KIND_DOT = {
   WITHDRAWN: 'bg-faint',
   APPROVED: 'bg-ok',
   REJECTED: 'bg-bad',
+  // The site survey + materials, and going live.
+  SURVEY_SAVED: 'bg-fiber',
+  SURVEY_SUBMITTED: 'bg-warn',
+  SURVEY_EDITED: 'bg-warn',
+  MATERIALS_APPROVED: 'bg-ok',
+  MATERIALS_REJECTED: 'bg-bad',
+  MARKED_LIVE: 'bg-ok',
 }
+// Kinds whose row lists what changed (the API's change keys).
+const LISTS_CHANGES = new Set(['EDIT', 'SURVEY_EDITED'])
 
 /**
  * A society's history, newest first as the API sends it: when (India time),
@@ -22,7 +31,7 @@ export function SocietyHistory({ visits, zone = null }) {
     <ol className="relative">
       {visits.map((v, i) => {
         const status = statusChangeText(v.statusBefore, v.statusAfter)
-        const changes = v.kind === 'EDIT' ? changeLabels(v.changes) : []
+        const changes = LISTS_CHANGES.has(v.kind) ? changeLabels(v.changes) : []
         const detail = historyDetail(v, zone)
         return (
           <li key={v.id} className="relative flex min-w-0 gap-3 pb-4 last:pb-0">
@@ -45,9 +54,12 @@ export function SocietyHistory({ visits, zone = null }) {
               {changes.length > 0 && (
                 <p className="mt-0.5 text-sm font-normal text-muted">Changed: {changes.join(', ')}</p>
               )}
-              <p className="mt-1 whitespace-pre-wrap break-words rounded-btn bg-paper px-3 py-2 text-sm font-normal text-ink">
-                {v.remark}
-              </p>
+              {v.remark && (
+                <p className="mt-1 whitespace-pre-wrap break-words rounded-btn bg-paper px-3 py-2 text-sm font-normal text-ink">
+                  {v.kind === 'MATERIALS_REJECTED' && <span className="font-medium text-muted">Reason: </span>}
+                  {v.remark}
+                </p>
+              )}
             </div>
           </li>
         )

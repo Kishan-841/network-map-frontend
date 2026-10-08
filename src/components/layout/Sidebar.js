@@ -29,6 +29,7 @@ import {
   IconDashboard,
   IconMap,
   IconBuildings,
+  IconShield,
   IconPlus,
   IconUser,
   IconCalendar,
@@ -53,6 +54,14 @@ const COVERAGE_NAV = [
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
+
+// A surveyor also fills the site survey on approved societies in their zones.
+const SURVEYOR_NAV = [
+  ...COVERAGE_NAV.slice(0, -1),
+  { href: '/societies', label: 'Society surveys', icon: IconShield },
+  COVERAGE_NAV[COVERAGE_NAV.length - 1],
+]
+
 /**
  * An admin does everything a partner manager does, so the partner tabs sit in
  * the admin's own nav rather than only in a role that cannot see the registry.
@@ -251,7 +260,9 @@ export function Sidebar() {
                 ? PERMISSION_NAV
                 : role === 'ADMIN'
                   ? ADMIN_NAV
-                  : COVERAGE_NAV
+                  : role === 'SURVEYOR'
+                    ? SURVEYOR_NAV
+                    : COVERAGE_NAV
 
   // Fiber access is granted per user (Users → Assign accesses). Whoever holds
   // it gets the same two links the admin has, icons and all, in a group of
