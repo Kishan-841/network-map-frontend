@@ -3,13 +3,15 @@ import { materialRows, unitText } from '@/lib/society-materials'
 /**
  * A material request, read-only: grouped like the catalogue, only the items
  * asked for, each with its unit. Used on the society page and in the
- * Buildings drawer. `compact` tightens it for the drawer.
+ * Buildings drawer. `compact` tightens it for the drawer; `columns` lays the
+ * groups out in two columns from the sm breakpoint (the society page).
  */
-export function MaterialList({ materials, compact = false, empty = 'No materials asked for.' }) {
+export function MaterialList({ materials, compact = false, columns = false, empty = 'No materials asked for.' }) {
   const groups = materialRows(materials)
   if (groups.length === 0) return <p className="text-sm font-normal text-muted">{empty}</p>
+  const layout = columns ? 'grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2' : `flex flex-col ${compact ? 'gap-2' : 'gap-3'}`
   return (
-    <div className={`flex flex-col ${compact ? 'gap-2' : 'gap-3'}`}>
+    <div className={layout}>
       {groups.map((g) => (
         <div key={g.key} className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-wide text-faint">{g.label}</p>

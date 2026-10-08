@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { isApprovedSociety } from '@/lib/society'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/Button'
@@ -14,18 +15,10 @@ import {
   canSubmitSurvey,
   linkMethodLabel,
   surveyEditMode,
-  surveyNotice,
   surveyDraftKey,
   surveyRemarkField,
   surveyToForm,
 } from '@/lib/society-survey'
-
-const TONE = {
-  muted: 'border-line bg-paper text-ink',
-  warn: 'border-warn/30 bg-warn-tint text-warn',
-  bad: 'border-bad/30 bg-bad-tint text-bad',
-  ok: 'border-ok/30 bg-ok-tint text-ok',
-}
 
 /** GET …/survey answers the survey or null (possibly wrapped as { survey }). */
 const unwrap = (data) => (data && typeof data === 'object' && 'survey' in data ? data.survey : (data ?? null))
@@ -97,19 +90,23 @@ function SurveyReadOnly({ survey }) {
       )}
 
       <Sub>Materials</Sub>
-      <MaterialList materials={survey.materials} />
+      <MaterialList materials={survey.materials} columns />
     </div>
   )
 }
 
 /**
- * Site survey & materials on an approved society. The zone's surveyor fills
- * it in and sends it; the admin approves or rejects the material request;
- * after approval the surveyor marks the building live. `onChanged(message)`
- * lets the page reload the society (history, live flag) and show a toast.
+ * Site survey & materials on an approved society: the state the page shares
+ * between the status strip (where the survey stands, Approve materials /
+ * Reject / Mark live) and the survey card below it. The zone's surveyor fills
+ * the survey in and sends it; the admin approves or rejects the material
+ * request; after approval the surveyor marks the building live.
+ * `onChanged(message)` lets the page reload the society (history, live flag)
+ * and show a toast. Loads nothing until the society is approved.
  */
-export function SurveySection({ building, role, onChanged }) {
-  const id = building.id
+export function useSocietySurvey(building, role, onChanged) {
+  const id = building?.id
+  const enabled = Boolean(id) && isApprovedSociety(building?.approval)
   const [tick, setTick] = useState(0)
   const [result, setResult] = useState(null) // { key, survey } | { key, error }
   const [modal, setModal] = useState(null) // 'approve' | 'reject' | 'live'
@@ -122,6 +119,7 @@ export function SurveySection({ building, role, onChanged }) {
   const key = `${id}|${tick}`
 
   useEffect(() => {
+    if (!enabled) return undefined
     let alive = true
     apiClient
       .get(`/permission-buildings/${id}/survey`)
@@ -130,13 +128,13 @@ export function SurveySection({ building, role, onChanged }) {
     return () => {
       alive = false
     }
-  }, [id, key])
+  }, [id, key, enabled])
 
   // Keep the last survey on screen while a refresh loads.
-  const loaded = result && result.key.startsWith(`${id}|`) ? result : null
+  const loaded = enabled && result && result.key.startsWith(`${id}|`) ? result : null
   const survey = loaded?.survey ?? null
-  const isLive = Boolean(building.isLive)
-  const liveSince = (building.visits ?? []).find((v) => v.kind === 'MARKED_LIVE')?.createdAt ?? null
+  const isLive = Boolean(building?.isLive)
+  const liveSince = (building?.visits ?? []).find((v) => v.kind === 'MARKED_LIVE')?.createdAt ?? null
 
   function done(message, error = null) {
     setModal(null)
@@ -150,13 +148,69 @@ export function SurveySection({ building, role, onChanged }) {
   const mode = surveyEditMode(role, survey, isLive)
   const adminGate = role === 'ADMIN' && (survey?.status === 'SUBMITTED' || survey?.status === 'APPROVED')
   const editorOpen = mode !== 'read' && (!adminGate || editing)
-  const showEditor = loaded && !loaded.error && editorOpen
   // No decision or Mark live while the admin has the editor open.
   const decisionsShown = !(adminGate && editing)
-  const notice = surveyNotice(survey, isLive, liveSince)
+  const ready = Boolean(loaded && !loaded.error)
 
+  return {
+    enabled,
+    building,
+    role,
+    userId,
+    loaded,
+    survey,
+    isLive,
+    liveSince,
+    initial,
+    mode,
+    adminGate,
+    editing,
+    setEditing,
+    modal,
+    setModal,
+    submitError,
+    setSubmitError,
+    done,
+    showEditor: ready && editorOpen,
+    canDecide: ready && decisionsShown && canDecideSurvey(role, survey),
+    canLive: ready && decisionsShown && canMarkLive(role, survey, isLive),
+    editingBlocksDecisions: ready && adminGate && editing,
+  }
+}
+
+/** Approve materials / Reject / Mark live, for the status strip's action row. */
+export function SurveyActions({ sv }) {
+  if (!sv.enabled) return null
   return (
-    <section className="mb-4 min-w-0 rounded-card border border-line bg-card p-4">
+    <>
+      {sv.canDecide && (
+        <>
+          <Button type="button" variant="success" onClick={() => sv.setModal('approve')} className="sm:flex-1">
+            <IconOkCircle className="h-4 w-4" aria-hidden="true" />
+            Approve materials
+          </Button>
+          <Button type="button" variant="dangerGhost" onClick={() => sv.setModal('reject')} className="sm:flex-1">
+            <IconClose className="h-4 w-4" aria-hidden="true" />
+            Reject materials
+          </Button>
+        </>
+      )}
+      {sv.canLive && (
+        <Button type="button" variant="success" onClick={() => sv.setModal('live')} className="sm:flex-1">
+          <IconOkCircle className="h-4 w-4" aria-hidden="true" />
+          Mark live
+        </Button>
+      )}
+    </>
+  )
+}
+
+/** The survey card: the editor (who may edit) or the saved survey, read-only. */
+export function SurveySection({ sv }) {
+  const { building, loaded, survey, mode, adminGate } = sv
+  const id = building.id
+  return (
+    <section className="min-w-0 rounded-card border border-line bg-card p-4">
       <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Site survey &amp; materials</p>
 
       {!loaded && <p className="text-sm font-normal text-muted">Loading…</p>}
@@ -164,56 +218,24 @@ export function SurveySection({ building, role, onChanged }) {
 
       {loaded && !loaded.error && (
         <>
-          <div role="status" className={`mb-4 min-w-0 rounded-card border px-4 py-3 ${TONE[notice.tone]}`}>
-            <p className="text-sm font-semibold">{notice.title}</p>
-            {notice.detail && <p className="mt-0.5 break-words text-sm font-normal">{notice.detail}</p>}
-            {notice.reason && (
-              <p className="mt-2 whitespace-pre-wrap break-words rounded-btn bg-card px-3 py-2 text-sm font-normal text-ink">
-                <span className="font-medium text-muted">{notice.reasonLabel ?? 'Reason'}: </span>
-                {notice.reason}
-              </p>
-            )}
-            {decisionsShown && canDecideSurvey(role, survey) && (
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <Button type="button" variant="success" onClick={() => setModal('approve')} className="sm:flex-1">
-                  <IconOkCircle className="h-4 w-4" aria-hidden="true" />
-                  Approve materials
-                </Button>
-                <Button type="button" variant="dangerGhost" onClick={() => setModal('reject')} className="sm:flex-1">
-                  <IconClose className="h-4 w-4" aria-hidden="true" />
-                  Reject
-                </Button>
-              </div>
-            )}
-            {decisionsShown && canMarkLive(role, survey, isLive) && (
-              <Button type="button" variant="success" onClick={() => setModal('live')} className="mt-3 w-full sm:w-auto">
-                <IconOkCircle className="h-4 w-4" aria-hidden="true" />
-                Mark live
-              </Button>
-            )}
-            {adminGate && editing && (
-              <p className="mt-2 text-sm font-normal">Save or cancel your edits to approve, reject or mark live.</p>
-            )}
-          </div>
-
-          {submitError && (
+          {sv.submitError && (
             <p role="alert" className="mb-4 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
-              Saved, but not sent for approval: {submitError}
+              Saved, but not sent for approval: {sv.submitError}
             </p>
           )}
 
-          {showEditor ? (
+          {sv.showEditor ? (
             <SurveyEditor
               key={`${survey?.updatedAt ?? 'new'}|${mode}`}
               buildingId={id}
-              initial={initial}
-              draftKey={surveyDraftKey(id, userId)}
+              initial={sv.initial}
+              draftKey={surveyDraftKey(id, sv.userId)}
               basedOn={survey?.updatedAt ?? 'new'}
-              onCancel={adminGate ? () => setEditing(false) : undefined}
-              remarkField={surveyRemarkField(role, survey)}
-              canSubmit={canSubmitSurvey(role, survey)}
+              onCancel={adminGate ? () => sv.setEditing(false) : undefined}
+              remarkField={surveyRemarkField(sv.role, survey)}
+              canSubmit={canSubmitSurvey(sv.role, survey)}
               expected={building.details}
-              onSaved={done}
+              onSaved={sv.done}
             />
           ) : (
             <>
@@ -223,8 +245,8 @@ export function SurveySection({ building, role, onChanged }) {
                   type="button"
                   variant="secondary"
                   onClick={() => {
-                    setSubmitError(null)
-                    setEditing(true)
+                    sv.setSubmitError(null)
+                    sv.setEditing(true)
                   }}
                   className="mt-4 w-full sm:w-auto"
                 >
@@ -236,14 +258,14 @@ export function SurveySection({ building, role, onChanged }) {
         </>
       )}
 
-      {modal === 'approve' && (
-        <ApproveMaterialsModal buildingId={id} buildingName={building.buildingName} onClose={() => setModal(null)} onDone={done} />
+      {sv.modal === 'approve' && (
+        <ApproveMaterialsModal buildingId={id} buildingName={building.buildingName} onClose={() => sv.setModal(null)} onDone={sv.done} />
       )}
-      {modal === 'reject' && (
-        <RejectMaterialsModal buildingId={id} buildingName={building.buildingName} onClose={() => setModal(null)} onDone={done} />
+      {sv.modal === 'reject' && (
+        <RejectMaterialsModal buildingId={id} buildingName={building.buildingName} onClose={() => sv.setModal(null)} onDone={sv.done} />
       )}
-      {modal === 'live' && (
-        <MarkLiveModal buildingId={id} buildingName={building.buildingName} onClose={() => setModal(null)} onDone={done} />
+      {sv.modal === 'live' && (
+        <MarkLiveModal buildingId={id} buildingName={building.buildingName} onClose={() => sv.setModal(null)} onDone={sv.done} />
       )}
     </section>
   )

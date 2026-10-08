@@ -12,12 +12,10 @@ import { Toast } from '@/components/ui/Toast'
 import { StatusChip } from '@/components/societies/StatusChip'
 import { VisitUpdateModal } from '@/components/societies/VisitUpdateModal'
 import { SocietyHistory } from '@/components/societies/SocietyHistory'
-import { ApprovalNotice } from '@/components/societies/ApprovalNotice'
 import { ApproveModal, RejectModal } from '@/components/societies/ApprovalModals'
-import { SurveySection } from '@/components/societies/SurveySection'
-import { ProgressChip } from '@/components/societies/ProgressChip'
+import { SurveyActions, SurveySection, useSocietySurvey } from '@/components/societies/SurveySection'
 import { invalidatePendingSocietyCount } from '@/hooks/usePendingSocietyCount'
-import { IconEdit, IconPin, IconPlus, IconDoc, IconOkCircle, IconClose } from '@/components/ui/icons'
+import { IconEdit, IconPin, IconPlus, IconDoc, IconOkCircle, IconClose, IconChevronDown } from '@/components/ui/icons'
 import {
   SOCIETY_OFFER_OPTIONS,
   PAYMENT_TYPE_OPTIONS,
@@ -28,7 +26,8 @@ import {
   peCanEdit,
   isApprovedSociety,
 } from '@/lib/society'
-import { hasDraft, sessionStore, surveyDraftKey } from '@/lib/society-survey'
+import { hasDraft, sessionStore, surveyDraftKey, societyProgress, PROGRESS_STEPS } from '@/lib/society-survey'
+import { statusStrip } from '@/lib/society-page'
 
 const mapHref = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`
 const optionLabel = (options, v) => options.find((o) => o.value === v)?.label ?? v
@@ -45,16 +44,26 @@ const rupees = (v) => `₹${Number(v).toLocaleString('en-IN')}`
 
 function Section({ title, children }) {
   return (
-    <section className="mb-4 min-w-0 rounded-card border border-line bg-card p-4">
+    <section className="min-w-0 rounded-card border border-line bg-card p-4">
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">{title}</p>
       {children}
     </section>
   )
 }
 
+/** One part of the executive's details in the side column (hairline between parts). */
+function Part({ title, children }) {
+  return (
+    <div className="min-w-0 py-3 first:pt-0 last:pb-0">
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">{title}</p>
+      {children}
+    </div>
+  )
+}
+
 function Row({ label, children }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1">
+    <div className="flex items-baseline justify-between gap-3 py-0.5">
       <span className="shrink-0 text-sm font-normal text-muted">{label}</span>
       <span className="min-w-0 break-words text-right text-sm font-medium text-ink">{children}</span>
     </div>
@@ -91,10 +100,227 @@ function PermissionDetails({ permission }) {
   )
 }
 
+const ALERT_TONE = {
+  muted: 'border-line bg-paper text-ink',
+  warn: 'border-warn/30 bg-warn-tint text-warn',
+  bad: 'border-bad/30 bg-bad-tint text-bad',
+}
+
+/** Something the reader must not miss: waiting for approval, a rejection and its reason. */
+function StripAlert({ alert }) {
+  return (
+    <div role="status" className={`min-w-0 rounded-btn border px-3 py-2 ${ALERT_TONE[alert.tone] ?? ALERT_TONE.muted}`}>
+      <p className="break-words text-sm">
+        <span className="font-semibold">{alert.title}</span>
+        {alert.detail && <span className="font-normal"> · {alert.detail}</span>}
+      </p>
+      {alert.reason && (
+        <p className="mt-1 whitespace-pre-wrap break-words text-sm font-normal text-ink">
+          <span className="font-medium text-muted">{alert.reasonLabel}: </span>
+          {alert.reason}
+        </p>
+      )}
+    </div>
+  )
+}
+
 /**
- * One society: where it is, who was met, what was agreed, its photos, and the
- * full history of visits and edits, newest first. The executive (their own)
- * and the admin (anyone's) add visit updates; the executive edits details.
+ * The one status card at the top: where the society is in the flow (chip +
+ * five-step bar), the facts on one wrapped line, where it is, anything that
+ * needs attention, and the actions open to this viewer.
+ */
+function StatusStrip({ building: b, survey, liveSince, buildingsHref, actions, note }) {
+  const approval = b.approval
+  const p = societyProgress({ approval, survey, isLive: b.isLive })
+  const bad = p.className.includes('text-bad')
+  const { facts, alerts } = statusStrip({
+    approval,
+    zone: b.zone,
+    survey,
+    isLive: b.isLive,
+    liveSince,
+    createdBy: b.createdBy,
+    createdAt: b.createdAt,
+  })
+  return (
+    <section className="min-w-0 rounded-card border border-line bg-card p-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {approval?.status ? (
+          <span
+            className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${p.className}`}
+          >
+            {p.label}
+          </span>
+        ) : (
+          <StatusChip status={b.permission?.permissionStatus} approval={approval} />
+        )}
+        {approval?.status && (
+          <span className="text-xs font-normal text-muted">
+            Step {p.step} of {PROGRESS_STEPS}
+          </span>
+        )}
+      </div>
+      {approval?.status && (
+        <div className="mt-2 flex gap-1" aria-hidden="true">
+          {Array.from({ length: PROGRESS_STEPS }, (_, i) => (
+            <span
+              key={i}
+              className={`h-1.5 flex-1 rounded-full ${i < p.step ? (bad && i === p.step - 1 ? 'bg-bad' : 'bg-ok') : 'bg-line'}`}
+            />
+          ))}
+        </div>
+      )}
+      {facts.length > 0 && (
+        <p className="mt-2 break-words text-sm font-normal text-muted">
+          {facts.join(' · ')}
+          {buildingsHref && (
+            <>
+              {' · '}
+              <Link href={buildingsHref} className="font-medium text-fiber underline-offset-2 hover:underline">
+                Open in Buildings
+              </Link>
+            </>
+          )}
+        </p>
+      )}
+      <p className="mt-1 break-words text-sm font-normal text-ink">
+        {b.formattedAddress}{' '}
+        <a
+          href={mapHref(b.latitude, b.longitude)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-fiber underline-offset-2 hover:underline"
+        >
+          <IconPin className="h-4 w-4" aria-hidden="true" />
+          Open in Google Maps
+        </a>
+      </p>
+      {alerts.length > 0 && (
+        <div className="mt-3 flex flex-col gap-2">
+          {alerts.map((a) => (
+            <StripAlert key={a.title} alert={a} />
+          ))}
+        </div>
+      )}
+      {actions && (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap [&>*]:whitespace-nowrap">{actions}</div>
+      )}
+      {note && <p className="mt-2 text-sm font-normal text-muted">{note}</p>}
+    </section>
+  )
+}
+
+/**
+ * What the executive recorded — person met, permission, building facts,
+ * photos. A narrow side column from lg (sticky while it fits the screen);
+ * on a phone it folds under one "Society details" row, closed at first.
+ */
+function SocietyDetails({ building: b }) {
+  const [open, setOpen] = useState(false)
+  const photos = b.photos ?? []
+  const summary = [
+    b.contact ? personMetText(b.contact) : null,
+    photos.length ? `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <aside className="min-w-0 rounded-card border border-line bg-card lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="society-details"
+        onClick={() => setOpen((o) => !o)}
+        className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-2 text-left lg:hidden"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-ink">Society details</span>
+          {summary && <span className="block truncate text-xs font-normal text-muted">{summary}</span>}
+        </span>
+        <IconChevronDown
+          className={`h-5 w-5 shrink-0 text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+      <div
+        id="society-details"
+        className={`${open ? 'block border-t border-line' : 'hidden'} divide-y divide-line px-4 py-3 lg:block lg:border-t-0 lg:py-4`}
+      >
+        <Part title="Person met">
+          {b.contact ? (
+            <>
+              <p className="text-sm font-medium text-ink">{personMetText(b.contact)}</p>
+              {b.contact.contactPhone && (
+                <a href={`tel:${b.contact.contactPhone}`} className="text-sm font-normal text-fiber">
+                  {b.contact.contactPhone}
+                </a>
+              )}
+              {b.contact.contactEmail && (
+                <p className="break-all text-sm font-normal text-muted">{b.contact.contactEmail}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm font-normal text-muted">Nobody recorded.</p>
+          )}
+        </Part>
+
+        <Part title="Permission details">
+          <PermissionDetails permission={b.permission} />
+        </Part>
+
+        {(b.details?.wings != null || b.details?.floors != null || b.details?.homePass != null) && (
+          <Part title="Building">
+            {b.details.wings != null && <Row label="Wings">{b.details.wings}</Row>}
+            {b.details.floors != null && <Row label="Floors">{b.details.floors}</Row>}
+            {b.details.homePass != null && <Row label="Home pass">{b.details.homePass}</Row>}
+          </Part>
+        )}
+
+        <Part title="Photos">
+          {photos.length === 0 ? (
+            <p className="text-sm font-normal text-muted">No photos.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {photos.map((p) => (
+                <a
+                  key={p.id}
+                  href={p.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={PHOTO_LABEL[p.type] ?? p.type}
+                  className="block w-[68px] min-w-0"
+                >
+                  {isPdf(p.url) ? (
+                    <span className="flex h-[68px] w-[68px] items-center justify-center rounded-btn border border-line bg-paper text-muted">
+                      <IconDoc className="h-6 w-6" aria-hidden="true" />
+                    </span>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.url}
+                      alt={PHOTO_LABEL[p.type] ?? 'Photo'}
+                      className="h-[68px] w-[68px] rounded-btn border border-line bg-paper object-cover"
+                    />
+                  )}
+                  <span className="mt-0.5 block truncate text-[11px] font-medium text-muted">
+                    {PHOTO_LABEL[p.type] ?? p.type}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+        </Part>
+      </div>
+    </aside>
+  )
+}
+
+/**
+ * One society: where it stands (one status strip with the actions), the site
+ * survey once approved, the history of visits and edits (newest first), and —
+ * in a side column from lg, folded on a phone — what the executive recorded.
+ * The executive (their own) and the admin (anyone's) add visit updates; the
+ * executive edits details.
  */
 export default function SocietyPage() {
   const { id } = useParams()
@@ -166,13 +392,22 @@ export default function SocietyPage() {
     invalidatePendingSocietyCount()
   }
 
+  // The survey is shared by the status strip (stage, facts, decisions) and
+  // the survey card; it loads only once the society is approved.
+  const sv = useSocietySurvey(b, role, onSurveyChanged)
+
   const approval = b?.approval ?? null
   const canDecide = canDecideApproval(role, approval)
+  const approved = isApprovedSociety(approval)
+  // Until the survey itself has loaded, the society read's summary stands in.
+  const stripSurvey = sv.loaded && !sv.loaded.error ? sv.survey : (b?.survey ?? null)
 
-  const photos = b?.photos ?? []
+  const showVisit = !isSurveyor
+  const showEdit = isPE && peCanEdit(role, approval)
+  const hasActions = canDecide || showVisit || showEdit || sv.canDecide || sv.canLive
 
   return (
-    <main className="mx-auto max-w-3xl">
+    <main className="mx-auto max-w-6xl">
       <PageHeader
         title={b?.buildingName ?? 'Society'}
         backHref="/societies"
@@ -188,125 +423,94 @@ export default function SocietyPage() {
           <p className="mt-1 text-sm font-normal text-muted">It does not exist, or it is not one of yours.</p>
         </div>
       )}
-      {current?.error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{current.error}</p>}
+      {current?.error && (
+        <p className="mb-4 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{current.error}</p>
+      )}
 
       {b && (
         <>
-          <ApprovalNotice approval={approval} zone={b.zone} buildingId={isPE ? null : b.id} />
+          <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
+            {/* On a phone this column dissolves (contents) so the details can sit
+                between the status strip and the survey; from lg it is a column. */}
+            <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
+              <div className="order-1 min-w-0">
+                <StatusStrip
+                  building={b}
+                  survey={stripSurvey}
+                  liveSince={sv.liveSince}
+                  buildingsHref={approved && !isPE ? `/buildings/${b.id}` : null}
+                  note={
+                    sv.editingBlocksDecisions ? 'Save or cancel your survey edits to approve, reject or mark live.' : null
+                  }
+                  actions={
+                    hasActions ? (
+                      <>
+                        {canDecide && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="success"
+                              onClick={() => setDeciding('approve')}
+                              className="sm:flex-1"
+                            >
+                              <IconOkCircle className="h-4 w-4" aria-hidden="true" />
+                              Approve
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="dangerGhost"
+                              onClick={() => setDeciding('reject')}
+                              className="sm:flex-1"
+                            >
+                              <IconClose className="h-4 w-4" aria-hidden="true" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        <SurveyActions sv={sv} />
+                        {showVisit && (
+                          <Button
+                            type="button"
+                            variant={canDecide || sv.canDecide || sv.canLive ? 'secondary' : 'primary'}
+                            onClick={() => setVisitOpen(true)}
+                            className="sm:flex-1"
+                          >
+                            <IconPlus className="h-4 w-4" aria-hidden="true" />
+                            Add visit update
+                          </Button>
+                        )}
+                        {showEdit && (
+                          <Link
+                            href={`/societies/add?edit=${b.id}`}
+                            className="btn btn-outline h-12 min-h-12 gap-2 rounded-btn text-[15px] font-medium normal-case sm:flex-1"
+                          >
+                            <IconEdit className="h-4 w-4" aria-hidden="true" />
+                            Edit details
+                          </Link>
+                        )}
+                      </>
+                    ) : null
+                  }
+                />
+              </div>
 
-          <section className="mb-4 min-w-0 rounded-card border border-line bg-card p-4">
-            <div className="flex items-start justify-between gap-3">
-              <p className="min-w-0 break-words text-sm font-normal text-ink">{b.formattedAddress}</p>
-              {isApprovedSociety(approval) ? (
-                <ProgressChip approval={approval} survey={b.survey} isLive={b.isLive} className="shrink-0 items-end" />
-              ) : (
-                <StatusChip status={b.permission?.permissionStatus} approval={approval} className="shrink-0" />
+              {approved && (
+                <div className="order-3 min-w-0">
+                  <SurveySection sv={sv} />
+                </div>
               )}
+
+              <div className="order-4 min-w-0">
+                <Section title={`History${b.visits?.length ? ` · ${b.visits.length}` : ''}`}>
+                  <SocietyHistory visits={b.visits} zone={b.zone} />
+                </Section>
+              </div>
             </div>
-            <a
-              href={mapHref(b.latitude, b.longitude)}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-fiber underline-offset-2 hover:underline"
-            >
-              <IconPin className="h-4 w-4" aria-hidden="true" />
-              Open in Google Maps
-            </a>
-            <p className="mt-2 text-xs font-normal text-faint">
-              Added by {b.createdBy?.name ?? '—'} on {istDate(b.createdAt)}
-              {b.zone?.name ? ` · ${b.zone.name}` : ''}
-            </p>
-            {canDecide && (
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <Button type="button" variant="success" onClick={() => setDeciding('approve')} className="sm:flex-1">
-                  <IconOkCircle className="h-4 w-4" aria-hidden="true" />
-                  Approve
-                </Button>
-                <Button type="button" variant="dangerGhost" onClick={() => setDeciding('reject')} className="sm:flex-1">
-                  <IconClose className="h-4 w-4" aria-hidden="true" />
-                  Reject
-                </Button>
-              </div>
-            )}
-            {!isSurveyor && (
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <Button
-                  type="button"
-                  variant={canDecide ? 'secondary' : 'primary'}
-                  onClick={() => setVisitOpen(true)}
-                  className="sm:flex-1"
-                >
-                  <IconPlus className="h-4 w-4" aria-hidden="true" />
-                  Add visit update
-                </Button>
-                {isPE && peCanEdit(role, approval) && (
-                  <Link
-                    href={`/societies/add?edit=${b.id}`}
-                    className="btn btn-outline h-12 min-h-12 gap-2 rounded-btn text-[15px] font-medium normal-case sm:flex-1"
-                  >
-                    <IconEdit className="h-4 w-4" aria-hidden="true" />
-                    Edit details
-                  </Link>
-                )}
-              </div>
-            )}
-          </section>
 
-          {isApprovedSociety(approval) && <SurveySection building={b} role={role} onChanged={onSurveyChanged} />}
-
-          <Section title="Person met">
-            {b.contact ? (
-              <>
-                <p className="text-sm font-medium text-ink">{personMetText(b.contact)}</p>
-                {b.contact.contactPhone && (
-                  <a href={`tel:${b.contact.contactPhone}`} className="text-sm font-normal text-fiber">
-                    {b.contact.contactPhone}
-                  </a>
-                )}
-                {b.contact.contactEmail && <p className="break-all text-sm font-normal text-muted">{b.contact.contactEmail}</p>}
-              </>
-            ) : (
-              <p className="text-sm font-normal text-muted">Nobody recorded.</p>
-            )}
-          </Section>
-
-          <Section title="Permission details">
-            <PermissionDetails permission={b.permission} />
-          </Section>
-
-          {(b.details?.wings != null || b.details?.floors != null || b.details?.homePass != null) && (
-            <Section title="Building">
-              {b.details.wings != null && <Row label="Wings">{b.details.wings}</Row>}
-              {b.details.floors != null && <Row label="Floors">{b.details.floors}</Row>}
-              {b.details.homePass != null && <Row label="Home pass">{b.details.homePass}</Row>}
-            </Section>
-          )}
-
-          <Section title="Photos">
-            {photos.length === 0 ? (
-              <p className="text-sm font-normal text-muted">No photos.</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {photos.map((p) => (
-                  <a key={p.id} href={p.url} target="_blank" rel="noreferrer" className="block min-w-0">
-                    {isPdf(p.url) ? (
-                      <span className="flex aspect-square items-center justify-center rounded-btn border border-line bg-paper text-muted">
-                        <IconDoc className="h-8 w-8" aria-hidden="true" />
-                      </span>
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.url} alt={PHOTO_LABEL[p.type] ?? 'Photo'} className="aspect-square w-full rounded-btn border border-line bg-paper object-cover" />
-                    )}
-                    <span className="mt-1 block truncate text-xs font-medium text-muted">{PHOTO_LABEL[p.type] ?? p.type}</span>
-                  </a>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          <Section title="History">
-            <SocietyHistory visits={b.visits} zone={b.zone} />
-          </Section>
+            <div className="order-2 min-w-0 lg:order-none lg:sticky lg:top-6">
+              <SocietyDetails building={b} />
+            </div>
+          </div>
 
           {visitOpen && (
             <VisitUpdateModal

@@ -191,9 +191,14 @@ export function surveyPayload(form) {
  * Mistakes the API would refuse, per row: { ok, form: [messages],
  * wings: {index: message}, links: {index: message}, materials: {key: message} }.
  * `submit` adds the submit-only rules (≥1 wing, ≥1 material).
+ * `formTabs` counts the form-level messages per editor tab (wings / materials).
  */
 export function surveyErrors(form, { submit = false } = {}) {
-  const out = { form: [], wings: {}, links: {}, materials: {} }
+  const out = { form: [], formTabs: { wings: 0, materials: 0 }, wings: {}, links: {}, materials: {} }
+  const formError = (msg, tab) => {
+    out.form.push(msg)
+    out.formTabs[tab] += 1
+  }
   const wings = form.wings ?? []
   const seen = new Set()
   let wingCount = 0
@@ -215,7 +220,7 @@ export function surveyErrors(form, { submit = false } = {}) {
     }
     if (msg) out.wings[i] = msg
   })
-  if (wingCount > MAX_WINGS) out.form.push(`${MAX_WINGS} wings at most`)
+  if (wingCount > MAX_WINGS) formError(`${MAX_WINGS} wings at most`, 'wings')
 
   const names = wingNamesById(wings)
   const links = form.links ?? []
@@ -239,7 +244,7 @@ export function surveyErrors(form, { submit = false } = {}) {
     }
     if (msg) out.links[i] = msg
   })
-  if (linkCount > MAX_LINKS) out.form.push(`${MAX_LINKS} links at most`)
+  if (linkCount > MAX_LINKS) formError(`${MAX_LINKS} links at most`, 'wings')
 
   let asked = 0
   for (const [key, v] of Object.entries(form.materials ?? {})) {
@@ -248,8 +253,8 @@ export function surveyErrors(form, { submit = false } = {}) {
   }
 
   if (submit) {
-    if (wingCount === 0) out.form.push('Add at least one wing')
-    if (asked === 0) out.form.push('Ask for at least one material')
+    if (wingCount === 0) formError('Add at least one wing', 'wings')
+    if (asked === 0) formError('Ask for at least one material', 'materials')
   }
   const ok =
     out.form.length === 0 &&
