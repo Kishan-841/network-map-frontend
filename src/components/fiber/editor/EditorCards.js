@@ -37,6 +37,7 @@ export default function EditorCards({
           mode="edit"
           initial={{
             code: editingClosure.ref?.code,
+            closureId: editingClosure.ref?.closureId,
             kind: editingClosure.ref?.kind,
             notes: editingClosure.ref?.notes,
           }}
