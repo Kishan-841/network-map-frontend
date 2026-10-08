@@ -31,6 +31,7 @@ const toForm = (closure) => ({
   tubeCount: closure.tubeCount == null ? '' : String(closure.tubeCount),
   inCoreCount: closure.inCoreCount == null ? '' : String(closure.inCoreCount),
   outCoreCount: closure.outCoreCount == null ? '' : String(closure.outCoreCount),
+  images: closure.images ?? [],
 })
 
 const splitterLabel = (closure) =>

@@ -22,6 +22,7 @@ import {
   LinkRow,
   LoadError,
   LocationBlock,
+  Photos,
   RecordBlock,
   Section,
   Skeleton,
@@ -165,6 +166,8 @@ export default function ClosureDetails({ id, canManage, onOpen, onCentre }) {
       </Section>
 
       <LocationBlock latitude={closure.latitude} longitude={closure.longitude} onCentre={onCentre} />
+
+      <Photos images={closure.images} />
 
       <Section title="Fibers" count={closure.fibers.length}>
         {closure.fibers.length === 0 && <EmptyLine>No fibers here.</EmptyLine>}

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { CLOSURE_KINDS, CORE_COUNTS, FIBER_TYPES, TUBE_COUNTS } from '@/lib/fiber/constants'
 import { DEFAULT_CENTRE, parseLatitude, parseLongitude } from '@/lib/fiber/coords'
+import ClosurePhotos from '@/components/fiber/ClosurePhotos'
 
 // Client-only: Google Maps JS touches window.
 const GoogleLocationPicker = dynamic(
@@ -24,6 +25,8 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
   const [buildings, setBuildings] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const setImages = (update) => setForm((f) => ({ ...f, images: update(f.images ?? []) }))
 
   useEffect(() => {
     let cancelled = false
@@ -56,6 +59,8 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
           form.inCoreCount === '' || form.inCoreCount == null ? null : Number(form.inCoreCount),
         outCoreCount:
           form.outCoreCount === '' || form.outCoreCount == null ? null : Number(form.outCoreCount),
+        // The whole list, every save: an empty list clears the photos.
+        images: form.images ?? [],
       })
     } catch (err) {
       setError(getApiErrorMessage(err))
@@ -192,6 +197,8 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
         onChange={(e) => setForm({ ...form, notes: e.target.value })}
       />
 
+      <ClosurePhotos images={form.images} setImages={setImages} onUploadingChange={setUploading} />
+
       {/* Pinned to the bottom of the screen so Save is always in reach — above
           the mobile bottom-nav, flush at the card's foot on desktop. */}
       <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 -mx-5 -mb-5 mt-1 flex flex-col gap-3 rounded-b-card border-t border-line bg-card px-5 py-4 lg:bottom-0">
@@ -207,7 +214,7 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
           <Button
             type="button"
             className="flex-1"
-            disabled={!canSave}
+            disabled={!canSave || uploading}
             loading={busy}
             onClick={handleSave}
           >

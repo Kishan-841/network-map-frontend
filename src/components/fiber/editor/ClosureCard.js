@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { IconTrash } from '@/components/ui/icons'
@@ -14,9 +15,10 @@ import {
   TUBE_COUNTS,
 } from '@/lib/fiber/constants'
 import BottomSheet, { SHEET_ANCHORED } from './BottomSheet'
+import ClosurePhotos from '../ClosurePhotos'
 
 const CARD_WIDTH = 320
-const CARD_HEIGHT = 500
+const CARD_HEIGHT = 580
 // `create` still lands on the pixel that was tapped — but only from `lg` up,
 // where there is room beside the line. On a phone it is a bottom sheet.
 const SHEET_AT_PIXEL =
@@ -45,6 +47,24 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
     inCoreCount: initial?.inCoreCount ?? '',
     outCoreCount: initial?.outCoreCount ?? '',
   }))
+  // Photos. A new closure starts with none; a saved one's are read from the
+  // API (the line's points do not carry them). Until that read lands the list
+  // is `undefined` and Save leaves the stored photos alone.
+  const [images, setImages] = useState(() => (mode === 'edit' ? undefined : []))
+  const [photosFailed, setPhotosFailed] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const closureId = mode === 'edit' ? initial?.closureId : null
+  useEffect(() => {
+    if (!closureId) return undefined
+    let cancelled = false
+    apiClient
+      .get(`/closures/${closureId}`)
+      .then((res) => !cancelled && setImages(res.data.data.images ?? []))
+      .catch(() => !cancelled && setPhotosFailed(true))
+    return () => {
+      cancelled = true
+    }
+  }, [closureId])
   const setField = (key) => (e) => setSheet((s) => ({ ...s, [key]: e.target.value }))
   const numberOrNull = (v) => (v === '' || v === null ? null : Number(v))
 
@@ -167,6 +187,20 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
         onChange={(e) => setNotes(e.target.value)}
       />
 
+      {images !== undefined ? (
+        <ClosurePhotos
+          images={images}
+          setImages={setImages}
+          onUploadingChange={setUploading}
+          disabled={saving}
+          compact
+        />
+      ) : mode === 'edit' && closureId ? (
+        <p className="text-sm font-normal text-faint">
+          {photosFailed ? 'Photos could not be loaded — edit them on the Closures page.' : 'Loading photos…'}
+        </p>
+      ) : null}
+
       {error && <p className="rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">{error}</p>}
 
       <div className="flex gap-2">
@@ -177,9 +211,11 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
           type="button"
           className="flex-1 min-h-11"
           loading={saving}
-          disabled={saving}
+          disabled={saving || uploading}
           onClick={() =>
             onSave({
+              // Left out until known, so a save never wipes photos it never saw.
+              ...(images !== undefined && (mode === 'edit' || images.length) ? { images } : {}),
               kind: kind || null,
               notes: notes.trim() || null,
               fiberType: sheet.fiberType || null,

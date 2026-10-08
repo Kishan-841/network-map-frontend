@@ -92,12 +92,18 @@ export function useAnnotations({ draft, dispatch, patchPoints, reloadFiber, onOp
     setClosureError(null)
   }
 
-  async function handleClosureEditSave({ kind, notes }) {
+  async function handleClosureEditSave({ kind, notes, images }) {
     const point = editingClosure
     setClosureSaving(true)
     setClosureError(null)
     try {
-      await apiClient.patch(`/closures/${point.ref.closureId}`, { kind, notes })
+      // `images` is absent when the card never managed to read them — then the
+      // stored photos are left exactly as they are.
+      await apiClient.patch(`/closures/${point.ref.closureId}`, {
+        kind,
+        notes,
+        ...(images !== undefined ? { images } : {}),
+      })
       // Simpler than a round-trip GET /fibers/:id — only the ref changed, and
       // any other view of this fiber refetches once invalidated below.
       dispatch({ type: 'setType', key: point.key, pointType: 'CLOSURE', ref: { ...point.ref, kind, notes } })
