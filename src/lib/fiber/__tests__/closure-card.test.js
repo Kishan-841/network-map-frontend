@@ -29,6 +29,12 @@ describe('closureCardState', () => {
       images: [],
     })
   })
+
+  it('keeps a saved closure with no kind kindless, so an edit never invents one', () => {
+    const values = closureCardState({ ...stored, kind: null }, { fresh: false })
+    expect(values.kind).toBe('')
+    expect(closureCardPayload(values, { mode: 'edit' }).kind).toBeNull()
+  })
 })
 
 describe('closureCardPayload', () => {

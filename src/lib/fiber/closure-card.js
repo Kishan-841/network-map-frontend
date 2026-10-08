@@ -10,12 +10,13 @@ const numberOrNull = (v) => (v === '' || v === null || v === undefined ? null : 
 
 /**
  * Form state from a closure (the API's GET /closures/:id, or the little the
- * line's point knows). Missing values read as "not recorded"; a closure with
- * no kind gets the first pill, as a fresh closure does.
+ * line's point knows). Missing values read as "not recorded". A NEW closure
+ * starts on the first pill; a saved closure with no kind keeps none, so an
+ * edit never writes a kind nobody chose.
  */
-export function closureCardState(closure) {
+export function closureCardState(closure, { fresh = true } = {}) {
   return {
-    kind: closure?.kind || CLOSURE_KINDS[0].value,
+    kind: closure?.kind || (fresh ? CLOSURE_KINDS[0].value : ''),
     notes: closure?.notes ?? '',
     sheet: {
       fiberType: text(closure?.fiberType),

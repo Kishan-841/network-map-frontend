@@ -5,6 +5,9 @@ import { getApiErrorMessage } from '@/lib/api-client'
 import { uploadFile } from '@/lib/upload'
 import { IconCamera } from '@/components/ui/icons'
 
+/** The API keeps at most this many photos on a closure. */
+const MAX_PHOTOS = 20
+
 /**
  * The optional Photos section of a closure — used by the editor's closure card
  * (create and edit) and the Closures page form. Controlled: `images` is the
@@ -28,7 +31,9 @@ export default function ClosurePhotos({ images, setImages, onUploadingChange, di
   }
 
   async function handlePicked(event) {
-    const files = [...event.target.files]
+    // Never upload more than the closure can keep — extra picks are skipped.
+    const room = Math.max(0, MAX_PHOTOS - (images?.length ?? 0))
+    const files = [...event.target.files].slice(0, room)
     event.target.value = ''
     if (files.length === 0) return
     busy(true)
@@ -69,27 +74,32 @@ export default function ClosurePhotos({ images, setImages, onUploadingChange, di
             </button>
           </span>
         ))}
-        <label
-          className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-btn border border-dashed border-line px-3 text-sm font-medium text-muted transition-colors hover:border-fiber hover:text-fiber ${
-            uploading || disabled ? 'pointer-events-none opacity-60' : ''
-          }`}
-        >
-          {uploading ? (
-            <span className="loading loading-spinner loading-sm" />
-          ) : (
-            <IconCamera className="h-4 w-4" aria-hidden="true" />
-          )}
-          {uploading ? 'Uploading…' : 'Add photo'}
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            className="hidden"
-            disabled={uploading || disabled}
-            onChange={handlePicked}
-          />
-        </label>
+        {list.length < MAX_PHOTOS && (
+          <label
+            className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-btn border border-dashed border-line px-3 text-sm font-medium text-muted transition-colors hover:border-fiber hover:text-fiber ${
+              uploading || disabled ? 'pointer-events-none opacity-60' : ''
+            }`}
+          >
+            {uploading ? (
+              <span className="loading loading-spinner loading-sm" />
+            ) : (
+              <IconCamera className="h-4 w-4" aria-hidden="true" />
+            )}
+            {uploading ? 'Uploading…' : 'Add photo'}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="hidden"
+              disabled={uploading || disabled}
+              onChange={handlePicked}
+            />
+          </label>
+        )}
       </div>
+      {list.length >= MAX_PHOTOS && (
+        <p className="mt-2 text-xs font-normal text-muted">{MAX_PHOTOS} photos is the most a closure can keep.</p>
+      )}
       {error && <p className="mt-2 rounded-btn bg-bad-tint px-3 py-2 text-sm font-normal text-bad">{error}</p>}
     </div>
   )

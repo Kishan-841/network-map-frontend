@@ -43,10 +43,10 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
   // be overwritten by it and Save can never send blanks for unread fields.
   const closureId = mode === 'edit' ? initial?.closureId : null
   const [load, setLoad] = useState(() => (closureId ? 'loading' : 'ready'))
-  const [kind, setKind] = useState(() => closureCardState(initial).kind)
-  const [notes, setNotes] = useState(() => closureCardState(initial).notes)
-  const [sheet, setSheet] = useState(() => closureCardState(initial).sheet)
-  const [images, setImages] = useState(() => closureCardState(initial).images)
+  const [kind, setKind] = useState(() => closureCardState(initial, { fresh: mode === 'create' }).kind)
+  const [notes, setNotes] = useState(() => closureCardState(initial, { fresh: mode === 'create' }).notes)
+  const [sheet, setSheet] = useState(() => closureCardState(initial, { fresh: mode === 'create' }).sheet)
+  const [images, setImages] = useState(() => closureCardState(initial, { fresh: mode === 'create' }).images)
   const [uploading, setUploading] = useState(false)
   useEffect(() => {
     if (!closureId) return undefined
@@ -55,7 +55,7 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
       .get(`/closures/${closureId}`)
       .then((res) => {
         if (cancelled) return
-        const state = closureCardState(res.data.data)
+        const state = closureCardState(res.data.data, { fresh: false })
         setKind(state.kind)
         setNotes(state.notes)
         setSheet(state.sheet)
