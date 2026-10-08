@@ -16,6 +16,7 @@ import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
 import { Toast } from '@/components/ui/Toast'
 import MapSearchBox from '@/components/map/MapSearchBox'
 import { IconShield } from '@/components/ui/icons'
+import { buildingGroup, countBuildingGroups } from '@/lib/map-layers'
 
 const BuildingsMap = dynamic(() => import('@/components/map/BuildingsMap'), { ssr: false })
 const DetailDrawer = dynamic(() => import('@/components/fiber/details/DetailDrawer'), { ssr: false })
@@ -63,8 +64,15 @@ export default function SalesMapPage() {
   const [searchPin, setSearchPin] = useState(null)
   const shownFibers = useMemo(() => (isTL && fiberShown && fibers ? fibers : NONE), [isTL, fiberShown, fibers])
   const shownPops = isTL && popsShown && pops?.length ? pops : NONE
-  // Approved societies wear a shield marker — the key below says so.
-  const societyCount = buildings.filter((b) => b.source === 'PERMISSION').length
+  // Live / Not live / Society permission filters, as on the coverage map: a
+  // society (shield marker) belongs to its own group whether or not it is live.
+  const [groupShown, setGroupShown] = useState({ live: true, notLive: true, society: true })
+  const groupCounts = countBuildingGroups(buildings)
+  const shownBuildings = useMemo(
+    () => (groupShown.live && groupShown.notLive && groupShown.society ? buildings : buildings.filter((b) => groupShown[buildingGroup(b)])),
+    [buildings, groupShown],
+  )
+  const toggleGroup = (key) => setGroupShown((g) => ({ ...g, [key]: !g[key] }))
 
   const load = useCallback(() => {
     setLoading(true)
@@ -94,7 +102,7 @@ export default function SalesMapPage() {
   return (
     <div className="fixed inset-x-0 top-0 z-50 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] transition-[left] duration-300 lg:bottom-0 lg:left-[var(--sidebar-w)]">
       <BuildingsMap
-        buildings={buildings}
+        buildings={shownBuildings}
         zones={isTL ? (zones ?? NONE) : NONE}
         fibers={shownFibers}
         pops={shownPops}
@@ -132,13 +140,34 @@ export default function SalesMapPage() {
           <span className="text-xs font-normal text-muted">
             {loading
               ? 'Loading buildings…'
-              : `${buildings.length} building${buildings.length === 1 ? '' : 's'}${isTL ? ' in your zones' : ''} · tap one to check in`}
+              : `${shownBuildings.length === buildings.length ? '' : `${shownBuildings.length} of `}${buildings.length} building${
+                  buildings.length === 1 ? '' : 's'
+                }${isTL ? ' in your zones' : ''} · tap one to check in`}
           </span>
-          {societyCount > 0 && (
-            <span className="mt-1 flex items-center gap-1.5 text-xs font-normal text-muted">
-              <IconShield className="h-3.5 w-3.5 shrink-0" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
-              Shield = society permission ({societyCount})
-            </span>
+          {buildings.length > 0 && (
+            <div className="pointer-events-auto mt-2 flex flex-wrap gap-2">
+              {[
+                ['live', 'Live', groupCounts.live],
+                ['notLive', 'Not live', groupCounts.notLive],
+                ...(groupCounts.society > 0 ? [['society', 'Societies', groupCounts.society]] : []),
+              ].map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleGroup(key)}
+                  aria-pressed={groupShown[key]}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors ${
+                    groupShown[key] ? 'border-primary bg-primary text-white' : 'border-line bg-card text-muted'
+                  }`}
+                >
+                  {key === 'society' && (
+                    <IconShield className="h-3.5 w-3.5 shrink-0" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
+                  )}
+                  {label}
+                  <span className="tabular-nums opacity-80">{count}</span>
+                </button>
+              ))}
+            </div>
           )}
           {isTL && (
             <div className="pointer-events-auto mt-2 flex gap-2">
