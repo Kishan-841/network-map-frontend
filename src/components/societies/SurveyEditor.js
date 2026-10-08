@@ -61,15 +61,31 @@ function Toggle({ id, label, checked, onChange }) {
   return (
     <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center justify-between gap-3 py-1">
       <span className="min-w-0 text-sm font-medium text-ink">{label}</span>
-      <span className="flex shrink-0 items-center gap-2">
-        <span className={`text-xs font-medium ${checked ? 'text-ok' : 'text-bad'}`}>{checked ? 'Yes' : 'No'}</span>
-        <input
-          id={id}
-          type="checkbox"
-          className="toggle toggle-success"
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-        />
+      <span className="flex shrink-0 items-center gap-2.5">
+        {/* Fixed width, so the switch doesn't shift between Yes and No. */}
+        <span className={`w-7 text-right text-sm font-semibold ${checked ? 'text-ok' : 'text-bad'}`}>
+          {checked ? 'Yes' : 'No'}
+        </span>
+        {/* A real checkbox (keyboard + screen readers), drawn as a switch:
+            solid green track when on, grey when off, white knob that slides. */}
+        <span className="relative inline-flex h-7 w-12 shrink-0">
+          <input
+            id={id}
+            type="checkbox"
+            role="switch"
+            className="peer sr-only"
+            checked={checked}
+            onChange={(e) => onChange(e.target.checked)}
+          />
+          <span
+            aria-hidden="true"
+            className="h-7 w-12 rounded-full bg-faint/40 transition-colors duration-200 peer-checked:bg-ok peer-focus-visible:ring-2 peer-focus-visible:ring-focus peer-focus-visible:ring-offset-2"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow-soft transition-transform duration-200 peer-checked:translate-x-5"
+          />
+        </span>
       </span>
     </label>
   )
