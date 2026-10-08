@@ -83,11 +83,15 @@ export const canAssignOlt = (role) => OLT_ASSIGN_ROLES.includes(role)
  */
 export const BUILDING_EDIT_ROLES = ['SURVEYOR']
 export const canEditBuilding = (user, building) =>
-  canManageBuildings(user?.role) ||
-  (user?.canEditBuildings === true &&
-    BUILDING_EDIT_ROLES.includes(user?.role) &&
-    Boolean(building?.createdById) &&
-    building.createdById === user?.id)
+  // An (approved) society keeps its history: only an admin edits it here, through
+  // the logged society edit — the API answers anyone else 403.
+  building?.source === 'PERMISSION'
+    ? user?.role === 'ADMIN'
+    : canManageBuildings(user?.role) ||
+      (user?.canEditBuildings === true &&
+        BUILDING_EDIT_ROLES.includes(user?.role) &&
+        Boolean(building?.createdById) &&
+        building.createdById === user?.id)
 
 
 /**

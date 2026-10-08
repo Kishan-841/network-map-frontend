@@ -115,6 +115,13 @@ describe('canEditBuilding', () => {
     expect(canEditBuilding({ id: 'u1', role: 'SURVEYOR' }, building('u1'))).toBe(false)
   })
 
+  it('leaves an approved society to ADMIN alone (the API answers others 403)', () => {
+    const society = { id: 'b1', createdById: 'u1', source: 'PERMISSION' }
+    expect(canEditBuilding(user('ADMIN'), society)).toBe(true)
+    for (const role of ['MANAGER', 'SUPERVISOR']) expect(canEditBuilding(user(role), society)).toBe(false)
+    expect(canEditBuilding({ id: 'u1', role: 'SURVEYOR', canEditBuildings: true }, society)).toBe(false)
+  })
+
   it('is false while either the user or the building is still loading', () => {
     expect(canEditBuilding(undefined, building('u1'))).toBe(false)
     expect(canEditBuilding({ id: 'u1', role: 'SURVEYOR', canEditBuildings: true }, null)).toBe(false)
