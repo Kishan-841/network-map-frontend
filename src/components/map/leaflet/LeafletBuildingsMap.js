@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { buildingColor, zoneColor } from '@/lib/constants'
-import { buildingPin } from '@/lib/map-markers'
+import { buildingMarkerShape, buildingPin } from '@/lib/map-markers'
 import { createBaseLayer } from '@/lib/leaflet-layers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
@@ -119,6 +119,7 @@ export default function BuildingsMap({ buildings, zones = [], selectedId, onSele
       const isSelected = building.id === selectedId
       const pin = buildingPin({
         color: buildingColor(building),
+        shape: buildingMarkerShape(building),
         selected: isSelected,
       })
       const marker = L.marker([building.latitude, building.longitude], {

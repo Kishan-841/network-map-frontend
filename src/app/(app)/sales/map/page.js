@@ -15,6 +15,7 @@ import { OpenVisitCard } from '@/components/sales/OpenVisitCard'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
 import { Toast } from '@/components/ui/Toast'
 import MapSearchBox from '@/components/map/MapSearchBox'
+import { IconShield } from '@/components/ui/icons'
 
 const BuildingsMap = dynamic(() => import('@/components/map/BuildingsMap'), { ssr: false })
 const DetailDrawer = dynamic(() => import('@/components/fiber/details/DetailDrawer'), { ssr: false })
@@ -62,6 +63,8 @@ export default function SalesMapPage() {
   const [searchPin, setSearchPin] = useState(null)
   const shownFibers = useMemo(() => (isTL && fiberShown && fibers ? fibers : NONE), [isTL, fiberShown, fibers])
   const shownPops = isTL && popsShown && pops?.length ? pops : NONE
+  // Approved societies wear a shield marker — the key below says so.
+  const societyCount = buildings.filter((b) => b.source === 'PERMISSION').length
 
   const load = useCallback(() => {
     setLoading(true)
@@ -131,6 +134,12 @@ export default function SalesMapPage() {
               ? 'Loading buildings…'
               : `${buildings.length} building${buildings.length === 1 ? '' : 's'}${isTL ? ' in your zones' : ''} · tap one to check in`}
           </span>
+          {societyCount > 0 && (
+            <span className="mt-1 flex items-center gap-1.5 text-xs font-normal text-muted">
+              <IconShield className="h-3.5 w-3.5 shrink-0" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
+              Shield = society permission ({societyCount})
+            </span>
+          )}
           {isTL && (
             <div className="pointer-events-auto mt-2 flex gap-2">
               {[

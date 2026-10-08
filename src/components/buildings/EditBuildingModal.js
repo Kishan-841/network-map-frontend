@@ -11,6 +11,7 @@ import { useZones } from '@/hooks/useZones'
 import { useBuildingTypes } from '@/hooks/useBuildingTypes'
 import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { IconPin } from '@/components/ui/icons'
+import { isSociety } from '@/lib/society'
 
 const LocationPicker = dynamic(() => import('@/components/map/LocationPicker'), { ssr: false })
 
@@ -84,10 +85,14 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
     renewalDate: dateInput(building.permission?.renewalDate),
     ownerName: building.permission?.ownerName ?? '',
     ownerMobile: building.permission?.ownerMobile ?? '',
+    // An approved society keeps a logged history: every edit needs a reason.
+    changeRemark: '',
   })
+  const society = isSociety(building)
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
 
-  const canSave = form.buildingName.trim() && form.formattedAddress.trim() && form.zoneId
+  const canSave =
+    form.buildingName.trim() && form.formattedAddress.trim() && form.zoneId && (!society || form.changeRemark.trim())
 
   async function save() {
     setBusy(true)
@@ -119,6 +124,7 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
                 ownerMobile: strOrNull(form.ownerMobile),
               },
             }),
+        ...(society ? { remark: form.changeRemark.trim() } : {}),
       })
       // Name, zone and live flag all show on the map marker.
       invalidateBuildingMarkers()
@@ -223,6 +229,17 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
               <Input id="eb-mobile" label="Owner mobile" value={form.ownerMobile} onChange={set('ownerMobile')} />
             </div>
           </>
+        )}
+
+        {society && (
+          <Textarea
+            id="eb-change-remark"
+            label="What changed, and why? (goes into the society's history)"
+            rows={2}
+            maxLength={1000}
+            value={form.changeRemark}
+            onChange={set('changeRemark')}
+          />
         )}
 
         {error && (

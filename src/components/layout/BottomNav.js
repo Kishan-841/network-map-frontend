@@ -26,6 +26,7 @@ import { pickExtraNav } from '@/lib/nav-extras'
 import { MoreSheet, splitNav } from '@/components/layout/MoreSheet'
 import { useOverdueCount, OVERDUE_HREF } from '@/hooks/useOverdueCount'
 import { NavBadge } from '@/components/layout/NavBadge'
+import { usePendingSocietyCount, SOCIETIES_HREF } from '@/hooks/usePendingSocietyCount'
 
 const COVERAGE_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
@@ -155,6 +156,12 @@ export function BottomNav() {
 
   const [moreOpen, setMoreOpen] = useState(false)
   const overdue = useOverdueCount()
+  // The admin's count of societies waiting for approval (0 for anyone else).
+  const pendingSocieties = usePendingSocietyCount()
+  const badges = {
+    [OVERDUE_HREF]: { count: overdue, label: 'overdue' },
+    [SOCIETIES_HREF]: { count: role === 'ADMIN' ? pendingSocieties : 0, label: 'waiting for approval' },
+  }
   const { visible, overflow } = splitNav(NAV_ITEMS)
   const isActive = (item, path) => (item.exact ? path === item.href : path.startsWith(item.href))
   // "More" lights up when the page you are on lives inside it, so the bar
@@ -182,9 +189,11 @@ export function BottomNav() {
               >
                 <span className="relative">
                   <NavIcon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
-                  {item.href === OVERDUE_HREF && (
-                    <NavBadge count={overdue} className="absolute -right-3 -top-2" />
-                  )}
+                  <NavBadge
+                    count={badges[item.href]?.count}
+                    label={badges[item.href]?.label}
+                    className="absolute -right-3 -top-2"
+                  />
                 </span>
                 {item.label}
               </Link>
@@ -200,9 +209,11 @@ export function BottomNav() {
             >
               <span className="relative">
                 <IconMore className="h-5 w-5" strokeWidth={inOverflow ? 2.2 : 1.8} />
-                {overflow.some((item) => item.href === OVERDUE_HREF) && (
-                  <NavBadge count={overdue} className="absolute -right-3 -top-2" />
-                )}
+                <NavBadge
+                  count={overflow.reduce((sum, item) => sum + (badges[item.href]?.count || 0), 0)}
+                  label="waiting"
+                  className="absolute -right-3 -top-2"
+                />
               </span>
               More
             </button>
@@ -215,7 +226,7 @@ export function BottomNav() {
           items={overflow}
           pathname={pathname}
           isActive={isActive}
-          badges={{ [OVERDUE_HREF]: overdue }}
+          badges={badges}
           onClose={() => setMoreOpen(false)}
         />
       )}

@@ -1,9 +1,14 @@
-import { changeLabels, istDateTime, statusChangeText, visitKindLabel } from '@/lib/society'
+import { changeLabels, historyDetail, istDateTime, statusChangeText, visitKindLabel } from '@/lib/society'
 
 const KIND_DOT = {
   ADDED: 'bg-fiber',
   VISIT: 'bg-ok',
   EDIT: 'bg-warn',
+  // The admin-approval trail.
+  SUBMITTED: 'bg-warn',
+  WITHDRAWN: 'bg-faint',
+  APPROVED: 'bg-ok',
+  REJECTED: 'bg-bad',
 }
 
 /**
@@ -11,13 +16,14 @@ const KIND_DOT = {
  * who, what kind of entry, any status change, the fields an edit changed,
  * and the remark — every entry carries one.
  */
-export function SocietyHistory({ visits }) {
+export function SocietyHistory({ visits, zone = null }) {
   if (!visits?.length) return <p className="text-sm font-normal text-muted">No history yet.</p>
   return (
     <ol className="relative">
       {visits.map((v, i) => {
         const status = statusChangeText(v.statusBefore, v.statusAfter)
         const changes = v.kind === 'EDIT' ? changeLabels(v.changes) : []
+        const detail = historyDetail(v, zone)
         return (
           <li key={v.id} className="relative flex min-w-0 gap-3 pb-4 last:pb-0">
             {/* the rail: a dot per entry, a line down to the next */}
@@ -29,9 +35,13 @@ export function SocietyHistory({ visits }) {
               <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="font-semibold text-ink">{visitKindLabel(v.kind)}</span>
                 <span className="font-normal text-muted">{istDateTime(v.createdAt)}</span>
-                <span className="font-normal text-muted">· {v.user?.name ?? 'Former user'}</span>
+                {/* A null user on a SUBMITTED row is the system (the backfill), not a deleted person. */}
+                <span className="font-normal text-muted">
+                  · {v.user?.name ?? (v.kind === 'SUBMITTED' ? 'System' : 'Former user')}
+                </span>
               </p>
               {status && <p className="mt-0.5 text-sm font-medium text-ink">Status: {status}</p>}
+              {detail && <p className="mt-0.5 text-sm font-medium text-ink">{detail}</p>}
               {changes.length > 0 && (
                 <p className="mt-0.5 text-sm font-normal text-muted">Changed: {changes.join(', ')}</p>
               )}

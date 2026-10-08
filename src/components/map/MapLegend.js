@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
 import { POINT_COLORS } from '@/lib/fiber/constants'
 import { hiddenLayerCount } from '@/lib/map-layers'
-import { IconLayers, IconClose, IconTriangle } from '@/components/ui/icons'
+import { IconLayers, IconClose, IconTriangle, IconShield } from '@/components/ui/icons'
 
 /**
  * Map key + declutter control. The Buildings row toggles all pins on/off; the
@@ -17,6 +17,7 @@ export function MapLegend({
   buildingCount,
   liveCount,
   notLiveCount,
+  societyCount = 0,
   buildingsShown,
   onToggleBuildings,
   zonesShown,
@@ -95,6 +96,13 @@ export function MapLegend({
           {keyDot(NOT_LIVE_COLOR)} Not live
           <span className="ml-auto tabular-nums text-faint">{notLiveCount}</span>
         </button>
+        {/* A shape key, not a filter: approved societies wear a shield
+            instead of the round pin, in the same live / not-live colour. */}
+        <p className="flex w-full items-center gap-2 px-1.5 py-1 text-xs font-normal text-muted">
+          <IconShield className="h-3.5 w-3.5 shrink-0 text-muted" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
+          Society permission
+          <span className="ml-auto tabular-nums text-faint">{societyCount}</span>
+        </p>
       </div>
 
       {zoneCount > 0 && (

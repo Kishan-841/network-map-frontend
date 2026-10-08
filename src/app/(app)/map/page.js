@@ -161,6 +161,7 @@ function CoverageMapPage() {
         buildingCount={buildings.length}
         liveCount={buildings.filter((b) => b.isLive).length}
         notLiveCount={buildings.filter((b) => !b.isLive).length}
+        societyCount={buildings.filter((b) => b.source === 'PERMISSION').length}
         buildingsShown={buildingsShown}
         onToggleBuildings={() => setBuildingsShown((v) => !v)}
         zonesShown={zonesShown}

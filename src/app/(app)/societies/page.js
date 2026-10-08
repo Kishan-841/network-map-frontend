@@ -9,7 +9,8 @@ import { DataTable } from '@/components/ui/DataTable'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { Select } from '@/components/ui/Input'
 import { StatusChip } from '@/components/societies/StatusChip'
-import { PERMISSION_STATUS_OPTIONS, istDate, personMetText } from '@/lib/society'
+import { APPROVAL_FILTER_OPTIONS, PERMISSION_STATUS_OPTIONS, istDate, personMetText } from '@/lib/society'
+import { usePendingSocietyCount } from '@/hooks/usePendingSocietyCount'
 
 const PAGE_SIZE = 20
 
@@ -41,6 +42,9 @@ export default function SocietiesPage() {
   const [debounced, setDebounced] = useState('')
   const [status, setStatus] = useState('')
   const [createdById, setCreatedById] = useState('')
+  // Admin approval: '' = all, or PENDING / APPROVED / REJECTED.
+  const [approval, setApproval] = useState('')
+  const pendingCount = usePendingSocietyCount()
   const [page, setPage] = useState(1)
   const [executives, setExecutives] = useState([])
   // { key, data } or { key, error } — loading is derived from a key mismatch,
@@ -75,8 +79,9 @@ export default function SocietiesPage() {
     if (debounced) p.search = debounced
     if (status) p.status = status
     if (isAdmin && createdById) p.createdById = createdById
+    if (approval) p.approval = approval
     return p
-  }, [page, debounced, status, createdById, isAdmin])
+  }, [page, debounced, status, createdById, approval, isAdmin])
   const key = JSON.stringify(params)
 
   useEffect(() => {
@@ -109,6 +114,11 @@ export default function SocietiesPage() {
     setCreatedById(e.target.value)
     setPage(1)
   }
+  const onApproval = (value) => {
+    setApproval(value)
+    setPage(1)
+  }
+  const waitingOnly = approval === 'PENDING'
 
   const open = (b) => router.push(`/societies/${b.id}`)
 
@@ -129,7 +139,7 @@ export default function SocietiesPage() {
       ),
     },
     { key: 'person', header: 'Person met', render: (b) => personMetText(b.contact) || '—' },
-    { key: 'status', header: 'Status', render: (b) => <StatusChip status={b.permissionStatus} /> },
+    { key: 'status', header: 'Status', render: (b) => <StatusChip status={b.permissionStatus} approval={b.approval} /> },
     { key: 'last', header: 'Last visit', className: 'max-w-64', render: (b) => <LastVisit visit={b.lastVisit} /> },
     { key: 'visits', header: 'Visits', className: 'tabular-nums text-right', render: (b) => b.visitCount },
     ...(isAdmin ? [{ key: 'by', header: 'Added by', render: (b) => b.createdBy?.name ?? '—' }] : []),
@@ -143,7 +153,7 @@ export default function SocietiesPage() {
     >
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 break-words font-medium text-ink">{b.buildingName}</p>
-        <StatusChip status={b.permissionStatus} className="shrink-0" />
+        <StatusChip status={b.permissionStatus} approval={b.approval} className="shrink-0" />
       </div>
       <p className="mt-0.5 line-clamp-2 break-words text-sm font-normal text-muted">{b.formattedAddress}</p>
       {b.contact && <p className="mt-2 text-sm font-normal text-ink">{personMetText(b.contact)}</p>}
@@ -159,7 +169,7 @@ export default function SocietiesPage() {
     </button>
   )
 
-  const filtered = Boolean(debounced || status || createdById)
+  const filtered = Boolean(debounced || status || createdById || approval)
 
   return (
     <main className="mx-auto max-w-6xl">
@@ -168,7 +178,28 @@ export default function SocietiesPage() {
         sub={isAdmin ? 'Every executive’s societies — open one for its visit history' : 'Societies you are working on — open one to add a visit update'}
       />
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* The admin's to-do: one tap to the societies waiting for a decision. */}
+      {isAdmin && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onApproval(waitingOnly ? '' : 'PENDING')}
+            aria-pressed={waitingOnly}
+            className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors ${
+              waitingOnly ? 'border-warn bg-warn-tint text-warn' : 'border-line bg-card text-muted hover:text-ink'
+            }`}
+          >
+            Waiting for approval
+            {pendingCount > 0 && (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warn px-1.5 text-xs font-bold tabular-nums text-white">
+                {pendingCount > 99 ? '99+' : pendingCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      <div className={`mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 ${isAdmin ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
         <SearchInput
           value={search}
           onChange={onSearch}
@@ -178,6 +209,14 @@ export default function SocietiesPage() {
         <Select id="sp-status" aria-label="Status" value={status} onChange={onStatus}>
           <option value="">All statuses</option>
           {PERMISSION_STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
+        <Select id="sp-approval" aria-label="Approval" value={approval} onChange={(e) => onApproval(e.target.value)}>
+          <option value="">All approvals</option>
+          {APPROVAL_FILTER_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>

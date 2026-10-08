@@ -14,6 +14,7 @@ export {
   ClipboardList as IconTeamPlan,
   House as IconHome,
   Triangle as IconTriangle,
+  Shield as IconShield,
   Plus as IconPlus,
   Search as IconSearch,
   Crosshair as IconCrosshair,

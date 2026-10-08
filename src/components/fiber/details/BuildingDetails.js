@@ -15,6 +15,9 @@ import {
   Skeleton,
 } from './DetailParts'
 import { useDetail } from './useDetail'
+import { useAuthStore } from '@/stores/auth-store'
+import { isSociety } from '@/lib/society'
+import { SocietyBadge } from '@/components/societies/SocietyBadge'
 
 const titleCase = (value) =>
   value ? value.toLowerCase().replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) : null
@@ -22,6 +25,7 @@ const titleCase = (value) =>
 /** One building in full, opened from the map: its details and its OLT mapping. */
 export default function BuildingDetails({ id, onOpen, onCentre }) {
   const { data: b, loading, error, retry } = useDetail(`/buildings/${id}`, 'Could not load this building')
+  const isAdmin = useAuthStore((s) => s.user?.role) === 'ADMIN'
 
   if (loading) return <Skeleton />
   if (error) return <LoadError error={error} onRetry={retry} />
@@ -41,6 +45,7 @@ export default function BuildingDetails({ id, onOpen, onCentre }) {
               {b.isLive ? 'Live' : 'Not live'}
             </span>
             {b.zone?.name && <span className={`${CHIP} bg-paper text-muted`}>{b.zone.name}</span>}
+            {isSociety(b) && <SocietyBadge />}
           </div>
         </div>
       </div>
@@ -51,6 +56,15 @@ export default function BuildingDetails({ id, onOpen, onCentre }) {
       >
         Open full building
       </Link>
+      {/* An approved society: the admin can read how the permission was won. */}
+      {isSociety(b) && isAdmin && (
+        <Link
+          href={`/societies/${b.id}`}
+          className="-mt-1 inline-flex min-h-11 w-fit items-center text-sm font-medium text-fiber underline-offset-2 hover:underline"
+        >
+          Permission history
+        </Link>
+      )}
 
       <Section title="OLT mapping">
         {b.olt ? (

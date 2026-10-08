@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { uploadFile } from '@/lib/upload'
 import { useAuthStore } from '@/stores/auth-store'
+import { isSociety } from '@/lib/society'
 import { IconDoc, IconCamera } from '@/components/ui/icons'
 import { canManageBuildings } from '@/lib/roles'
 
@@ -35,7 +36,11 @@ export function PhotoManager({ building, onChanged }) {
   const role = user?.role
   const isManager = canManageBuildings(role)
   const canDelete = isManager || building?.createdById === user?.id
-  const addOptions = ADD_OPTIONS.filter((option) => !option.managerOnly || isManager)
+  // A society's permission letter changes only through its executive's Edit
+  // details (the photo routes refuse it), so it is neither added nor deleted here.
+  const society = isSociety(building)
+  const lockedType = (type) => society && type === 'PERMISSION_LETTER'
+  const addOptions = ADD_OPTIONS.filter((option) => (!option.managerOnly || isManager) && !lockedType(option.type))
   const fileInputRef = useRef(null)
   const [pendingType, setPendingType] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -112,7 +117,7 @@ export function PhotoManager({ building, onChanged }) {
               <span className="absolute left-2 top-2 rounded-full bg-ink/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white backdrop-blur">
                 {PHOTO_LABELS[photo.type]}
               </span>
-              {canDelete && (
+              {canDelete && !lockedType(photo.type) && (
                 <button
                   onClick={() => handleDelete(photo)}
                   disabled={busy}

@@ -31,9 +31,29 @@ const STATUS_BADGE = {
 /** Chip classes for a permission status; no status reads as a neutral chip. */
 export const permissionStatusBadge = (v) => STATUS_BADGE[v] ?? 'bg-paper text-muted'
 
-const KIND_LABEL = { ADDED: 'Added', VISIT: 'Visit', EDIT: 'Edit' }
+const KIND_LABEL = {
+  ADDED: 'Added',
+  VISIT: 'Visit',
+  EDIT: 'Edit',
+  // Phase 2: the admin-approval trail.
+  SUBMITTED: 'Sent for approval',
+  WITHDRAWN: 'Withdrawn',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+}
 /** A history row's kind (PermissionVisit.kind) in words. */
 export const visitKindLabel = (k) => KIND_LABEL[k] ?? k ?? ''
+
+/**
+ * The extra line an approval-trail row carries: an approval names its zone.
+ * The APPROVED row itself has no zone, so it is the society's zone (`zone`)
+ * — approval is final, so there is only ever one such row.
+ */
+export function historyDetail(v, zone) {
+  const name = v?.zone?.name ?? zone?.name
+  if (v?.kind === 'APPROVED' && name) return `Zone: ${name}`
+  return ''
+}
 
 // The API's stable change keys (PATCH /buildings/:id on a PERMISSION building).
 const CHANGE_LABEL = {
@@ -176,3 +196,79 @@ export function personMetText(contact) {
   const role = contact.designation === 'OTHER' ? contact.designationOther : designationLabel(contact.designation)
   return role ? `${contact.contactName} · ${role}` : contact.contactName
 }
+
+// ── Admin approval (phase 2) ────────────────────────────────────────────────
+// A society whose status becomes Accepted is sent to the admin automatically
+// (approval PENDING). The admin approves it into a zone or rejects it with a
+// reason; an approved society then shows up everywhere like any building.
+
+export const APPROVAL_FILTER_OPTIONS = [
+  { value: 'PENDING', label: 'Waiting for approval' },
+  { value: 'APPROVED', label: 'Approved' },
+  { value: 'REJECTED', label: 'Rejected' },
+]
+export const approvalLabel = (v) => APPROVAL_FILTER_OPTIONS.find((o) => o.value === v)?.label ?? v ?? ''
+
+const APPROVAL_BADGE = {
+  PENDING: 'bg-warn-tint text-warn',
+  APPROVED: 'bg-ok-tint text-ok',
+  REJECTED: 'bg-bad-tint text-bad',
+}
+export const approvalBadge = (v) => APPROVAL_BADGE[v] ?? 'bg-paper text-muted'
+
+/**
+ * The one chip a society shows in lists: the approval when there is one (it
+ * says more than "Accepted"), else the permission status.
+ */
+export function societyChip({ permissionStatus, approval } = {}) {
+  if (approval?.status) return { label: approvalLabel(approval.status), className: approvalBadge(approval.status) }
+  return {
+    label: permissionStatus ? permissionStatusLabel(permissionStatus) : 'No status',
+    className: permissionStatusBadge(permissionStatus),
+  }
+}
+
+/**
+ * The box at the top of a society's page: { tone: 'warn'|'bad'|'ok', title,
+ * detail, reason? }, or null when it was never sent for approval.
+ */
+export function approvalNotice(approval, zone) {
+  if (!approval?.status) return null
+  const by = approval.decidedBy?.name
+  if (approval.status === 'PENDING') {
+    // A re-submit keeps the last rejection's reason until approval — show it,
+    // so the admin can check it was fixed.
+    return {
+      tone: 'warn',
+      title: 'Waiting for admin approval',
+      detail: `Since ${istDate(approval.submittedAt)}`,
+      ...(approval.reason ? { reason: approval.reason, reasonLabel: 'Rejected before' } : {}),
+    }
+  }
+  if (approval.status === 'REJECTED') {
+    return {
+      tone: 'bad',
+      title: 'Rejected by admin',
+      detail: [by, istDate(approval.decidedAt)].filter(Boolean).join(' · '),
+      reason: approval.reason ?? '',
+    }
+  }
+  if (approval.status === 'APPROVED') {
+    const when = by ? `By ${by} on ${istDate(approval.decidedAt)}` : `On ${istDate(approval.decidedAt)}`
+    return { tone: 'ok', title: 'Approved', detail: zone?.name ? `${when} · Zone ${zone.name}` : when }
+  }
+  return null
+}
+
+export const isApprovedSociety = (approval) => approval?.status === 'APPROVED'
+/** Only an admin decides, and only a society that is waiting. */
+export const canDecideApproval = (role, approval) => role === 'ADMIN' && approval?.status === 'PENDING'
+/**
+ * After approval the status stays Accepted for everyone (the API refuses any
+ * other value) — a visit update is then a note only.
+ */
+export const canChangeSocietyStatus = (approval) => !isApprovedSociety(approval)
+/** Edit details is the executive's own (phase 1) — and closed once approved. */
+export const peCanEdit = (role, approval) => role === 'PERMISSION_EXECUTIVE' && !isApprovedSociety(approval)
+/** A building that came from the permission executives (shown with its own look). */
+export const isSociety = (building) => building?.source === 'PERMISSION'

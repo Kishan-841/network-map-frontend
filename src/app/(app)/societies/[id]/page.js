@@ -12,8 +12,19 @@ import { Toast } from '@/components/ui/Toast'
 import { StatusChip } from '@/components/societies/StatusChip'
 import { VisitUpdateModal } from '@/components/societies/VisitUpdateModal'
 import { SocietyHistory } from '@/components/societies/SocietyHistory'
-import { IconEdit, IconPin, IconPlus, IconDoc } from '@/components/ui/icons'
-import { SOCIETY_OFFER_OPTIONS, PAYMENT_TYPE_OPTIONS, istDate, personMetText } from '@/lib/society'
+import { ApprovalNotice } from '@/components/societies/ApprovalNotice'
+import { ApproveModal, RejectModal } from '@/components/societies/ApprovalModals'
+import { invalidatePendingSocietyCount } from '@/hooks/usePendingSocietyCount'
+import { IconEdit, IconPin, IconPlus, IconDoc, IconOkCircle, IconClose } from '@/components/ui/icons'
+import {
+  SOCIETY_OFFER_OPTIONS,
+  PAYMENT_TYPE_OPTIONS,
+  istDate,
+  personMetText,
+  canDecideApproval,
+  canChangeSocietyStatus,
+  peCanEdit,
+} from '@/lib/society'
 
 const mapHref = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`
 const optionLabel = (options, v) => options.find((o) => o.value === v)?.label ?? v
@@ -91,6 +102,8 @@ export default function SocietyPage() {
   // does not blank while it refetches after a visit update.
   const [result, setResult] = useState(null)
   const [visitOpen, setVisitOpen] = useState(false)
+  // 'approve' | 'reject' | null — the admin's decision modal.
+  const [deciding, setDeciding] = useState(null)
   const [toast, setToast] = useState(null)
 
   useEffect(() => {
@@ -120,7 +133,20 @@ export default function SocietyPage() {
     setVisitOpen(false)
     setToast('Visit update saved')
     setTick((t) => t + 1)
+    // A visit that sets Accepted sends it for approval; one that moves off
+    // Accepted withdraws it — either way the admin's count may change.
+    invalidatePendingSocietyCount()
   }
+
+  function onDecided(message) {
+    setDeciding(null)
+    setToast(message)
+    setTick((t) => t + 1)
+    invalidatePendingSocietyCount()
+  }
+
+  const approval = b?.approval ?? null
+  const canDecide = canDecideApproval(role, approval)
 
   const photos = b?.photos ?? []
 
@@ -144,10 +170,12 @@ export default function SocietyPage() {
 
       {b && (
         <>
+          <ApprovalNotice approval={approval} zone={b.zone} buildingId={isPE ? null : b.id} />
+
           <section className="mb-4 min-w-0 rounded-card border border-line bg-card p-4">
             <div className="flex items-start justify-between gap-3">
               <p className="min-w-0 break-words text-sm font-normal text-ink">{b.formattedAddress}</p>
-              <StatusChip status={b.permission?.permissionStatus} className="shrink-0" />
+              <StatusChip status={b.permission?.permissionStatus} approval={approval} className="shrink-0" />
             </div>
             <a
               href={mapHref(b.latitude, b.longitude)}
@@ -162,12 +190,29 @@ export default function SocietyPage() {
               Added by {b.createdBy?.name ?? '—'} on {istDate(b.createdAt)}
               {b.zone?.name ? ` · ${b.zone.name}` : ''}
             </p>
+            {canDecide && (
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <Button type="button" variant="success" onClick={() => setDeciding('approve')} className="sm:flex-1">
+                  <IconOkCircle className="h-4 w-4" aria-hidden="true" />
+                  Approve
+                </Button>
+                <Button type="button" variant="dangerGhost" onClick={() => setDeciding('reject')} className="sm:flex-1">
+                  <IconClose className="h-4 w-4" aria-hidden="true" />
+                  Reject
+                </Button>
+              </div>
+            )}
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <Button type="button" onClick={() => setVisitOpen(true)} className="sm:flex-1">
+              <Button
+                type="button"
+                variant={canDecide ? 'secondary' : 'primary'}
+                onClick={() => setVisitOpen(true)}
+                className="sm:flex-1"
+              >
                 <IconPlus className="h-4 w-4" aria-hidden="true" />
                 Add visit update
               </Button>
-              {isPE && (
+              {isPE && peCanEdit(role, approval) && (
                 <Link
                   href={`/societies/add?edit=${b.id}`}
                   className="btn btn-outline h-12 min-h-12 gap-2 rounded-btn text-[15px] font-medium normal-case sm:flex-1"
@@ -230,15 +275,33 @@ export default function SocietyPage() {
           </Section>
 
           <Section title="History">
-            <SocietyHistory visits={b.visits} />
+            <SocietyHistory visits={b.visits} zone={b.zone} />
           </Section>
 
           {visitOpen && (
             <VisitUpdateModal
               buildingId={b.id}
               currentStatus={b.permission?.permissionStatus ?? ''}
+              canChangeStatus={canChangeSocietyStatus(approval)}
               onClose={() => setVisitOpen(false)}
               onSaved={onSaved}
+            />
+          )}
+          {deciding === 'approve' && (
+            <ApproveModal
+              buildingId={b.id}
+              buildingName={b.buildingName}
+              zoneId={b.zone?.id ?? b.zoneId}
+              onClose={() => setDeciding(null)}
+              onDone={onDecided}
+            />
+          )}
+          {deciding === 'reject' && (
+            <RejectModal
+              buildingId={b.id}
+              buildingName={b.buildingName}
+              onClose={() => setDeciding(null)}
+              onDone={onDecided}
             />
           )}
         </>

@@ -52,7 +52,12 @@ export function MoreSheet({ items, pathname, onClose, isActive, badges = {} }) {
                 >
                   <Icon className="h-5 w-5 shrink-0" strokeWidth={1.8} />
                   {item.label}
-                  <NavBadge count={badges[item.href]} className="ml-auto" />
+                  {/* A badge is a count, or { count, label } for a screen reader. */}
+                  <NavBadge
+                    count={badges[item.href]?.count ?? badges[item.href]}
+                    label={badges[item.href]?.label}
+                    className="ml-auto"
+                  />
                 </Link>
               </li>
             )

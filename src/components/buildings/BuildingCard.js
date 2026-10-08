@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { TIER_LABEL, TIER_STYLE } from '@/lib/home-pass-tier'
+import { isSociety } from '@/lib/society'
+import { SocietyBadge } from '@/components/societies/SocietyBadge'
 
 export function BuildingCard({ building }) {
   return (
@@ -9,7 +11,10 @@ export function BuildingCard({ building }) {
     >
       {/* Fiber accent edge — every surveyed building is feasible */}
       <span className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-ok" />
-      <p className="min-w-0 truncate text-[15px] font-bold">{building.buildingName}</p>
+      <div className="flex min-w-0 items-center gap-2">
+        <p className="min-w-0 truncate text-[15px] font-bold">{building.buildingName}</p>
+        {isSociety(building) && <SocietyBadge />}
+      </div>
       <p className="mt-1 truncate text-sm font-normal text-muted">{building.formattedAddress}</p>
       {building.homePassTier && (
         <span

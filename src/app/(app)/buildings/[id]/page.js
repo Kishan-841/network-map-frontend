@@ -14,6 +14,9 @@ import { Button } from '@/components/ui/Button'
 import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
 import { canEditBuilding, canManageBuildings } from '@/lib/roles'
+import { isSociety } from '@/lib/society'
+import { SocietyBadge } from '@/components/societies/SocietyBadge'
+import Link from 'next/link'
 
 /** Card section of label/value rows. Hides rows without values, and itself when empty. */
 function Section({ title, rows }) {
@@ -129,6 +132,23 @@ export default function BuildingDetailPage({ params }) {
           )
         }
       />
+
+      {/* An approved society: say where it came from; the admin can open its
+          permission visits and approval trail. */}
+      {isSociety(building) && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-card bg-card px-5 py-3 shadow-soft">
+          <SocietyBadge />
+          <span className="text-sm font-normal text-muted">Added by a permission executive</span>
+          {isAdmin && (
+            <Link
+              href={`/societies/${building.id}`}
+              className="ml-auto text-sm font-medium text-fiber underline-offset-2 hover:underline"
+            >
+              Permission history
+            </Link>
+          )}
+        </div>
+      )}
 
       {building.latitude != null && (
         <div className="flex items-center gap-2 rounded-card bg-card px-5 py-3.5 shadow-soft">

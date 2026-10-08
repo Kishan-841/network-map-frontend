@@ -28,6 +28,8 @@ import {
   IconFilters,
 } from '@/components/ui/icons'
 import { exportBuildings } from '@/lib/export-buildings'
+import { isSociety } from '@/lib/society'
+import { SocietyBadge } from '@/components/societies/SocietyBadge'
 import { BulkLiveBar } from '@/components/buildings/BulkLiveBar'
 import { ImportBuildingsModal } from '@/components/buildings/ImportBuildingsModal'
 import BuildingFilterSheet from '@/components/buildings/BuildingFilterSheet'
@@ -81,7 +83,10 @@ const COLUMNS = [
     className: 'max-w-[460px]',
     render: (b) => (
       <div className="min-w-0 max-w-[460px]">
-        <p className="truncate font-bold">{b.buildingName}</p>
+        <p className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-bold">{b.buildingName}</span>
+          {isSociety(b) && <SocietyBadge />}
+        </p>
         <p className="truncate text-xs font-normal text-muted">{b.formattedAddress}</p>
       </div>
     ),
@@ -164,10 +169,10 @@ const REGISTRY_COLUMN = {
   render: (b) => (
     <span
       className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
-        b.source === 'ACQUISITION' ? 'bg-doc-tint text-doc' : 'bg-fiber-tint text-fiber'
+        b.source === 'ACQUISITION' || isSociety(b) ? 'bg-doc-tint text-doc' : 'bg-fiber-tint text-fiber'
       }`}
     >
-      {b.source === 'ACQUISITION' ? 'Acquisition' : 'Coverage'}
+      {b.source === 'ACQUISITION' ? 'Acquisition' : isSociety(b) ? 'Society' : 'Coverage'}
     </span>
   ),
 }

@@ -12,8 +12,11 @@ import { PERMISSION_STATUS_OPTIONS } from '@/lib/society'
  * the new permission status. The status starts on the current one, so a
  * visit that changed nothing is just a remark. Backdrop clicks don't close
  * it — a stray tap must not lose a typed remark.
+ *
+ * An approved society keeps its Accepted status, so the modal is then a note
+ * only (`canChangeStatus` false) — no status is sent.
  */
-export function VisitUpdateModal({ buildingId, currentStatus, onClose, onSaved }) {
+export function VisitUpdateModal({ buildingId, currentStatus, canChangeStatus = true, onClose, onSaved }) {
   const [remark, setRemark] = useState('')
   const [status, setStatus] = useState(currentStatus ?? '')
   const [attempted, setAttempted] = useState(false)
@@ -31,7 +34,7 @@ export function VisitUpdateModal({ buildingId, currentStatus, onClose, onSaved }
     setError(null)
     try {
       const body = { remark: remark.trim() }
-      if (status) body.permissionStatus = status
+      if (canChangeStatus && status) body.permissionStatus = status
       const res = await apiClient.post(`/permission-buildings/${buildingId}/visits`, body)
       onSaved(res.data.data)
     } catch (err) {
@@ -68,14 +71,20 @@ export function VisitUpdateModal({ buildingId, currentStatus, onClose, onSaved }
           onChange={(e) => setRemark(e.target.value)}
           placeholder="e.g. Met the secretary — committee meets on Sunday, call back Monday"
         />
-        <Select id="visit-status" label="Permission status" value={status} onChange={(e) => setStatus(e.target.value)}>
-          {!currentStatus && <option value="">No status yet</option>}
-          {PERMISSION_STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
+        {canChangeStatus ? (
+          <Select id="visit-status" label="Permission status" value={status} onChange={(e) => setStatus(e.target.value)}>
+            {!currentStatus && <option value="">No status yet</option>}
+            {PERMISSION_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <p className="rounded-btn bg-paper px-4 py-3 text-sm font-normal text-muted">
+            Approved — the status stays Accepted. Your note is added to the history.
+          </p>
+        )}
         {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
       </div>
     </Modal>

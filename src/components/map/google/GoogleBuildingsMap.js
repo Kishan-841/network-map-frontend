@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { buildingColor, zoneColor } from '@/lib/constants'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
-import { buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
+import { buildingMarkerShape, buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
 import { useFiberOverlays } from '@/components/fiber/useFiberOverlays'
@@ -39,9 +39,13 @@ let pooledFitted = false
 // Below this zoom, small zone polygons are near-invisible — show a colored
 // dot notation at the centroid instead.
 const ZONE_DETAIL_ZOOM = 13
+// What a marker's icon depends on — a change re-icons just that marker.
+const pinKeyOf = (building, selected) => `${buildingColor(building)}|${buildingMarkerShape(building)}|${selected}`
 
+// An approved society (source PERMISSION) gets a shield instead of the
+// teardrop, in the same live / not-live colour.
 const pinIcon = (building, selected) => {
-  const pin = buildingPinCached({ color: buildingColor(building), selected })
+  const pin = buildingPinCached({ color: buildingColor(building), selected, shape: buildingMarkerShape(building) })
   return {
     url: pin.url,
     scaledSize: new google.maps.Size(pin.width, pin.height),
@@ -332,7 +336,7 @@ export default function GoogleBuildingsMap({
     buildings.forEach((building) => {
       seen.add(building.id)
       const selected = building.id === selectedIdRef.current
-      const key = `${buildingColor(building)}|${selected}`
+      const key = pinKeyOf(building, selected)
       let marker = markers.get(building.id)
 
       if (!marker) {
@@ -399,7 +403,7 @@ export default function GoogleBuildingsMap({
       if (!marker?.buildingData) return
       marker.setIcon(pinIcon(marker.buildingData, selected))
       marker.setZIndex(selected ? 1000 : 1)
-      marker.pinKey = `${buildingColor(marker.buildingData)}|${selected}`
+      marker.pinKey = pinKeyOf(marker.buildingData, selected)
     }
 
     if (prevSelectedRef.current && prevSelectedRef.current !== selectedId) {

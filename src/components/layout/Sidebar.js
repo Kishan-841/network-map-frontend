@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { NAV_GROUPS } from '@/lib/manage-links'
 import { useOverdueCount, OVERDUE_HREF } from '@/hooks/useOverdueCount'
 import { NavBadge } from '@/components/layout/NavBadge'
+import { usePendingSocietyCount, SOCIETIES_HREF } from '@/hooks/usePendingSocietyCount'
 import {
   isAgent,
   isLead,
@@ -139,11 +140,12 @@ const SALES_MANAGER_NAV = [
  * where you are without hunting — and a group you opened by hand stays open
  * until you close it.
  */
-function NavGroup({ label, items, pathname, collapsed, renderLink, defaultOpen = false }) {
+function NavGroup({ label, items, pathname, collapsed, renderLink, defaultOpen = false, badgeFor = () => 0 }) {
   const holdsCurrent = items.some((item) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href),
   )
   const [open, setOpen] = useState(holdsCurrent || defaultOpen)
+  const closedBadge = items.reduce((sum, item) => sum + (badgeFor(item.href) || 0), 0)
   const wasHolding = useRef(holdsCurrent)
 
   // Navigating INTO the group opens it; navigating away leaves it as the
@@ -178,6 +180,10 @@ function NavGroup({ label, items, pathname, collapsed, renderLink, defaultOpen =
         {label}
         {!open && holdsCurrent && (
           <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
+        )}
+        {/* A closed group still says something inside it is waiting. */}
+        {!open && closedBadge > 0 && (
+          <NavBadge count={closedBadge} label="waiting" className={holdsCurrent ? '' : 'ml-auto'} />
         )}
       </button>
       {open && <div className="mt-1 flex flex-col gap-1">{items.map((item) => renderLink(item))}</div>}
@@ -222,6 +228,9 @@ export function Sidebar() {
   const { sidebarCollapsed: collapsed, toggleSidebar } = useUiStore()
   const { theme, toggle: toggleTheme } = useTheme()
   const overdue = useOverdueCount()
+  const pendingSocieties = usePendingSocietyCount()
+  const badgeFor = (href) =>
+    href === OVERDUE_HREF ? overdue : href === SOCIETIES_HREF && role === 'ADMIN' ? pendingSocieties : 0
   const NAV_ITEMS = isAgent(role)
     ? AGENT_NAV
     : isLead(role)
@@ -293,9 +302,11 @@ export function Sidebar() {
           strokeWidth={1.8}
         />
         {!collapsed && label}
-        {href === OVERDUE_HREF && (
-          <NavBadge count={overdue} className={collapsed ? 'absolute right-3 top-1' : 'ml-auto'} />
-        )}
+        <NavBadge
+          count={badgeFor(href)}
+          label={href === OVERDUE_HREF ? 'overdue' : 'waiting for approval'}
+          className={collapsed ? 'absolute right-3 top-1' : 'ml-auto'}
+        />
       </Link>
     )
   }
@@ -359,6 +370,7 @@ export function Sidebar() {
               pathname={pathname}
               collapsed={collapsed}
               renderLink={navLink}
+              badgeFor={badgeFor}
             />
           ))}
         {FIBER_ITEMS.length > 0 && (

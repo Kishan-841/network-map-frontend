@@ -4,7 +4,19 @@
  * dot). Returns the raw SVG plus dimensions/anchor; both map providers consume
  * it (Google as a data-URI icon, Leaflet as a divIcon).
  */
-export function buildingPin({ color = '#22c55e', selected = false }) {
+/**
+ * Which outline a building's marker uses: a society that came through the
+ * permission executives (and was approved) gets a shield, so it stands apart
+ * from surveyed buildings while keeping the live / not-live colour.
+ */
+export const buildingMarkerShape = (building) => (building?.source === 'PERMISSION' ? 'society' : 'pin')
+
+// Shield with a point at the bottom (tip at 20,48, same anchor as the teardrop).
+const SHIELD_PATH = 'M20 3 L35 8.5 V21 C35 32 28 41 20 48 C12 41 5 32 5 21 V8.5 Z'
+const TEARDROP_PATH = 'M20 48s15-16.8 15-28A15 15 0 1 0 5 20c0 11.2 15 28 15 28z'
+
+export function buildingPin({ color = '#22c55e', selected = false, shape = 'pin' }) {
+  const society = shape === 'society'
   const scale = selected ? 1.3 : 1
   const width = Math.round(40 * scale)
   const height = Math.round(50 * scale)
@@ -21,7 +33,7 @@ export function buildingPin({ color = '#22c55e', selected = false }) {
     </filter>
   </defs>
   ${halo}
-  <path filter="url(#bpsh)" d="M20 48s15-16.8 15-28A15 15 0 1 0 5 20c0 11.2 15 28 15 28z" fill="${color}" stroke="#ffffff" stroke-width="3"/>
+  <path filter="url(#bpsh)"${society ? ' data-shape="society"' : ''} d="${society ? SHIELD_PATH : TEARDROP_PATH}" fill="${color}" stroke="#ffffff" stroke-width="3"/>
   <circle cx="20" cy="19" r="8.6" fill="#ffffff"/>
   <rect x="16" y="14.6" width="8" height="9.4" rx="0.8" fill="${color}"/>
   <g fill="#ffffff">
@@ -46,11 +58,11 @@ const pinCache = new Map()
  * hundreds of buildings — caching lets the browser reuse one decoded image
  * instead of re-encoding identical SVGs on every marker (re)build.
  */
-export function buildingPinCached({ color, selected = false }) {
-  const key = `${color}|${selected}`
+export function buildingPinCached({ color, selected = false, shape = 'pin' }) {
+  const key = `${color}|${selected}|${shape}`
   let cached = pinCache.get(key)
   if (!cached) {
-    const pin = buildingPin({ color, selected })
+    const pin = buildingPin({ color, selected, shape })
     cached = { ...pin, url: pinDataUri(pin) }
     pinCache.set(key, cached)
   }
