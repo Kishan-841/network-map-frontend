@@ -158,6 +158,16 @@ describe('permission executive', () => {
     expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/profile')).toBe(false)
     expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/map')).toBe(true)
     expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/admin/users')).toBe(true)
+    expect(isForbiddenPath('PERMISSION_EXECUTIVE', '/societies/abc123')).toBe(false)
+  })
+  it('society permissions: the admin reads them (list + detail) but does not add; no other role reaches them', () => {
+    expect(isForbiddenPath('ADMIN', '/societies')).toBe(false)
+    expect(isForbiddenPath('ADMIN', '/societies/abc123')).toBe(false)
+    expect(isForbiddenPath('ADMIN', '/societies/add')).toBe(true)
+    for (const role of ['MANAGER', 'SURVEYOR', 'SUPERVISOR', 'ACQUISITION_AGENT', 'ACQUISITION_LEAD']) {
+      expect(isForbiddenPath(role, '/societies')).toBe(true)
+      expect(isForbiddenPath(role, '/societies/abc123')).toBe(true)
+    }
   })
 })
 

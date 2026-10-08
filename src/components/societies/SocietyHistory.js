@@ -1,0 +1,47 @@
+import { changeLabels, istDateTime, statusChangeText, visitKindLabel } from '@/lib/society'
+
+const KIND_DOT = {
+  ADDED: 'bg-fiber',
+  VISIT: 'bg-ok',
+  EDIT: 'bg-warn',
+}
+
+/**
+ * A society's history, newest first as the API sends it: when (India time),
+ * who, what kind of entry, any status change, the fields an edit changed,
+ * and the remark — every entry carries one.
+ */
+export function SocietyHistory({ visits }) {
+  if (!visits?.length) return <p className="text-sm font-normal text-muted">No history yet.</p>
+  return (
+    <ol className="relative">
+      {visits.map((v, i) => {
+        const status = statusChangeText(v.statusBefore, v.statusAfter)
+        const changes = v.kind === 'EDIT' ? changeLabels(v.changes) : []
+        return (
+          <li key={v.id} className="relative flex min-w-0 gap-3 pb-4 last:pb-0">
+            {/* the rail: a dot per entry, a line down to the next */}
+            <span className="relative flex w-3 shrink-0 justify-center">
+              <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${KIND_DOT[v.kind] ?? 'bg-faint'}`} />
+              {i < visits.length - 1 && <span className="absolute bottom-[-0.25rem] top-5 w-px bg-line" />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <span className="font-semibold text-ink">{visitKindLabel(v.kind)}</span>
+                <span className="font-normal text-muted">{istDateTime(v.createdAt)}</span>
+                <span className="font-normal text-muted">· {v.user?.name ?? 'Former user'}</span>
+              </p>
+              {status && <p className="mt-0.5 text-sm font-medium text-ink">Status: {status}</p>}
+              {changes.length > 0 && (
+                <p className="mt-0.5 text-sm font-normal text-muted">Changed: {changes.join(', ')}</p>
+              )}
+              <p className="mt-1 whitespace-pre-wrap break-words rounded-btn bg-paper px-3 py-2 text-sm font-normal text-ink">
+                {v.remark}
+              </p>
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}

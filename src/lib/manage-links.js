@@ -17,6 +17,7 @@ import {
   IconDiamond,
   IconSmartphone,
   IconTeamPlan,
+  IconDoc,
 } from '@/components/ui/icons'
 
 /**
@@ -37,6 +38,8 @@ export const NAV_GROUPS = [
       { href: '/sales', label: 'Assign buildings', icon: IconBuildings, exact: true },
       { href: '/sales/zones', label: 'Team zones', icon: IconMap, exact: true },
       { href: '/sales/plan', label: 'Team plan', icon: IconTeamPlan, exact: true },
+      // The permission executives' societies (hidden from Buildings until accepted).
+      { href: '/societies', label: 'Society permissions', icon: IconDoc },
     ],
   },
   {
@@ -76,6 +79,7 @@ export const NAV_GROUPS = [
  * `sub` is the grid's second line; the sidebar shows only the label.
  */
 const SUBTITLES = {
+  '/societies': 'Permission visits and history',
   '/partner-dashboard': 'Network at a glance',
   '/partners': 'Referral partners',
   '/referrals': 'People they introduced',

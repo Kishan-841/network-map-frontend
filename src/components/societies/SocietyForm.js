@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Input'
+import { Input, Select, Textarea } from '@/components/ui/Input'
 import LocationPicker from '@/components/map/LocationPicker'
 import { getMapProvider } from '@/lib/map-providers'
 import { uploadFile } from '@/lib/upload'
@@ -22,6 +22,7 @@ const EMPTY = {
   contactName: '', contactPhone: '', designation: 'SECRETARY', designationOther: '', contactEmail: '',
   permissionStatus: '', societyOffer: '', paymentType: '', amountPaid: '', demoCount: '',
   permissionLetterUrl: '', entrancePhotoUrl: '',
+  remark: '',
 }
 
 /**
@@ -30,7 +31,12 @@ const EMPTY = {
  * guessed from the pin and can be overridden. Errors are held until the first
  * save, then shown live. `onSave` receives the POST /buildings body.
  */
-export default function SocietyForm({ initial, onSave, saveLabel = 'Save society' }) {
+export default function SocietyForm({
+  initial,
+  onSave,
+  saveLabel = 'Save society',
+  remarkLabel = 'What happened on this visit?',
+}) {
   const [form, setForm] = useState(() => ({ ...EMPTY, ...initial }))
   const [attempted, setAttempted] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -110,6 +116,7 @@ export default function SocietyForm({ initial, onSave, saveLabel = 'Save society
           longitude={lng ?? DEFAULT_CENTRE.longitude}
           onChange={onPin}
         />
+        {show.location && <p className="mt-1.5 text-sm font-normal text-bad">{show.location}</p>}
       </div>
       {/* Society */}
       <Input id="s-name" label="Building name" value={form.buildingName} error={show.buildingName} onChange={set('buildingName')} />
@@ -185,6 +192,19 @@ export default function SocietyForm({ initial, onSave, saveLabel = 'Save society
       {isDemo && (
         <Input id="s-demo" label="Demo connections" inputMode="numeric" value={form.demoCount} onChange={set('demoCount')} />
       )}
+
+      {/* Remark — compulsory on every add and edit; it heads the history entry. */}
+      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-faint">Remark</p>
+      <Textarea
+        id="s-remark"
+        label={remarkLabel}
+        rows={3}
+        maxLength={1000}
+        value={form.remark}
+        error={show.remark}
+        onChange={set('remark')}
+        placeholder="e.g. Met the secretary — committee meets on Sunday"
+      />
 
       {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
       <Button type="button" loading={busy} onClick={submit}>
