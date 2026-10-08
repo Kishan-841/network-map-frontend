@@ -199,12 +199,20 @@ export default function SocietiesPage() {
         </div>
       )}
 
-      <div className={`mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 ${isAdmin ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+      <div
+        className={`mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 ${
+          // The selects keep room for their longest option ("Waiting for approval");
+          // the search box takes what is left.
+          isAdmin
+            ? 'lg:grid-cols-[minmax(0,1fr)_repeat(3,minmax(12.5rem,auto))]'
+            : 'lg:grid-cols-[minmax(0,1fr)_repeat(2,minmax(12.5rem,auto))]'
+        }`}
+      >
         <SearchInput
           value={search}
           onChange={onSearch}
           placeholder="Search name or address"
-          className="sm:col-span-2"
+          className="sm:col-span-2 lg:col-span-1"
         />
         <Select id="sp-status" aria-label="Status" value={status} onChange={onStatus}>
           <option value="">All statuses</option>
