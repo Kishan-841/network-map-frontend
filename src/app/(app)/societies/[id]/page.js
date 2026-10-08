@@ -28,6 +28,7 @@ import {
   peCanEdit,
   isApprovedSociety,
 } from '@/lib/society'
+import { hasDraft, sessionStore, surveyDraftKey } from '@/lib/society-survey'
 
 const mapHref = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`
 const optionLabel = (options, v) => options.find((o) => o.value === v)?.label ?? v
@@ -102,6 +103,14 @@ export default function SocietyPage() {
   // Phase 3: the zone's surveyor reads the society and fills the site survey;
   // visit updates stay the executive's and the admin's.
   const isSurveyor = role === 'SURVEYOR'
+  const userId = useAuthStore((s) => s.user?.id)
+
+  // Unsaved survey edits are kept on this device (sessionStorage); still,
+  // leaving by the Back link asks first.
+  function confirmLeave(e) {
+    if (!hasDraft(sessionStore(), surveyDraftKey(id, userId))) return
+    if (!window.confirm('Leave without saving? Your survey edits will be kept on this device.')) e.preventDefault()
+  }
 
   const [tick, setTick] = useState(0)
   // { id, data } or { id, error, notFound }. Kept across a reload so the page
@@ -168,6 +177,7 @@ export default function SocietyPage() {
         title={b?.buildingName ?? 'Society'}
         backHref="/societies"
         backLabel={isSurveyor ? 'Society surveys' : 'Society permissions'}
+        onBackClick={confirmLeave}
       />
       <Toast key={toast} message={toast} onDone={() => setToast(null)} />
 

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
+import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/Button'
 import { IconOkCircle, IconClose } from '@/components/ui/icons'
 import { MaterialList } from '@/components/societies/MaterialList'
@@ -14,6 +15,7 @@ import {
   linkMethodLabel,
   surveyEditMode,
   surveyNotice,
+  surveyDraftKey,
   surveyRemarkField,
   surveyToForm,
 } from '@/lib/society-survey'
@@ -111,7 +113,12 @@ export function SurveySection({ building, role, onChanged }) {
   const [tick, setTick] = useState(0)
   const [result, setResult] = useState(null) // { key, survey } | { key, error }
   const [modal, setModal] = useState(null) // 'approve' | 'reject' | 'live'
-  const [editing, setEditing] = useState(false) // ADMIN, after approval: opt in to edit
+  // ADMIN on a waiting or approved survey: read-only until "Edit survey", so
+  // a decision (which reloads the survey) can never wipe edits in progress.
+  const [editing, setEditing] = useState(false)
+  // A submit that failed after its save: shown here, where it survives the reload.
+  const [submitError, setSubmitError] = useState(null)
+  const userId = useAuthStore((s) => s.user?.id)
   const key = `${id}|${tick}`
 
   useEffect(() => {
@@ -131,15 +138,21 @@ export function SurveySection({ building, role, onChanged }) {
   const isLive = Boolean(building.isLive)
   const liveSince = (building.visits ?? []).find((v) => v.kind === 'MARKED_LIVE')?.createdAt ?? null
 
-  function done(message) {
+  function done(message, error = null) {
     setModal(null)
     setEditing(false)
+    setSubmitError(error)
     setTick((t) => t + 1)
     onChanged(message)
   }
 
+  const initial = useMemo(() => surveyToForm(survey), [survey])
   const mode = surveyEditMode(role, survey, isLive)
-  const showEditor = loaded && !loaded.error && (mode === 'edit' || (mode === 'edit-remark' && editing))
+  const adminGate = role === 'ADMIN' && (survey?.status === 'SUBMITTED' || survey?.status === 'APPROVED')
+  const editorOpen = mode !== 'read' && (!adminGate || editing)
+  const showEditor = loaded && !loaded.error && editorOpen
+  // No decision or Mark live while the admin has the editor open.
+  const decisionsShown = !(adminGate && editing)
   const notice = surveyNotice(survey, isLive, liveSince)
 
   return (
@@ -160,7 +173,7 @@ export function SurveySection({ building, role, onChanged }) {
                 {notice.reason}
               </p>
             )}
-            {canDecideSurvey(role, survey) && (
+            {decisionsShown && canDecideSurvey(role, survey) && (
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <Button type="button" variant="success" onClick={() => setModal('approve')} className="sm:flex-1">
                   <IconOkCircle className="h-4 w-4" aria-hidden="true" />
@@ -172,19 +185,31 @@ export function SurveySection({ building, role, onChanged }) {
                 </Button>
               </div>
             )}
-            {canMarkLive(role, survey, isLive) && (
+            {decisionsShown && canMarkLive(role, survey, isLive) && (
               <Button type="button" variant="success" onClick={() => setModal('live')} className="mt-3 w-full sm:w-auto">
                 <IconOkCircle className="h-4 w-4" aria-hidden="true" />
                 Mark live
               </Button>
             )}
+            {adminGate && editing && (
+              <p className="mt-2 text-sm font-normal">Save or cancel your edits to approve, reject or mark live.</p>
+            )}
           </div>
+
+          {submitError && (
+            <p role="alert" className="mb-4 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
+              Saved, but not sent for approval: {submitError}
+            </p>
+          )}
 
           {showEditor ? (
             <SurveyEditor
               key={`${survey?.updatedAt ?? 'new'}|${mode}`}
               buildingId={id}
-              initial={surveyToForm(survey)}
+              initial={initial}
+              draftKey={surveyDraftKey(id, userId)}
+              basedOn={survey?.updatedAt ?? 'new'}
+              onCancel={adminGate ? () => setEditing(false) : undefined}
               remarkField={surveyRemarkField(role, survey)}
               canSubmit={canSubmitSurvey(role, survey)}
               expected={building.details}
@@ -193,9 +218,17 @@ export function SurveySection({ building, role, onChanged }) {
           ) : (
             <>
               <SurveyReadOnly survey={survey} />
-              {mode === 'edit-remark' && (
-                <Button type="button" variant="secondary" onClick={() => setEditing(true)} className="mt-4 w-full sm:w-auto">
-                  Edit survey (logged)
+              {adminGate && mode !== 'read' && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setSubmitError(null)
+                    setEditing(true)
+                  }}
+                  className="mt-4 w-full sm:w-auto"
+                >
+                  {survey?.status === 'APPROVED' ? 'Edit survey (logged)' : 'Edit survey'}
                 </Button>
               )}
             </>

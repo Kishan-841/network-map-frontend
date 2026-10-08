@@ -28,8 +28,28 @@ const WING_NUMBERS = [
   ['homePass', 'Home pass', 100000],
 ]
 
-export const emptyWing = () => ({ name: '', floors: '', flatsPerFloor: '', shafts: '', homePass: '', homePassEdited: false })
-export const emptyLink = () => ({ from: '', to: '', method: 'AERIAL', meters: '' })
+/**
+ * Every wing and link row carries a random id: React keys stay stable when a
+ * row above is removed, and a link points at its wings BY ID, so renaming a
+ * wing (even clearing the name to retype it) carries through to its links.
+ * Random, not a counter, so a draft restored after a reload cannot collide
+ * with rows added afterwards.
+ */
+const rowId = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 6)}`
+
+export const emptyWing = () => ({ id: rowId('w'), name: '', floors: '', flatsPerFloor: '', shafts: '', homePass: '', homePassEdited: false })
+/** `from` / `to` hold wing row ids ('' = not picked). */
+export const emptyLink = () => ({ id: rowId('l'), from: '', to: '', method: 'AERIAL', meters: '' })
+
+/** Remove a wing row; its links lose that end (and are then flagged to fix). */
+export function removeWingAt(form, index) {
+  const gone = form.wings[index]?.id
+  return {
+    ...form,
+    wings: form.wings.filter((_, i) => i !== index),
+    links: form.links.map((l) => ({ ...l, from: l.from === gone ? '' : l.from, to: l.to === gone ? '' : l.to })),
+  }
+}
 
 const blank = (v) => v == null || String(v).trim() === ''
 const str = (v) => (v == null ? '' : String(v))
@@ -79,11 +99,22 @@ export function setWingField(wing, field, value) {
 const wingIsEmpty = (w) => blank(w.name) && ['floors', 'flatsPerFloor', 'shafts'].every((k) => blank(w[k])) && (!w.homePassEdited || blank(w.homePass))
 const linkIsEmpty = (l) => blank(l.from) && blank(l.to) && blank(l.meters)
 
+/** wing row id → its trimmed name, for the wings that will be sent (named, not empty). */
+function wingNamesById(wings) {
+  const map = new Map()
+  for (const w of wings ?? []) {
+    const name = String(w.name ?? '').trim()
+    if (!wingIsEmpty(w) && name) map.set(w.id, name)
+  }
+  return map
+}
+
 /** A saved survey (or null) as the editor's form. */
 export function surveyToForm(survey) {
   const c = survey?.checks ?? {}
   const wings = (survey?.wings ?? []).map((w) => {
     const row = {
+      id: rowId('w'),
       name: str(w.name),
       floors: str(w.floors),
       flatsPerFloor: str(w.flatsPerFloor),
@@ -103,7 +134,10 @@ export function surveyToForm(survey) {
       note: str(c.note),
     },
     wings: wings.length ? wings : [emptyWing()],
-    links: (survey?.links ?? []).map((l) => ({ from: str(l.from), to: str(l.to), method: str(l.method), meters: str(l.meters) })),
+    links: (survey?.links ?? []).map((l) => {
+      const idOf = (name) => wings.find((w) => w.name.trim().toLowerCase() === str(name).trim().toLowerCase())?.id ?? ''
+      return { id: rowId('l'), from: idOf(l.from), to: idOf(l.to), method: str(l.method), meters: str(l.meters) }
+    }),
     materials: Object.fromEntries(
       Object.entries(survey?.materials ?? {})
         .filter(([, qty]) => Number(qty) > 0)
@@ -132,13 +166,14 @@ export function surveyPayload(form) {
       }
     })
 
+  const names = wingNamesById(form.wings)
   const links = (form.links ?? [])
     .filter((l) => !linkIsEmpty(l))
     .map((l) => {
       const meters = toMeters(l.meters)
       return {
-        from: String(l.from).trim(),
-        to: String(l.to).trim(),
+        from: names.get(l.from) ?? '',
+        to: names.get(l.to) ?? '',
         method: l.method,
         ...(meters !== null ? { meters } : {}),
       }
@@ -161,7 +196,6 @@ export function surveyErrors(form, { submit = false } = {}) {
   const out = { form: [], wings: {}, links: {}, materials: {} }
   const wings = form.wings ?? []
   const seen = new Set()
-  const names = new Set()
   let wingCount = 0
   wings.forEach((w, i) => {
     if (wingIsEmpty(w)) return
@@ -172,10 +206,7 @@ export function surveyErrors(form, { submit = false } = {}) {
     if (!name) msg = 'Give this wing a name'
     else if (name.length > WING_NAME_MAX) msg = `Wing name: ${WING_NAME_MAX} characters at most`
     else if (seen.has(lower)) msg = `Wing “${name}” is listed twice`
-    if (name) {
-      seen.add(lower)
-      names.add(name)
-    }
+    if (name) seen.add(lower)
     if (!msg) {
       const notInt = WING_NUMBERS.find(([k]) => !Number.isInteger(toInt(w[k])) && toInt(w[k]) !== null)
       const tooBig = WING_NUMBERS.find(([k, , cap]) => !okInt(w[k], cap))
@@ -186,6 +217,7 @@ export function surveyErrors(form, { submit = false } = {}) {
   })
   if (wingCount > MAX_WINGS) out.form.push(`${MAX_WINGS} wings at most`)
 
+  const names = wingNamesById(wings)
   const links = form.links ?? []
   let linkCount = 0
   // A run between two wings is listed once per method, whichever way round.
@@ -193,15 +225,15 @@ export function surveyErrors(form, { submit = false } = {}) {
   links.forEach((l, i) => {
     if (linkIsEmpty(l)) return
     linkCount += 1
-    const from = String(l.from ?? '').trim()
-    const to = String(l.to ?? '').trim()
     let msg = ''
-    if (!names.has(from) || !names.has(to)) msg = 'Pick both wings from the list'
-    else if (from === to) msg = 'A link joins two different wings'
+    if (!names.has(l.from) || !names.has(l.to)) msg = 'Pick both wings from the list'
+    else if (l.from === l.to || names.get(l.from).toLowerCase() === names.get(l.to).toLowerCase())
+      msg = 'A link joins two different wings'
     else if (!LINK_METHODS.some((m) => m.value === l.method)) msg = 'Pick how the wings are linked'
     else if (!okMeters(l.meters)) msg = `Metres: a number up to ${MAX_METERS}`
     if (!msg) {
-      const run = [[from.toLowerCase(), to.toLowerCase()].sort().join('|'), l.method].join('|')
+      const ends = [names.get(l.from).toLowerCase(), names.get(l.to).toLowerCase()].sort()
+      const run = [...ends, l.method].join('\u0000')
       if (runs.has(run)) msg = 'That link is already listed'
       runs.add(run)
     }
@@ -282,7 +314,7 @@ export function surveyNotice(survey, isLive = false, liveSince = null) {
 // ── Progress: one chip for where a society is in the whole flow ────────────
 export const PROGRESS_FILTER_OPTIONS = [
   { value: 'APPROVAL_PENDING', label: 'Waiting for approval' },
-  { value: 'APPROVED_NO_SURVEY', label: 'Survey pending' },
+  { value: 'APPROVED_NO_SURVEY', label: 'Survey to do (not started, draft, rejected)' },
   { value: 'SURVEY_SUBMITTED', label: 'Survey submitted' },
   { value: 'MATERIALS_APPROVED', label: 'Materials approved' },
   { value: 'LIVE', label: 'Live' },
@@ -349,3 +381,72 @@ export const canDecideSurvey = (role, survey) => role === 'ADMIN' && survey?.sta
 /** Mark live: the zone surveyor or the admin, once the materials are approved. */
 export const canMarkLive = (role, survey, isLive) =>
   (role === 'ADMIN' || role === 'SURVEYOR') && survey?.status === 'APPROVED' && !isLive
+
+// ── Unsaved edits ──────────────────────────────────────────────────────────
+
+/** What a form says, without row ids or blank quantities — for "is it changed?". */
+function formSignature(form) {
+  const nameOf = new Map((form.wings ?? []).map((w) => [w.id, String(w.name ?? '').trim()]))
+  return JSON.stringify({
+    checks: form.checks,
+    wings: (form.wings ?? []).map(({ id, ...rest }) => rest),
+    links: (form.links ?? []).map((l) => [nameOf.get(l.from) ?? '', nameOf.get(l.to) ?? '', l.method, String(l.meters ?? '')]),
+    materials: Object.fromEntries(
+      Object.entries(form.materials ?? {})
+        .filter(([, v]) => !blank(v))
+        .sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  })
+}
+/** True when the form holds edits that are not in `initial` (what was loaded). */
+export const isFormDirty = (form, initial) => formSignature(form) !== formSignature(initial)
+
+/**
+ * An unsaved survey is kept in sessionStorage (this tab, this device) per
+ * user and building, so Back, a nav tap or a reload does not lose it. Every
+ * access is guarded: storage may be missing or throw (private mode, blocked
+ * site data) — then there is simply no draft.
+ */
+export const surveyDraftKey = (buildingId, userId) => `society-survey-draft:${userId}:${buildingId}`
+
+/** `basedOn` = the saved survey's updatedAt ('new' when none), so a stale draft is never restored. */
+export function saveDraft(storage, key, form, basedOn) {
+  try {
+    storage?.setItem(key, JSON.stringify({ basedOn, form }))
+  } catch {
+    // no storage — nothing kept
+  }
+}
+export function loadDraft(storage, key, basedOn) {
+  try {
+    const raw = storage?.getItem(key)
+    if (!raw) return null
+    const d = JSON.parse(raw)
+    if (d?.basedOn !== basedOn || !d.form?.checks || !Array.isArray(d.form.wings) || !Array.isArray(d.form.links)) return null
+    return d.form
+  } catch {
+    return null
+  }
+}
+export function clearDraft(storage, key) {
+  try {
+    storage?.removeItem(key)
+  } catch {
+    // nothing to clear
+  }
+}
+export function hasDraft(storage, key) {
+  try {
+    return Boolean(storage?.getItem(key))
+  } catch {
+    return false
+  }
+}
+/** The browser's sessionStorage, or null (server render, or access refused). */
+export function sessionStore() {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage
+  } catch {
+    return null
+  }
+}

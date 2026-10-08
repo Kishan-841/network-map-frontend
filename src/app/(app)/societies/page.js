@@ -263,11 +263,11 @@ export default function SocietiesPage() {
           </QuickPill>
         </div>
       )}
-      {/* The surveyor's to-do: approved societies whose survey is not sent yet. */}
+      {/* The surveyor's to-do: approved societies whose survey is not started, a draft or rejected. */}
       {isSurveyor && (
         <div className="mb-3 flex flex-wrap gap-2">
           <QuickPill active={surveyPendingOnly} onClick={() => onStage(surveyPendingOnly ? '' : 'APPROVED_NO_SURVEY')}>
-            Survey pending
+            Survey to do
           </QuickPill>
         </div>
       )}

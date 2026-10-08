@@ -15,10 +15,23 @@ import {
   surveyEditMode,
   canMarkLive,
   surveyRemarkField,
+  removeWingAt,
+  isFormDirty,
+  surveyDraftKey,
+  saveDraft,
+  loadDraft,
+  clearDraft,
+  hasDraft,
 } from '@/lib/society-survey'
 import { visitKindLabel, changeLabels } from '@/lib/society'
 
-const filledWing = (over = {}) => ({ ...emptyWing(), name: 'A', floors: '10', flatsPerFloor: '4', shafts: '1', ...over })
+// Links point at a wing's row id; here the id is the name, so tests read naturally.
+const filledWing = (over = {}) => {
+  const w = { ...emptyWing(), name: 'A', floors: '10', flatsPerFloor: '4', shafts: '1', ...over }
+  return { ...w, id: over.id ?? w.name }
+}
+const link = (from, to, method = 'AERIAL', meters = '') => ({ ...emptyLink(), from, to, method, meters })
+const noIds = (rows) => rows.map(({ id, ...rest }) => rest)
 
 describe('wing home pass', () => {
   it('defaults to floors × flats per floor while untouched', () => {
@@ -49,7 +62,8 @@ describe('survey ↔ form', () => {
   it('starts an empty form when there is no survey', () => {
     const f = surveyToForm(null)
     expect(f.checks).toEqual({ nameOk: true, nameCorrection: '', wingsOk: true, homePassOk: true, note: '' })
-    expect(f.wings).toEqual([emptyWing()])
+    expect(noIds(f.wings)).toEqual(noIds([emptyWing()]))
+    expect(f.wings[0].id).toBeTruthy()
     expect(f.links).toEqual([])
     expect(f.materials).toEqual({})
   })
@@ -64,16 +78,18 @@ describe('survey ↔ form', () => {
       materials: { FIBER_4F: 120, FAT_BOX: 0 },
     })
     expect(f.checks).toEqual({ nameOk: false, nameCorrection: 'Green Park B', wingsOk: true, homePassOk: false, note: '' })
-    expect(f.wings[0]).toEqual({ name: 'A', floors: '10', flatsPerFloor: '4', shafts: '1', homePass: '40', homePassEdited: false })
+    expect(noIds(f.wings)[0]).toEqual({ name: 'A', floors: '10', flatsPerFloor: '4', shafts: '1', homePass: '40', homePassEdited: false })
     expect(f.wings[1].homePassEdited).toBe(true)
-    expect(f.links[1]).toEqual({ from: 'B', to: 'A', method: 'TRAY', meters: '' })
+    // links point at the wings' row ids, so a rename carries through
+    expect(noIds(f.links)[1]).toEqual({ from: f.wings[1].id, to: f.wings[0].id, method: 'TRAY', meters: '' })
+    expect(new Set([...f.wings, ...f.links].map((r) => r.id)).size).toBe(4)
     expect(f.materials).toEqual({ FIBER_4F: '120' })
   })
   it('builds the PUT body: ints, empty rows dropped, zero materials dropped', () => {
     const form = {
       checks: { nameOk: false, nameCorrection: '  Green Park B ', wingsOk: true, homePassOk: true, note: ' ok ' },
-      wings: [filledWing(), emptyWing(), filledWing({ name: ' B ', floors: '5', flatsPerFloor: '2', shafts: '', homePass: '' })],
-      links: [{ from: 'A', to: 'B', method: 'UNDERGROUND', meters: '25.5' }, emptyLink(), { from: 'B', to: 'A', method: 'TRAY', meters: '' }],
+      wings: [filledWing(), emptyWing(), filledWing({ id: 'B', name: ' B ', floors: '5', flatsPerFloor: '2', shafts: '', homePass: '' })],
+      links: [link('A', 'B', 'UNDERGROUND', '25.5'), emptyLink(), link('B', 'A', 'TRAY')],
       materials: { FIBER_4F: '120', FAT_BOX: '0', SIDE_L: '', CLOSURE_TIFFIN: '3' },
     }
     expect(surveyPayload(form)).toEqual({
@@ -104,7 +120,7 @@ describe('validation (mirrors the API)', () => {
   const base = () => ({
     checks: { nameOk: true, nameCorrection: '', wingsOk: true, homePassOk: true, note: '' },
     wings: [filledWing(), filledWing({ name: 'B' })],
-    links: [{ from: 'A', to: 'B', method: 'AERIAL', meters: '' }],
+    links: [link('A', 'B')],
     materials: { FIBER_4F: '100' },
   })
   it('passes a good survey, for save and for submit', () => {
@@ -114,6 +130,7 @@ describe('validation (mirrors the API)', () => {
   it('wants unique wing names (case-insensitive) and a name on a filled row', () => {
     const f = base()
     f.wings[1].name = 'a'
+    f.links = []
     let e = surveyErrors(f)
     expect(e.ok).toBe(false)
     expect(e.wings[1]).toBe('Wing “a” is listed twice')
@@ -141,10 +158,10 @@ describe('validation (mirrors the API)', () => {
     expect(surveyErrors(f).links[0]).toBe('Pick both wings from the list')
     f.links[0].to = 'A'
     expect(surveyErrors(f).links[0]).toBe('A link joins two different wings')
-    f.links[0] = { from: 'A', to: 'B', method: '', meters: '' }
+    f.links[0] = link('A', 'B', '')
     expect(surveyErrors(f).links[0]).toBe('Pick how the wings are linked')
     // metres may carry decimals (the API takes 0–100000)
-    f.links[0] = { from: 'A', to: 'B', method: 'TRAY', meters: '12.5' }
+    f.links[0] = link('A', 'B', 'TRAY', '12.5')
     expect(surveyErrors(f).links[0]).toBeUndefined()
     f.links[0].meters = 'abc'
     expect(surveyErrors(f).links[0]).toBe('Metres: a number up to 100000')
@@ -153,12 +170,7 @@ describe('validation (mirrors the API)', () => {
   })
   it('refuses a link listed twice (same wings and method, either direction)', () => {
     const f = base()
-    f.links = [
-      { from: 'A', to: 'B', method: 'AERIAL', meters: '' },
-      { from: 'B', to: 'A', method: 'AERIAL', meters: '10' },
-      { from: 'A', to: 'B', method: 'TRAY', meters: '' },
-      { from: 'A', to: 'B', method: 'AERIAL', meters: '' },
-    ]
+    f.links = [link('A', 'B'), link('B', 'A', 'AERIAL', '10'), link('A', 'B', 'TRAY'), link('A', 'B')]
     const e = surveyErrors(f)
     expect(e.links[0]).toBeUndefined()
     expect(e.links[1]).toBe('That link is already listed')
@@ -252,6 +264,11 @@ describe('progress chip', () => {
     expect(societyProgress({ approval: { status: 'APPROVED' }, survey: { status: 'APPROVED' } })).toMatchObject({ label: 'Materials approved', className: 'bg-ok-tint text-ok', step: 4 })
     expect(societyProgress({ approval: { status: 'APPROVED' }, survey: { status: 'APPROVED' }, isLive: true })).toMatchObject({ label: 'Live', step: 5 })
   })
+  it('names the to-do stage so it matches the chips it collects', () => {
+    expect(PROGRESS_FILTER_OPTIONS.find((o) => o.value === 'APPROVED_NO_SURVEY').label).toBe(
+      'Survey to do (not started, draft, rejected)',
+    )
+  })
   it('offers the stage filter', () => {
     expect(PROGRESS_FILTER_OPTIONS.map((o) => o.value)).toEqual([
       'APPROVAL_PENDING', 'APPROVED_NO_SURVEY', 'SURVEY_SUBMITTED', 'MATERIALS_APPROVED', 'LIVE',
@@ -293,5 +310,90 @@ describe('who edits the survey', () => {
     expect(canMarkLive('SURVEYOR', { status: 'APPROVED' }, true)).toBe(false)
     expect(canMarkLive('SURVEYOR', { status: 'SUBMITTED' }, false)).toBe(false)
     expect(canMarkLive('PERMISSION_EXECUTIVE', { status: 'APPROVED' }, false)).toBe(false)
+  })
+})
+
+describe('wing rows and links', () => {
+  const form = () => ({
+    checks: { nameOk: true, nameCorrection: '', wingsOk: true, homePassOk: true, note: '' },
+    wings: [filledWing({ id: 'w1', name: 'A' }), filledWing({ id: 'w2', name: 'B' }), filledWing({ id: 'w3', name: 'C' })],
+    links: [link('w1', 'w2'), link('w2', 'w3', 'TRAY')],
+    materials: { FIBER_4F: '10' },
+  })
+  it('renaming a wing renames it in its links (links hold the row id)', () => {
+    const f = form()
+    f.wings[1] = setWingField(f.wings[1], 'name', 'B-East')
+    expect(surveyPayload(f).links).toEqual([
+      { from: 'A', to: 'B-East', method: 'AERIAL' },
+      { from: 'B-East', to: 'C', method: 'TRAY' },
+    ])
+    // clearing the name to retype it keeps the link pointing at the row
+    f.wings[1] = setWingField(f.wings[1], 'name', '')
+    f.wings[1] = setWingField(f.wings[1], 'name', 'D')
+    expect(surveyPayload(f).links[0]).toEqual({ from: 'A', to: 'D', method: 'AERIAL' })
+  })
+  it('removing a wing clears it from its links, which are then flagged', () => {
+    const f = removeWingAt(form(), 1)
+    expect(f.wings.map((w) => w.id)).toEqual(['w1', 'w3'])
+    expect(f.links.map((l) => [l.from, l.to])).toEqual([['w1', ''], ['', 'w3']])
+    const e = surveyErrors(f)
+    expect(e.links[0]).toBe('Pick both wings from the list')
+    expect(e.links[1]).toBe('Pick both wings from the list')
+  })
+  it('new rows get distinct ids', () => {
+    const ids = new Set([emptyWing().id, emptyWing().id, emptyLink().id, emptyLink().id])
+    expect(ids.size).toBe(4)
+  })
+})
+
+describe('unsaved edits', () => {
+  it('a form is dirty only when its content differs from what was loaded', () => {
+    const initial = surveyToForm({ wings: [{ name: 'A', floors: 1, flatsPerFloor: 2, shafts: 0, homePass: 2 }], materials: { FAT_BOX: 1 } })
+    const same = structuredClone(initial)
+    expect(isFormDirty(same, initial)).toBe(false)
+    // typing then clearing a quantity is not a change
+    same.materials.SIDE_L = ''
+    expect(isFormDirty(same, initial)).toBe(false)
+    const changed = structuredClone(initial)
+    changed.materials.FAT_BOX = '2'
+    expect(isFormDirty(changed, initial)).toBe(true)
+    const renamed = structuredClone(initial)
+    renamed.wings[0] = setWingField(renamed.wings[0], 'name', 'B')
+    expect(isFormDirty(renamed, initial)).toBe(true)
+  })
+
+  const memory = () => {
+    const m = new Map()
+    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), m }
+  }
+  const broken = { getItem() { throw new Error('denied') }, setItem() { throw new Error('denied') }, removeItem() { throw new Error('denied') } }
+
+  it('keys a draft by user and building', () => {
+    expect(surveyDraftKey('b1', 'u1')).toBe('society-survey-draft:u1:b1')
+    expect(surveyDraftKey('b1', 'u2')).not.toBe(surveyDraftKey('b1', 'u1'))
+  })
+  it('restores a draft only on top of the survey it was made from', () => {
+    const s = memory()
+    const f = surveyToForm(null)
+    f.materials.FAT_BOX = '3'
+    saveDraft(s, 'k', f, '2026-10-08T06:00:00Z')
+    expect(hasDraft(s, 'k')).toBe(true)
+    expect(loadDraft(s, 'k', '2026-10-08T06:00:00Z')).toEqual(f)
+    // the survey changed since (someone saved): the draft is stale
+    expect(loadDraft(s, 'k', '2026-10-08T07:00:00Z')).toBe(null)
+    clearDraft(s, 'k')
+    expect(hasDraft(s, 'k')).toBe(false)
+    expect(loadDraft(s, 'k', '2026-10-08T06:00:00Z')).toBe(null)
+  })
+  it('never throws: blocked storage, bad JSON or no storage read as no draft', () => {
+    expect(() => saveDraft(broken, 'k', surveyToForm(null), 'new')).not.toThrow()
+    expect(loadDraft(broken, 'k', 'new')).toBe(null)
+    expect(hasDraft(broken, 'k')).toBe(false)
+    expect(() => clearDraft(broken, 'k')).not.toThrow()
+    const s = memory()
+    s.setItem('k', '{nope')
+    expect(loadDraft(s, 'k', 'new')).toBe(null)
+    expect(loadDraft(null, 'k', 'new')).toBe(null)
+    expect(hasDraft(undefined, 'k')).toBe(false)
   })
 })

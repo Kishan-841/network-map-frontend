@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
@@ -10,8 +10,14 @@ import {
   LINK_METHODS,
   MAX_LINKS,
   MAX_WINGS,
+  clearDraft,
   emptyLink,
   emptyWing,
+  isFormDirty,
+  loadDraft,
+  removeWingAt,
+  saveDraft,
+  sessionStore,
   setWingField,
   surveyErrors,
   surveyPayload,
@@ -92,15 +98,63 @@ const RowError = ({ msg }) => (msg ? <p className="mt-2 text-sm font-normal text
  * `remarkField`: 'required' (ADMIN, approved survey), 'optional' (ADMIN,
  * waiting survey) or null — the API records a remark only then.
  * `canSubmit`: Draft / Rejected may be sent for approval.
+ *
+ * Unsaved edits are kept in sessionStorage under `draftKey` (per user and
+ * building) on top of the saved survey `basedOn` (its updatedAt), so Back, a
+ * nav tap or a reload does not lose them; the page warns before unloading.
+ * `onSaved(message, submitError?)` — a submit that failed after the save
+ * still reports the save, with the error. `onCancel` (ADMIN) closes the editor.
  */
-export function SurveyEditor({ buildingId, initial, remarkField = null, canSubmit, expected, onSaved }) {
-  const [form, setForm] = useState(initial)
+export function SurveyEditor({
+  buildingId,
+  initial,
+  draftKey,
+  basedOn,
+  remarkField = null,
+  canSubmit,
+  expected,
+  onSaved,
+  onCancel,
+}) {
+  // Restored in the initialiser (not an effect): a draft kept on this device
+  // for this very version of the survey.
+  const [restored, setRestored] = useState(() => loadDraft(sessionStore(), draftKey, basedOn) !== null)
+  const [form, setForm] = useState(() => loadDraft(sessionStore(), draftKey, basedOn) ?? initial)
   const [remark, setRemark] = useState('')
   const [shown, setShown] = useState(null) // errors after a save / submit attempt
   const [busy, setBusy] = useState(null) // 'save' | 'submit'
   const [error, setError] = useState(null)
 
   const needsRemark = remarkField === 'required'
+  const dirty = isFormDirty(form, initial)
+
+  // Keep the unsaved form on this device; drop it once it matches the saved one.
+  useEffect(() => {
+    if (dirty) saveDraft(sessionStore(), draftKey, form, basedOn)
+    else clearDraft(sessionStore(), draftKey)
+  }, [dirty, form, draftKey, basedOn])
+
+  // Closing the tab or reloading with unsaved edits asks first.
+  useEffect(() => {
+    if (!dirty) return undefined
+    const warn = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
+
+  function discard() {
+    clearDraft(sessionStore(), draftKey)
+    setForm(initial)
+    setRestored(false)
+    setShown(null)
+  }
+  function cancel() {
+    clearDraft(sessionStore(), draftKey)
+    onCancel()
+  }
   // Once an attempt failed, errors follow the form live.
   const errors = shown ? surveyErrors(form, { submit: shown === 'submit' }) : null
 
@@ -108,14 +162,16 @@ export function SurveyEditor({ buildingId, initial, remarkField = null, canSubmi
   const setWing = (i, k, v) =>
     setForm((f) => ({ ...f, wings: f.wings.map((w, j) => (j === i ? setWingField(w, k, v) : w)) }))
   const addWing = () => setForm((f) => ({ ...f, wings: [...f.wings, emptyWing()] }))
-  const removeWing = (i) => setForm((f) => ({ ...f, wings: f.wings.filter((_, j) => j !== i) }))
+  // Links point at wing rows by id: a rename carries through; a removed wing
+  // leaves its links without that end, flagged for the surveyor to fix.
+  const removeWing = (i) => setForm((f) => removeWingAt(f, i))
   const setLink = (i, k, v) =>
     setForm((f) => ({ ...f, links: f.links.map((l, j) => (j === i ? { ...l, [k]: v } : l)) }))
   const addLink = () => setForm((f) => ({ ...f, links: [...f.links, emptyLink()] }))
   const removeLink = (i) => setForm((f) => ({ ...f, links: f.links.filter((_, j) => j !== i) }))
   const setQty = (key, v) => setForm((f) => ({ ...f, materials: { ...f.materials, [key]: v } }))
 
-  const wingNames = [...new Set(form.wings.map((w) => w.name.trim()).filter(Boolean))]
+  const namedWings = form.wings.filter((w) => w.name.trim())
 
   async function save(submit) {
     const check = surveyErrors(form, { submit })
@@ -131,17 +187,37 @@ export function SurveyEditor({ buildingId, initial, remarkField = null, canSubmi
       const body = surveyPayload(form)
       if (remarkField && remark.trim()) body.remark = remark.trim()
       await apiClient.put(`/permission-buildings/${buildingId}/survey`, body)
-      if (submit) await apiClient.post(`/permission-buildings/${buildingId}/survey/submit`)
-      onSaved(submit ? 'Survey sent to the admin' : 'Survey saved')
     } catch (err) {
-      setError(getApiErrorMessage(err, submit ? 'Could not submit the survey' : 'Could not save the survey'))
+      setError(getApiErrorMessage(err, 'Could not save the survey'))
       setBusy(null)
+      return
+    }
+    // Saved: the draft on this device is no longer needed.
+    clearDraft(sessionStore(), draftKey)
+    if (!submit) return onSaved('Survey saved')
+    try {
+      await apiClient.post(`/permission-buildings/${buildingId}/survey/submit`)
+      onSaved('Survey sent to the admin')
+    } catch (err) {
+      // The save stands — the page reloads it and shows why it was not sent.
+      onSaved('Survey saved — not submitted', getApiErrorMessage(err, 'Could not submit the survey'))
     }
   }
 
   const c = form.checks
   return (
     <div className="flex min-w-0 flex-col gap-4">
+      {restored && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-btn border border-fiber/30 bg-fiber-tint px-4 py-2.5 text-sm font-medium text-fiber"
+        >
+          <span>Restored your unsaved survey from this device.</span>
+          <button type="button" onClick={discard} className="min-h-9 underline underline-offset-2">
+            Discard
+          </button>
+        </div>
+      )}
       <Block title="Checks" sub="Compare what you see on site with the executive’s details">
         <div className="divide-y divide-line/60">
           <Toggle
@@ -191,7 +267,7 @@ export function SurveyEditor({ buildingId, initial, remarkField = null, canSubmi
       <Block title="Wings" sub="Home pass fills in as floors × flats per floor — change it if some flats differ">
         <div className="flex flex-col gap-3">
           {form.wings.map((w, i) => (
-            <div key={i} className="min-w-0 rounded-btn border border-line bg-paper p-3">
+            <div key={w.id} className="min-w-0 rounded-btn border border-line bg-paper p-3">
               <div className="flex items-end gap-2">
                 <div className="min-w-0 flex-1">
                   <label htmlFor={`wing-${i}-name`} className="flex flex-col gap-1">
@@ -258,7 +334,7 @@ export function SurveyEditor({ buildingId, initial, remarkField = null, canSubmi
         <div className="flex flex-col gap-3">
           {form.links.length === 0 && <p className="text-sm font-normal text-muted">No links — add one per run.</p>}
           {form.links.map((l, i) => (
-            <div key={i} className="min-w-0 rounded-btn border border-line bg-paper p-3">
+            <div key={l.id} className="min-w-0 rounded-btn border border-line bg-paper p-3">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr_8rem_auto] sm:items-end">
                 <Select
                   id={`link-${i}-from`}
@@ -268,9 +344,9 @@ export function SurveyEditor({ buildingId, initial, remarkField = null, canSubmi
                   className="h-11 min-w-0"
                 >
                   <option value="">Wing…</option>
-                  {wingNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
+                  {namedWings.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name.trim()}
                     </option>
                   ))}
                 </Select>
@@ -282,9 +358,9 @@ export function SurveyEditor({ buildingId, initial, remarkField = null, canSubmi
                   className="h-11 min-w-0"
                 >
                   <option value="">Wing…</option>
-                  {wingNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
+                  {namedWings.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name.trim()}
                     </option>
                   ))}
                 </Select>
@@ -325,12 +401,12 @@ export function SurveyEditor({ buildingId, initial, remarkField = null, canSubmi
             </div>
           ))}
           {form.links.length < MAX_LINKS && (
-            <Button type="button" variant="secondary" onClick={addLink} disabled={wingNames.length < 2}>
+            <Button type="button" variant="secondary" onClick={addLink} disabled={namedWings.length < 2}>
               <IconPlus className="h-4 w-4" aria-hidden="true" />
               Add link
             </Button>
           )}
-          {wingNames.length < 2 && <p className="text-xs font-normal text-faint">Name two wings first.</p>}
+          {namedWings.length < 2 && <p className="text-xs font-normal text-faint">Name two wings first.</p>}
         </div>
       </Block>
 
@@ -406,6 +482,11 @@ export function SurveyEditor({ buildingId, initial, remarkField = null, canSubmi
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row">
+        {onCancel && (
+          <Button type="button" variant="ghost" onClick={cancel} disabled={Boolean(busy)} className="sm:flex-1">
+            Cancel
+          </Button>
+        )}
         <Button
           type="button"
           variant={canSubmit ? 'secondary' : 'primary'}
