@@ -89,6 +89,13 @@ export default function SocietyForm({
     if (!validation.ok) {
       setAttempted(true)
       setError('Fix the highlighted fields before saving.')
+      // On a long form the first problem is often off-screen — bring it into
+      // view once the errors have rendered.
+      requestAnimationFrame(() => {
+        const first = document.querySelector('[aria-invalid="true"], [data-field-error]')
+        first?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (first?.focus) first.focus({ preventScroll: true })
+      })
       return
     }
     setBusy(true)
@@ -116,7 +123,7 @@ export default function SocietyForm({
           longitude={lng ?? DEFAULT_CENTRE.longitude}
           onChange={onPin}
         />
-        {show.location && <p className="mt-1.5 text-sm font-normal text-bad">{show.location}</p>}
+        {show.location && <p data-field-error className="mt-1.5 text-sm font-normal text-bad">{show.location}</p>}
       </div>
       {/* Society */}
       <Input id="s-name" label="Building name" value={form.buildingName} error={show.buildingName} onChange={set('buildingName')} />

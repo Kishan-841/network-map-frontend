@@ -101,7 +101,12 @@ export default function SocietyPage() {
       .catch((err) => {
         if (!alive) return
         const notFound = err.response?.status === 404
-        setResult({ id, notFound, error: notFound ? null : getApiErrorMessage(err, 'Could not load this society') })
+        const error = notFound ? null : getApiErrorMessage(err, 'Could not load this society')
+        // A failed refresh (e.g. right after a saved visit update) keeps what is
+        // already on screen and just shows the error above it.
+        setResult((prev) =>
+          !notFound && prev?.id === id && prev.data ? { ...prev, error } : { id, notFound, error },
+        )
       })
     return () => {
       alive = false

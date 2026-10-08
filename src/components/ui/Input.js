@@ -27,7 +27,7 @@ const controlClass = (error) =>
 export const Input = forwardRef(function Input({ label, error, id, className = '', ...props }, ref) {
   return (
     <Field label={label} error={error} htmlFor={id}>
-      <input ref={ref} id={id} className={`${controlClass(error)} ${className}`} {...props} />
+      <input ref={ref} id={id} aria-invalid={error ? true : undefined} className={`${controlClass(error)} ${className}`} {...props} />
     </Field>
   )
 })
@@ -38,7 +38,7 @@ export const Select = forwardRef(function Select(
 ) {
   return (
     <Field label={label} error={error} htmlFor={id}>
-      <select ref={ref} id={id} className={`${controlClass(error)} ${className}`} {...props}>
+      <select ref={ref} id={id} aria-invalid={error ? true : undefined} className={`${controlClass(error)} ${className}`} {...props}>
         {children}
       </select>
     </Field>
@@ -54,6 +54,7 @@ export const Textarea = forwardRef(function Textarea(
       <textarea
         ref={ref}
         id={id}
+        aria-invalid={error ? true : undefined}
         className={`${controlClass(error)} h-auto py-3 ${className}`}
         {...props}
       />
