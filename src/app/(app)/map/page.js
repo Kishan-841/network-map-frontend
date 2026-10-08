@@ -14,6 +14,7 @@ import { AcquisitionMap } from '@/components/map/AcquisitionMap'
 import { FilterSheet } from '@/components/map/FilterSheet'
 import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 import { MapLegend } from '@/components/map/MapLegend'
+import { buildingGroup, countBuildingGroups } from '@/lib/map-layers'
 import { Fab } from '@/components/ui/Fab'
 import MapSearchBox from '@/components/map/MapSearchBox'
 
@@ -49,6 +50,7 @@ function CoverageMapPage() {
   const [zonesShown, setZonesShown] = useState(true)
   const [liveShown, setLiveShown] = useState(true)
   const [notLiveShown, setNotLiveShown] = useState(true)
+  const [societyShown, setSocietyShown] = useState(true)
   // Fiber layer is lazy: nothing is fetched until first toggled on. The
   // operator and zone filters scope it the way they scope buildings — filter
   // to a zone and you see that zone's cables, not every cable in the city.
@@ -93,10 +95,11 @@ function CoverageMapPage() {
   const { zones } = useZones()
   const activeFilterCount = Object.values(filters).filter(Boolean).length
 
-  // The Buildings row is the master switch; Live / Not live filter within it.
-  const visibleBuildings = buildingsShown
-    ? buildings.filter((b) => (b.isLive ? liveShown : notLiveShown))
-    : []
+  // The Buildings row is the master switch; Live / Not live / Society
+  // permission filter within it (a society belongs to its own row only).
+  const groupShown = { live: liveShown, notLive: notLiveShown, society: societyShown }
+  const visibleBuildings = buildingsShown ? buildings.filter((b) => groupShown[buildingGroup(b)]) : []
+  const groupCounts = countBuildingGroups(buildings)
 
   return (
     // z-50 lifts the page's own stacking context above the z-40 bottom nav —
@@ -159,9 +162,11 @@ function CoverageMapPage() {
 
       <MapLegend
         buildingCount={buildings.length}
-        liveCount={buildings.filter((b) => b.isLive).length}
-        notLiveCount={buildings.filter((b) => !b.isLive).length}
-        societyCount={buildings.filter((b) => b.source === 'PERMISSION').length}
+        liveCount={groupCounts.live}
+        notLiveCount={groupCounts.notLive}
+        societyCount={groupCounts.society}
+        societyShown={societyShown}
+        onToggleSociety={() => setSocietyShown((v) => !v)}
         buildingsShown={buildingsShown}
         onToggleBuildings={() => setBuildingsShown((v) => !v)}
         zonesShown={zonesShown}

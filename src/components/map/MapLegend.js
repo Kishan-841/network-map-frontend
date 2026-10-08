@@ -8,8 +8,8 @@ import { IconLayers, IconClose, IconTriangle, IconShield } from '@/components/ui
 
 /**
  * Map key + declutter control. The Buildings row toggles all pins on/off; the
- * Live / Not live rows underneath filter within that (green = live, red =
- * not live). Folded into a Layers button on every screen so the map keeps its
+ * Live / Not live / Society permission rows underneath filter within that
+ * (green = live, red = not live; societies are a shield and their own row). Folded into a Layers button on every screen so the map keeps its
  * space: the button opens a bottom sheet on mobile and a panel above itself on
  * desktop. A dot on the button says a layer has been switched off.
  */
@@ -18,6 +18,8 @@ export function MapLegend({
   liveCount,
   notLiveCount,
   societyCount = 0,
+  societyShown = true,
+  onToggleSociety,
   buildingsShown,
   onToggleBuildings,
   zonesShown,
@@ -47,6 +49,7 @@ export function MapLegend({
     buildings: buildingsShown,
     live: liveShown,
     notLive: notLiveShown,
+    society: societyCount > 0 ? societyShown : undefined,
     zones: zoneCount > 0 ? zonesShown : undefined,
     pops: popCount > 0 ? popsShown : undefined,
   })
@@ -96,13 +99,21 @@ export function MapLegend({
           {keyDot(NOT_LIVE_COLOR)} Not live
           <span className="ml-auto tabular-nums text-faint">{notLiveCount}</span>
         </button>
-        {/* A shape key, not a filter: approved societies wear a shield
-            instead of the round pin, in the same live / not-live colour. */}
-        <p className="flex w-full items-center gap-2 px-1.5 py-1 text-xs font-normal text-muted">
-          <IconShield className="h-3.5 w-3.5 shrink-0 text-muted" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
-          Society permission
-          <span className="ml-auto tabular-nums text-faint">{societyCount}</span>
-        </p>
+        {/* Approved societies: their own filter, drawn as a shield in the
+            same live / not-live colour (Live / Not live above leave them be). */}
+        {societyCount > 0 && (
+          <button
+            onClick={onToggleSociety}
+            aria-pressed={societyShown}
+            className={`flex w-full items-center gap-2 rounded-btn px-1.5 py-1 text-left text-xs font-normal text-muted transition-colors hover:bg-paper ${
+              societyShown ? '' : 'opacity-40'
+            }`}
+          >
+            <IconShield className="h-3.5 w-3.5 shrink-0 text-muted" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
+            Society permission
+            <span className="ml-auto tabular-nums text-faint">{societyCount}</span>
+          </button>
+        )}
       </div>
 
       {zoneCount > 0 && (
