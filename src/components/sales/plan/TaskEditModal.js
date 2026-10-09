@@ -171,6 +171,12 @@ export function TaskEditModal({ task = null, day, userId, assignees = [], startD
     }
   }
 
+  // A delete always starts on "This visit only", whatever Save was set to.
+  function openDelete() {
+    setScope('ONE')
+    setConfirming(true)
+  }
+
   async function remove() {
     setSaving(true)
     setError(null)
@@ -202,7 +208,7 @@ export function TaskEditModal({ task = null, day, userId, assignees = [], startD
   ) : (
     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
       {task && (
-        <Button variant="dangerGhost" onClick={() => setConfirming(true)} disabled={saving} className="sm:mr-auto">
+        <Button variant="dangerGhost" onClick={openDelete} disabled={saving} className="sm:mr-auto">
           <IconTrash className="h-4 w-4" aria-hidden="true" /> Delete
         </Button>
       )}
