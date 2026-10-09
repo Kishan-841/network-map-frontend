@@ -2,11 +2,12 @@
 
 import { useRef, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
-import { parseSpreadsheetSheets, downloadCsvTemplate } from '@/lib/spreadsheet'
-import { readPlanSheet, PLAN_TEMPLATE_CSV, fmtDay } from '@/lib/visit-plan-sheet'
+import { parseSpreadsheetSheets } from '@/lib/spreadsheet'
+import { readPlanSheet, fmtDay, visitsText } from '@/lib/visit-plan-sheet'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { IconUpload, IconDownload, IconWarn, IconSearch } from '@/components/ui/icons'
+import { IconUpload, IconWarn, IconSearch } from '@/components/ui/icons'
+import { TemplateMenu } from './TemplateMenu'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const STATE = {
@@ -20,6 +21,19 @@ function daysText(dates) {
   if (!dates?.length) return 'No days left'
   if (dates.length === 1) return `1 day · ${fmtDay(dates[0])}`
   return `${dates.length} days · ${fmtDay(dates[0])} – ${fmtDay(dates[dates.length - 1])}`
+}
+
+/** A sheet row as the preview endpoint takes it: weekly rows send the raw Repeat (weeks) cell. */
+function sheetFields(r) {
+  const base = {
+    rowNumber: r.rowNumber,
+    employee: r.employee,
+    building: r.building,
+    date: r.date,
+    startTime: r.startTime,
+    endTime: r.endTime,
+  }
+  return 'repeatWeeks' in r ? { ...base, repeatWeeks: r.repeatWeeks } : { ...base, until: r.until, weekdays: r.weekdays }
 }
 
 /**
@@ -103,6 +117,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
   const fileInputRef = useRef(null)
   const [fileName, setFileName] = useState(null)
   const [sheetRows, setSheetRows] = useState(null) // rows read from the file
+  const [kind, setKind] = useState(null) // 'weekly' | 'monthly' — which template the file is
   const [items, setItems] = useState({}) // rowNumber → latest preview row
   const [summary, setSummary] = useState(null) // { people, totals, errors } of the latest preview
   const [include, setInclude] = useState({}) // rowNumber → bool
@@ -122,6 +137,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
     inFlight.current = null
     setFileName(null)
     setSheetRows(null)
+    setKind(null)
     setItems({})
     setSummary(null)
     setInclude({})
@@ -142,7 +158,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
         rows: rows.map((r) => {
           const p = pickMap[r.rowNumber] ?? {}
           return {
-            ...r,
+            ...sheetFields(r),
             ...(p.assigneeId ? { assigneeId: p.assigneeId } : {}),
             ...(p.buildingId ? { buildingId: p.buildingId } : {}),
           }
@@ -187,11 +203,12 @@ export function UploadPlanModal({ onClose, onSaved }) {
     if (!file) return
     setError(null)
     try {
-      const { rows, error: readError } = readPlanSheet(await parseSpreadsheetSheets(file))
+      const { rows, kind: sheetKind, error: readError } = readPlanSheet(await parseSpreadsheetSheets(file))
       if (readError) throw new Error(readError)
       if (rows.length === 0) throw new Error('No plan rows found under the header row')
       if (rows.length > 3000) throw new Error('Too many rows — up to 3,000 per sheet. Please split the file.')
       setFileName(file.name)
+      setKind(sheetKind)
       setSheetRows(rows)
       setPicks({})
       await runPreview(rows, {}, { first: true })
@@ -245,8 +262,8 @@ export function UploadPlanModal({ onClose, onSaved }) {
             date: r.date,
             startTime: item.startTime ?? null,
             endTime: item.endTime ?? null,
-            until: r.until || null,
-            weekdays: r.weekdays,
+            // A weekly row carries its repeat count; a monthly one its until + weekdays.
+            ...('repeatWeeks' in r ? { repeatWeeks: r.repeat } : { until: r.until || null, weekdays: r.weekdays }),
           }
         }),
       })
@@ -300,10 +317,21 @@ export function UploadPlanModal({ onClose, onSaved }) {
       {!sheetRows && (
         <div className="flex flex-col gap-4">
           <p className="text-sm font-normal text-muted">
-            Upload a .xlsx or .csv with columns <b>Employee</b>, <b>Building</b>, <b>Date</b>, <b>Start time</b>,{' '}
-            <b>End time</b>, <b>Repeat until</b> and <b>Mon</b>…<b>Sun</b>. Dates are DD-MM-YYYY. Leave every weekday
-            empty for a one-off visit on Date; put <b>Y</b> under weekdays to repeat them from Date to Repeat until.
-            Times are optional — leave both empty for &ldquo;any time that day&rdquo;.
+            Upload a .xlsx or .csv with columns <b>Employee</b>, <b>Building</b>, <b>Date</b>, <b>Start time</b> and{' '}
+            <b>End time</b>, plus one of:
+          </p>
+          <ul className="flex flex-col gap-1.5 text-sm font-normal text-muted">
+            <li>
+              <b className="text-ink">Weekly</b> — <b>Repeat (weeks)</b>: the visit on Date, then the same weekday each
+              week, that many visits in all (1–13). Empty = Date only.
+            </li>
+            <li>
+              <b className="text-ink">Monthly</b> — <b>Repeat until</b> and <b>Mon</b>…<b>Sun</b>: put <b>Y</b> under
+              weekdays to repeat them from Date to Repeat until. No weekdays = Date only.
+            </li>
+          </ul>
+          <p className="text-sm font-normal text-muted">
+            Dates are DD-MM-YYYY. Times are optional — leave both empty for &ldquo;any time that day&rdquo;.
           </p>
           <p className="text-sm font-normal text-muted">
             Saving replaces each person&apos;s unvisited tasks from today inside the sheet&apos;s dates. Visited tasks
@@ -313,13 +341,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
           <Button fullWidth loading={busy === 'preview'} onClick={() => fileInputRef.current?.click()}>
             <IconUpload className="h-4.5 w-4.5" /> Choose file
           </Button>
-          <button
-            type="button"
-            onClick={() => downloadCsvTemplate('visit-plan-template.csv', PLAN_TEMPLATE_CSV)}
-            className="inline-flex items-center justify-center gap-1.5 text-sm font-medium text-fiber hover:underline"
-          >
-            <IconDownload className="h-4 w-4" /> Download template
-          </button>
+          <TemplateMenu link />
           {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
         </div>
       )}
@@ -327,7 +349,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
       {sheetRows && (
         <div className="flex flex-col gap-4">
           <p className="text-sm font-normal text-muted">
-            <b className="text-ink">{fileName}</b> · {sheetRows.length} row{sheetRows.length === 1 ? '' : 's'} ·{' '}
+            <b className="text-ink">{fileName}</b> · {kind === 'weekly' ? 'Weekly' : 'Monthly'} sheet · {sheetRows.length} row{sheetRows.length === 1 ? '' : 's'} ·{' '}
             {included.length} included
             {summary?.totals?.skippedPast ? ` · ${summary.totals.skippedPast} past day(s) skipped` : ''}
           </p>
@@ -367,7 +389,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
               const p = picks[row.rowNumber] ?? {}
               const st = item ? STATE[item.state] : null
               const showFix = item && fixable(item)
-              const days = row.weekdays.some(Boolean)
+              const days = row.weekdays?.some(Boolean)
                 ? row.weekdays.map((d, i) => (d ? WEEKDAYS[i] : null)).filter(Boolean).join(' ')
                 : null
               return (
@@ -450,11 +472,26 @@ export function UploadPlanModal({ onClose, onSaved }) {
                       )}
                     </dd>
 
-                    <dt className="text-xs font-medium text-faint sm:pt-0.5">Days</dt>
-                    <dd className="min-w-0">
-                      {!item || (item.state === 'error' && !item.dates.length) ? '—' : daysText(item.dates)}
-                      {days && <span className="text-muted"> · {days}</span>}
-                    </dd>
+                    {kind === 'weekly' ? (
+                      <>
+                        <dt className="text-xs font-medium text-faint sm:pt-0.5">Repeat</dt>
+                        <dd className="min-w-0">
+                          {row.repeat === 1 ? 'No repeat' : row.repeat ? `${row.repeat} weeks` : <span className="text-bad">—</span>}
+                        </dd>
+                        <dt className="text-xs font-medium text-faint sm:pt-0.5">Visits</dt>
+                        <dd className="min-w-0">
+                          {!item || (item.state === 'error' && !item.dates.length) ? '—' : visitsText(item.dates)}
+                        </dd>
+                      </>
+                    ) : (
+                      <>
+                        <dt className="text-xs font-medium text-faint sm:pt-0.5">Days</dt>
+                        <dd className="min-w-0">
+                          {!item || (item.state === 'error' && !item.dates.length) ? '—' : daysText(item.dates)}
+                          {days && <span className="text-muted"> · {days}</span>}
+                        </dd>
+                      </>
+                    )}
 
                     <dt className="text-xs font-medium text-faint sm:pt-0.5">Time</dt>
                     <dd>{item?.startTime && item?.endTime ? `${item.startTime}–${item.endTime}` : 'Any time'}</dd>

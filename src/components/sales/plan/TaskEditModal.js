@@ -5,14 +5,59 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { ROLE_LABELS } from '@/lib/roles'
 import { todayIst } from '@/lib/calendar-grid'
 import { dayLabel } from '@/lib/visit-task-status'
+import { seriesChoices, seriesResultText, handoverText } from '@/lib/visit-plan-sheet'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { IconTrash, IconSearch } from '@/components/ui/icons'
 
+/** The counts of a series PATCH ({ changed, … }) or DELETE ({ removed, … }) answer. */
+const seriesCounts = (res) => {
+  const d = res?.data?.data ?? {}
+  return {
+    changed: d.changed ?? d.removed ?? 0,
+    skipped: d.skipped ?? 0,
+    released: d.released ?? 0,
+    outOfScope: d.outOfScope ?? 0,
+  }
+}
+
 const toMinutes = (hhmm) => {
   const [h, m] = hhmm.split(':').map(Number)
   return h * 60 + m
+}
+
+/**
+ * "This visit only" / "This and the N later repeats" as two radio cards — a
+ * consequential choice, so never a <select> a stray scroll could change.
+ */
+function SeriesChoice({ choices, value, onChange, disabled }) {
+  return (
+    <fieldset className="flex flex-col gap-2" disabled={disabled}>
+      <legend className="mb-1.5 text-sm font-medium text-ink">Apply to</legend>
+      {choices.map((c) => {
+        const on = value === c.value
+        return (
+          <label
+            key={c.value}
+            className={`flex cursor-pointer items-center gap-3 rounded-btn border px-4 py-3 text-sm transition-colors ${
+              on ? 'border-fiber bg-fiber-tint font-semibold text-ink' : 'border-line bg-card text-ink hover:bg-paper'
+            }`}
+          >
+            <input
+              type="radio"
+              name="series-scope"
+              className="radio radio-sm radio-primary"
+              value={c.value}
+              checked={on}
+              onChange={() => onChange(c.value)}
+            />
+            {c.label}
+          </label>
+        )
+      })}
+    </fieldset>
+  )
 }
 
 /**
@@ -24,6 +69,11 @@ const toMinutes = (hhmm) => {
  * can only be moved forward or deleted. `startDeleting` opens straight on the
  * delete confirmation (the card's Delete button). The API's own message is
  * shown on any refusal (409 visited / duplicate, 400 zones / window).
+ *
+ * A task from a repeating sheet row with later unvisited repeats
+ * (`seriesLaterCount` > 0) asks whether Save / Delete applies to this visit
+ * only or to it and every later unvisited repeat (spec 2026-10-09 §2) — the
+ * server changes them all or none, skips visited ones, and says how many.
  */
 export function TaskEditModal({ task = null, day, userId, assignees = [], startDeleting = false, onClose, onSaved }) {
   const today = todayIst()
@@ -39,6 +89,9 @@ export function TaskEditModal({ task = null, day, userId, assignees = [], startD
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [confirming, setConfirming] = useState(startDeleting)
+  const choices = seriesChoices(task?.seriesLaterCount)
+  const [scope, setScope] = useState('ONE')
+  const following = choices.length > 0 && scope === 'FOLLOWING'
 
   const text = q.trim()
   useEffect(() => {
@@ -101,10 +154,17 @@ export function TaskEditModal({ task = null, day, userId, assignees = [], startD
     setSaving(true)
     setError(null)
     try {
-      if (task) await apiClient.patch(`/sales/tasks/${task.id}`, body)
-      else await apiClient.post('/sales/tasks', body)
+      if (task && following) {
+        const res = await apiClient.patch(`/sales/tasks/${task.id}`, { ...body, scope: 'FOLLOWING' })
+        return onSaved(seriesResultText('Changed', seriesCounts(res)))
+      }
+      const res = task ? await apiClient.patch(`/sales/tasks/${task.id}`, body) : await apiClient.post('/sales/tasks', body)
       const moved = task && body.taskDate ? ` to ${dayLabel(body.taskDate)}` : ''
-      onSaved(task ? `Task ${body.taskDate ? 'moved' : 'saved'}${moved}` : `Task added for ${dayLabel(taskDate)}`)
+      onSaved(
+        task
+          ? `Task ${body.taskDate ? 'moved' : 'saved'}${moved}${handoverText(res?.data?.data?.released ?? 0)}`
+          : `Task added for ${dayLabel(taskDate)}`,
+      )
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not save the task'))
       setSaving(false)
@@ -115,6 +175,10 @@ export function TaskEditModal({ task = null, day, userId, assignees = [], startD
     setSaving(true)
     setError(null)
     try {
+      if (following) {
+        const res = await apiClient.delete(`/sales/tasks/${task.id}`, { params: { scope: 'FOLLOWING' } })
+        return onSaved(seriesResultText('Deleted', seriesCounts(res)))
+      }
       await apiClient.delete(`/sales/tasks/${task.id}`)
       onSaved('Task deleted')
     } catch (err) {
@@ -132,7 +196,7 @@ export function TaskEditModal({ task = null, day, userId, assignees = [], startD
         Keep it
       </Button>
       <Button variant="danger" onClick={remove} loading={saving}>
-        <IconTrash className="h-4 w-4" aria-hidden="true" /> Delete task
+        <IconTrash className="h-4 w-4" aria-hidden="true" /> {following ? 'Delete visits' : 'Delete task'}
       </Button>
     </div>
   ) : (
@@ -159,6 +223,11 @@ export function TaskEditModal({ task = null, day, userId, assignees = [], startD
             Delete <span className="font-semibold">{task.building?.buildingName}</span> on {dayLabel(task.taskDate)} for{' '}
             {task.assignee?.name ?? 'this person'}?
           </p>
+          {choices.length > 0 && (
+            <div className="mt-4">
+              <SeriesChoice choices={choices} value={scope} onChange={setScope} disabled={saving} />
+            </div>
+          )}
           {error && <p className="mt-3 text-sm font-medium text-bad">{error}</p>}
         </div>
       ) : (
@@ -266,6 +335,8 @@ export function TaskEditModal({ task = null, day, userId, assignees = [], startD
               </div>
             )}
           </div>
+
+          {choices.length > 0 && <SeriesChoice choices={choices} value={scope} onChange={setScope} disabled={saving} />}
 
           {error && <p className="text-sm font-medium text-bad">{error}</p>}
         </div>
