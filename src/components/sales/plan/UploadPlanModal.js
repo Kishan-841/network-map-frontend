@@ -4,9 +4,10 @@ import { useRef, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { parseSpreadsheetSheets } from '@/lib/spreadsheet'
 import { readPlanSheet, fmtDay, visitsText } from '@/lib/visit-plan-sheet'
+import { istToday, fmtLongDay, rowDateSwap, applyDateSwaps } from '@/lib/plan-sheet-dates'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { IconUpload, IconWarn, IconSearch } from '@/components/ui/icons'
+import { IconUpload, IconWarn, IconSearch, IconCalendar } from '@/components/ui/icons'
 import { TemplateMenu } from './TemplateMenu'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -22,6 +23,9 @@ function daysText(dates) {
   if (dates.length === 1) return `1 day · ${fmtDay(dates[0])}`
   return `${dates.length} days · ${fmtDay(dates[0])} – ${fmtDay(dates[dates.length - 1])}`
 }
+
+/** A date cell as the browser read it: 'Wed 11 Feb 2026', or the raw text when it is not a date. */
+const readDay = (value) => fmtLongDay(value) ?? `"${value}" (not a date)`
 
 /** A sheet row as the preview endpoint takes it: weekly rows send the raw Repeat (weeks) cell. */
 function sheetFields(r) {
@@ -126,11 +130,16 @@ export function UploadPlanModal({ onClose, onSaved }) {
   const [assignees, setAssignees] = useState(null)
   const [busy, setBusy] = useState(null) // 'preview' | 'save' | null
   const [error, setError] = useState(null)
+  const [swappedFrom, setSwappedFrom] = useState({}) // rowNumber → { date: { from, to }, until? } applied by the planner
+  const [unchecked, setUnchecked] = useState({}) // rowNumber → true: dates swapped since that row's last preview
+  // The IST day the server checks "has passed" against — fixed while the modal is open.
+  const [today] = useState(() => istToday())
   // Every preview, pick, tick and reset bumps this; a preview answer is applied
   // only if nothing happened since it was asked — else it describes a plan the
   // screen no longer shows (or a different file whose row numbers collide).
   const previewSeq = useRef(0)
   const inFlight = useRef(null)
+  const assigneesAsked = useRef(false)
 
   function reset() {
     previewSeq.current += 1
@@ -142,6 +151,8 @@ export function UploadPlanModal({ onClose, onSaved }) {
     setSummary(null)
     setInclude({})
     setPicks({})
+    setSwappedFrom({})
+    setUnchecked({})
     setStale(false)
     setError(null)
     setBusy(null)
@@ -169,15 +180,22 @@ export function UploadPlanModal({ onClose, onSaved }) {
       setItems((prev) => ({ ...(first ? {} : prev), ...Object.fromEntries(data.rows.map((r) => [r.rowNumber, r])) }))
       setSummary({ people: data.people, totals: data.totals, errors: data.errors ?? [] })
       setStale(false)
+      setUnchecked((prev) => {
+        const next = { ...prev }
+        for (const r of data.rows) delete next[r.rowNumber]
+        return next
+      })
       if (first) {
         // Error rows can't be fixed here and a row with no days left saves nothing.
         setInclude(Object.fromEntries(data.rows.map((r) => [r.rowNumber, r.state !== 'error' && r.dates.length > 0])))
-        if (assignees === null && data.rows.some((r) => r.state === 'fix' && !r.employee.match)) {
-          apiClient
-            .get('/sales/tasks/assignees')
-            .then((a) => setAssignees(a.data.data))
-            .catch(() => setAssignees([]))
-        }
+      }
+      // A row can first need a person after a re-check too (e.g. its date was swapped).
+      if (!assigneesAsked.current && data.rows.some((r) => r.state === 'fix' && !r.employee.match)) {
+        assigneesAsked.current = true
+        apiClient
+          .get('/sales/tasks/assignees')
+          .then((a) => setAssignees(a.data.data))
+          .catch(() => setAssignees([]))
       }
     } catch (err) {
       if (seq !== previewSeq.current) return
@@ -211,6 +229,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
       setKind(sheetKind)
       setSheetRows(rows)
       setPicks({})
+      setSwappedFrom({})
       await runPreview(rows, {}, { first: true })
     } catch (err) {
       setError(err.message || 'Could not read the file')
@@ -229,7 +248,23 @@ export function UploadPlanModal({ onClose, onSaved }) {
     setStale(true)
   }
 
-  const hasPicks = Object.keys(picks).length > 0
+  /**
+   * Rewrite the Date (and a monthly Repeat until) of every row with a day/month
+   * swap suggestion, include those rows, and ask for a fresh check — the
+   * planner sees the new dates and the server judges them before Save.
+   */
+  function swapDates() {
+    const { rows, swapped } = applyDateSwaps(sheetRows, today)
+    if (!Object.keys(swapped).length) return
+    previewSeq.current += 1
+    setSheetRows(rows)
+    setSwappedFrom((prev) => ({ ...prev, ...swapped }))
+    setUnchecked((prev) => ({ ...prev, ...Object.fromEntries(Object.keys(swapped).map((n) => [n, true])) }))
+    setInclude((prev) => ({ ...prev, ...Object.fromEntries(Object.keys(swapped).map((n) => [n, true])) }))
+    setStale(true)
+  }
+
+  const hasPicks = Object.keys(picks).length > 0 || Object.keys(swappedFrom).length > 0
   const confirmLoss = () => !hasPicks || window.confirm('Close and lose your fixes?')
   const close = () => {
     if (confirmLoss()) onClose()
@@ -238,6 +273,10 @@ export function UploadPlanModal({ onClose, onSaved }) {
     if (confirmLoss()) reset()
   }
   const checking = busy === 'preview'
+  const swaps = Object.fromEntries(
+    (sheetRows ?? []).map((r) => [r.rowNumber, rowDateSwap(r, today)]).filter(([, sw]) => sw),
+  )
+  const swapCount = Object.keys(swaps).length
 
   const included = (sheetRows ?? []).filter((r) => include[r.rowNumber])
   const recheck = () => runPreview(included, picks)
@@ -331,7 +370,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
             </li>
           </ul>
           <p className="text-sm font-normal text-muted">
-            Dates are DD-MM-YYYY. Times are optional — leave both empty for &ldquo;any time that day&rdquo;.
+            Dates are DD-MM-YYYY (the templates show the month as a word, e.g. 02-Nov-2026). Times are optional — leave both empty for &ldquo;any time that day&rdquo;.
           </p>
           <p className="text-sm font-normal text-muted">
             Saving replaces each person&apos;s unvisited tasks from today inside the sheet&apos;s dates. Visited tasks
@@ -382,11 +421,28 @@ export function UploadPlanModal({ onClose, onSaved }) {
           )}
           {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
 
+          {swapCount > 0 && (
+            <div className="flex flex-col gap-3 rounded-btn bg-warn-tint px-4 py-3 sm:flex-row sm:items-center">
+              <p className="min-w-0 flex-1 text-sm font-normal text-warn">
+                {swapCount === 1 ? '1 row has a date' : `${swapCount} rows have dates`} that may have had day and month
+                swapped by Excel. Swapping changes only this upload — check the dates, then check again.
+              </p>
+              <Button variant="secondary" className="shrink-0 bg-card" disabled={checking} onClick={swapDates}>
+                <IconCalendar className="h-4.5 w-4.5" aria-hidden="true" /> Swap day and month for {swapCount} row
+                {swapCount === 1 ? '' : 's'}
+              </Button>
+            </div>
+          )}
+
           <ul className="flex flex-col gap-2" aria-label="Plan rows">
             {sheetRows.map((row) => {
               const item = items[row.rowNumber]
               const on = Boolean(include[row.rowNumber])
               const p = picks[row.rowNumber] ?? {}
+              const sw = swaps[row.rowNumber]
+              const was = swappedFrom[row.rowNumber]
+              // The last preview judged this row's old date — its errors no longer apply.
+              const outdated = Boolean(unchecked[row.rowNumber])
               const st = item ? STATE[item.state] : null
               const showFix = item && fixable(item)
               const days = row.weekdays?.some(Boolean)
@@ -412,12 +468,20 @@ export function UploadPlanModal({ onClose, onSaved }) {
                     </label>
                     {st && (
                       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${st.cls}`}>
-                        {stale && (p.assigneeId || p.buildingId) ? 'Picked — check again' : st.label}
+                        {stale && was ? 'Swapped — check again' : stale && (p.assigneeId || p.buildingId) ? 'Picked — check again' : st.label}
                       </span>
                     )}
                   </div>
 
                   <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[6rem_1fr]">
+                    <dt className="text-xs font-medium text-faint sm:pt-0.5">Date</dt>
+                    <dd className="min-w-0 break-words">
+                      {row.date ? readDay(row.date) : <span className="text-bad">missing</span>}
+                      {kind !== 'weekly' && String(row.until ?? '').trim() && (
+                        <span className="text-muted"> · until {readDay(row.until)}</span>
+                      )}
+                    </dd>
+
                     <dt className="text-xs font-medium text-faint sm:pt-0.5">Employee</dt>
                     <dd className="min-w-0">
                       {p.assigneeName ? (
@@ -480,14 +544,14 @@ export function UploadPlanModal({ onClose, onSaved }) {
                         </dd>
                         <dt className="text-xs font-medium text-faint sm:pt-0.5">Visits</dt>
                         <dd className="min-w-0">
-                          {!item || (item.state === 'error' && !item.dates.length) ? '—' : visitsText(item.dates)}
+                          {outdated || !item || (item.state === 'error' && !item.dates.length) ? '—' : visitsText(item.dates)}
                         </dd>
                       </>
                     ) : (
                       <>
                         <dt className="text-xs font-medium text-faint sm:pt-0.5">Days</dt>
                         <dd className="min-w-0">
-                          {!item || (item.state === 'error' && !item.dates.length) ? '—' : daysText(item.dates)}
+                          {outdated || !item || (item.state === 'error' && !item.dates.length) ? '—' : daysText(item.dates)}
                           {days && <span className="text-muted"> · {days}</span>}
                         </dd>
                       </>
@@ -497,14 +561,29 @@ export function UploadPlanModal({ onClose, onSaved }) {
                     <dd>{item?.startTime && item?.endTime ? `${item.startTime}–${item.endTime}` : 'Any time'}</dd>
                   </dl>
 
-                  {item?.errors?.length > 0 && (
+                  {!outdated && item?.errors?.length > 0 && (
                     <ul className="mt-2 text-xs text-bad">
                       {item.errors.map((m) => (
                         <li key={m}>{m}</li>
                       ))}
                     </ul>
                   )}
-                  {item?.warnings?.length > 0 && (
+                  {sw && (
+                    <p className="mt-2 flex items-start gap-1 text-xs text-warn">
+                      <IconWarn className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span>
+                        Excel may have swapped day and month — did you mean {fmtLongDay(sw.date.to)}
+                        {sw.until ? ` (until ${fmtLongDay(sw.until.to)})` : ''}?
+                      </span>
+                    </p>
+                  )}
+                  {was && (
+                    <p className="mt-2 text-xs text-muted">
+                      Day and month swapped — the sheet said {readDay(was.date.from)}
+                      {was.until ? `, until ${readDay(was.until.from)}` : ''}.{outdated ? ' Check again to see if it works.' : ''}
+                    </p>
+                  )}
+                  {!outdated && item?.warnings?.length > 0 && (
                     <ul className="mt-2 text-xs text-warn">
                       {item.warnings.map((m) => (
                         <li key={m} className="flex items-start gap-1">

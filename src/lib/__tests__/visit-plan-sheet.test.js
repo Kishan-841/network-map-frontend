@@ -62,7 +62,6 @@ describe('visit plan sheet', () => {
 import {
   WEEKLY_TEMPLATE_CSV,
   MONTHLY_TEMPLATE_CSV,
-  PLAN_TEMPLATES,
   parseSheetDate,
   weeklyDates,
   visitsText,
@@ -156,12 +155,6 @@ describe('plan templates', () => {
     expect(read.rows.length).toBeGreaterThanOrEqual(2)
     expect(read.rows.every((r) => r.repeatError === null)).toBe(true)
     expect(WEEKLY_TEMPLATE_CSV.split('\n')[0]).toBe('Employee,Building,Date,Start time,End time,Repeat (weeks)')
-  })
-  it('offers Weekly first, then Monthly', () => {
-    expect(PLAN_TEMPLATES.map((t) => t.label)).toEqual(['Weekly', 'Monthly'])
-    expect(PLAN_TEMPLATES[0].csv).toBe(WEEKLY_TEMPLATE_CSV)
-    expect(PLAN_TEMPLATES[1].csv).toBe(MONTHLY_TEMPLATE_CSV)
-    expect(new Set(PLAN_TEMPLATES.map((t) => t.fileName)).size).toBe(2)
   })
 })
 

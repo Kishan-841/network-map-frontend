@@ -143,7 +143,11 @@ export function visitsText(dates) {
   return `${dates.length} visits · ${fmtDay(dates[0])} → ${fmtDay(dates[dates.length - 1])}`
 }
 
-/** The monthly template — byte-identical to the one shipped on 8 Oct. */
+/**
+ * The CSV templates shipped on 8–9 Oct. "Download template" now gives .xlsx
+ * files (visit-plan-template.js); these stay as the CSV shape the reader must
+ * keep accepting.
+ */
 export const PLAN_TEMPLATE_CSV = [
   'Employee,Building,Date,Start time,End time,Repeat until,Mon,Tue,Wed,Thu,Fri,Sat,Sun',
   'Prashant Kambale,Silver Oak Pimple Saudagar,02-11-2026,09:30,11:00,30-11-2026,Y,,,Y,,,',
@@ -157,12 +161,6 @@ export const WEEKLY_TEMPLATE_CSV = [
   'Prashant Kambale,Silver Oak Pimple Saudagar,02-11-2026,09:30,11:00,4',
   'Prashant Kambale,Sunit Apartment,03-11-2026,11:30,13:00,',
 ].join('\n')
-
-/** "Download template" choices — Weekly first. */
-export const PLAN_TEMPLATES = [
-  { label: 'Weekly', hint: 'One date, repeat for N weeks', fileName: 'visit-plan-weekly.csv', csv: WEEKLY_TEMPLATE_CSV },
-  { label: 'Monthly', hint: 'Weekdays from a date until a date', fileName: 'visit-plan-monthly.csv', csv: MONTHLY_TEMPLATE_CSV },
-]
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 

@@ -1,10 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { downloadCsvTemplate } from '@/lib/spreadsheet'
-import { PLAN_TEMPLATES } from '@/lib/visit-plan-sheet'
+import { PLAN_XLSX_TEMPLATES, planTemplateSheet } from '@/lib/visit-plan-template'
+import { istToday } from '@/lib/plan-sheet-dates'
 import { Button } from '@/components/ui/Button'
 import { IconDownload, IconChevronDown } from '@/components/ui/icons'
+
+/** Build the .xlsx in the browser and download it (write-excel-file v4: subpath import, toFile). */
+async function downloadTemplate(t) {
+  const writeXlsxFile = (await import('write-excel-file/browser')).default
+  const { data, options } = planTemplateSheet(t.kind, istToday())
+  await writeXlsxFile(data, options).toFile(t.fileName)
+}
 
 /**
  * "Download template" → Weekly (first) or Monthly. The choices open inline
@@ -14,6 +21,7 @@ import { IconDownload, IconChevronDown } from '@/components/ui/icons'
  */
 export function TemplateMenu({ link = false, className = '' }) {
   const [open, setOpen] = useState(false)
+  const [failed, setFailed] = useState(false)
   const trigger = (
     <>
       <IconDownload className="h-4.5 w-4.5" aria-hidden="true" /> Download template
@@ -38,13 +46,15 @@ export function TemplateMenu({ link = false, className = '' }) {
       )}
       {open && (
         <ul className="divide-y divide-line overflow-hidden rounded-btn border border-line bg-card" aria-label="Templates">
-          {PLAN_TEMPLATES.map((t) => (
+          {PLAN_XLSX_TEMPLATES.map((t) => (
             <li key={t.label}>
               <button
                 type="button"
                 onClick={() => {
-                  downloadCsvTemplate(t.fileName, t.csv)
-                  setOpen(false)
+                  setFailed(false)
+                  downloadTemplate(t)
+                    .then(() => setOpen(false))
+                    .catch(() => setFailed(true))
                 }}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-paper"
               >
@@ -58,6 +68,7 @@ export function TemplateMenu({ link = false, className = '' }) {
           ))}
         </ul>
       )}
+      {failed && <p className="text-xs text-bad">Could not make the template — try again.</p>}
     </div>
   )
 }
