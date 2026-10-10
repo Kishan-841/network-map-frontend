@@ -62,6 +62,14 @@ describe('mayOpenAdminPath', () => {
     expect(mayOpenAdminPath(user('ADMIN'), '/admin/zones')).toBe(true)
   })
 
+  it('opens Users itself to a manager, not its sub-pages (Assign accesses is the admin\'s)', () => {
+    const manager = user('MANAGER')
+    expect(mayOpenAdminPath(manager, '/admin/users/')).toBe(true)
+    expect(mayOpenAdminPath(manager, '/admin/users/access')).toBe(false)
+    expect(mayOpenAdminPath(manager, '/admin/usersx')).toBe(false)
+    expect(mayOpenAdminPath(user('ADMIN'), '/admin/users/access')).toBe(true)
+  })
+
   it('lets a ticked manager into the fiber pages as well as Users', () => {
     const ticked = user('MANAGER', true)
     expect(mayOpenAdminPath(ticked, '/admin/fiber')).toBe(true)

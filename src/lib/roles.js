@@ -133,11 +133,15 @@ export const FIBER_PAGE_HREFS = FIBER_PAGES.map(({ href }) => href)
 const isFiberPage = (pathname) =>
   FIBER_PAGES.some(({ href }) => pathname === href || pathname.startsWith(`${href}/`))
 
+// A zone manager's one admin page: Users itself ("My team") — not its
+// sub-pages (Assign accesses is the admin's). usePathname carries no query.
+const MANAGER_ADMIN_PATHS = ['/admin/users', '/admin/users/']
+
 /**
  * The /admin section's gate. The fiber pages follow the tick — so an unticked
  * manager is kept out of them; partner approvals follow canApprovePartners.
- * A zone manager otherwise opens only Users (their own team of surveyors);
- * the company setup — Zones, Operators, Building types, Cities, System logs,
+ * A zone manager otherwise opens only the Users page itself (their own team
+ * of surveyors); the company setup — Zones, Operators, Building types, Cities, System logs,
  * App releases — is the admin's alone, as on the API.
  */
 export const mayOpenAdminPath = (user, pathname) =>
@@ -147,7 +151,7 @@ export const mayOpenAdminPath = (user, pathname) =>
       // same people the API lets through.
       pathname.startsWith('/admin/partner-approvals')
       ? canApprovePartners(user?.role)
-      : user?.role === 'ADMIN' || (user?.role === 'MANAGER' && pathname.startsWith('/admin/users'))
+      : user?.role === 'ADMIN' || (user?.role === 'MANAGER' && MANAGER_ADMIN_PATHS.includes(pathname))
 
 /**
  * Sidebar links for a ticked user who is not an admin. The admin already has

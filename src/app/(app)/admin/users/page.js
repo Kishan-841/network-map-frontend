@@ -10,6 +10,13 @@ import { DataTable } from '@/components/ui/DataTable'
 import { ZoneMultiSelect } from '@/components/admin/ZoneMultiSelect'
 import { invalidateUsers } from '@/hooks/useUsers'
 import { ROLE_LABELS, SALES_ROLES, isZoneManager } from '@/lib/roles'
+import {
+  managerZonesStatus,
+  mayAddSurveyor,
+  mayEditTeam,
+  managerZoneIdsToSend,
+  hiddenZoneCount as countHiddenZones,
+} from '@/lib/manager-team'
 import { useCities } from '@/hooks/useCities'
 import { BulkAssignZonesModal } from '@/components/admin/BulkAssignZonesModal'
 import { ImportUsersModal } from '@/components/admin/ImportUsersModal'
@@ -84,7 +91,8 @@ function StatusBadge({ active }) {
  * Shared create/edit dialog. `initial` set ⇒ edit mode (password optional).
  * `asManager` — a zone manager adding / editing their own surveyors: role is
  * fixed, no reports-to, and zones come from the manager's own (`zones` is
- * already scoped by the API).
+ * already scoped by the API; null while not loaded — then zones are left
+ * alone, never sent as []).
  */
 function UserFormModal({ onClose, onSaved, initial, isSelf, zones, asManager = false }) {
   const isEdit = Boolean(initial)
@@ -154,9 +162,8 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones, asManager = f
   // The manager sees only their own zones. A surveyor may also hold zones
   // outside them (given by the admin): those are not shown, never sent (the
   // API refuses zones the manager does not manage) and kept by the server.
-  const visibleZoneIds = new Set(zones.map((zone) => zone.id))
-  const hiddenZoneCount = asManager ? form.zoneIds.filter((id) => !visibleZoneIds.has(id)).length : 0
-  const sentZoneIds = asManager ? form.zoneIds.filter((id) => visibleZoneIds.has(id)) : form.zoneIds
+  // Unknown zones (`zones` null) → zoneIds is omitted, so nothing is wiped.
+  const hiddenZoneCount = asManager ? countHiddenZones(form.zoneIds, zones) : 0
 
   async function submit(e) {
     e.preventDefault()
@@ -166,7 +173,9 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones, asManager = f
       if (asManager) {
         // Role and reports-to are fixed by the API for a manager (sending them
         // is refused) — only the person's own details and zones go up.
-        const body = { name: form.name, email: form.email, zoneIds: sentZoneIds }
+        const body = { name: form.name, email: form.email }
+        const zoneIds = managerZoneIdsToSend(form.zoneIds, zones)
+        if (zoneIds !== undefined) body.zoneIds = zoneIds
         if (isEdit) {
           if (form.password.trim()) body.password = form.password
           await apiClient.patch(`/users/${initial.id}`, body)
@@ -302,7 +311,7 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones, asManager = f
           </>
         )}
 
-        {ZONE_ROLES.includes(form.role) && (
+        {ZONE_ROLES.includes(form.role) && Array.isArray(zones) && (
           <ZoneMultiSelect
             zones={zones}
             selectedIds={form.zoneIds}
@@ -369,7 +378,7 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones, asManager = f
 const ACTION_BTN =
   'inline-flex h-9 items-center justify-center gap-1.5 rounded-btn border px-3.5 text-sm font-medium transition-colors duration-200 active:scale-[0.98] disabled:opacity-50'
 
-function RowActions({ user, currentUserId, busyId, onEdit, onToggle }) {
+function RowActions({ user, currentUserId, busyId, onEdit, onToggle, editDisabled = false }) {
   const busy = busyId === user.id
   const isSelf = user.id === currentUserId
   return (
@@ -377,6 +386,7 @@ function RowActions({ user, currentUserId, busyId, onEdit, onToggle }) {
       <button
         type="button"
         onClick={() => onEdit(user)}
+        disabled={editDisabled}
         className={`${ACTION_BTN} border-line text-muted hover:border-faint hover:text-ink`}
       >
         <IconEdit className="h-4 w-4" strokeWidth={1.8} />
@@ -424,7 +434,13 @@ export default function AdminUsersPage() {
   // call setState synchronously (react-hooks/set-state-in-effect).
   const [result, setResult] = useState(null)
   // null until loaded — so a manager's "no zones yet" notice never flashes.
+  // A failed load is its own state: it must never read as "no zones".
   const [zones, setZones] = useState(null)
+  const [zonesError, setZonesError] = useState(null)
+  // Until the list is known (or if it failed) a manager neither adds nor
+  // edits: a save would otherwise drop every zone they gave the surveyor.
+  const zonesStatus = managerZonesStatus({ zones, error: zonesError })
+  const editAllowed = !isManager || mayEditTeam(zonesStatus)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -435,7 +451,7 @@ export default function AdminUsersPage() {
     apiClient
       .get('/zones')
       .then((res) => setZones(res.data.data ?? []))
-      .catch(() => setZones([]))
+      .catch((err) => setZonesError(getApiErrorMessage(err, 'Could not load your zones')))
   }, [])
 
   const paramsKey = useMemo(() => {
@@ -529,6 +545,7 @@ export default function AdminUsersPage() {
                 busyId={busyId}
                 onEdit={setEditUser}
                 onToggle={toggleActive}
+                editDisabled={!editAllowed}
               />
             ),
           },
@@ -567,6 +584,7 @@ export default function AdminUsersPage() {
             busyId={busyId}
             onEdit={setEditUser}
             onToggle={toggleActive}
+            editDisabled={!editAllowed}
           />
         </div>
       )}
@@ -574,7 +592,7 @@ export default function AdminUsersPage() {
   )
 
   // A manager with no zones cannot give a surveyor any — the admin must first.
-  const managerHasNoZones = isManager && zones !== null && zones.length === 0
+  const managerHasNoZones = isManager && zonesStatus === 'none'
   const emptyState = managerHasNoZones ? null : (
     <p className="text-sm font-normal text-muted">
       {isManager && !debouncedSearch.trim() ? 'No surveyors yet. Add your first surveyor.' : 'No matching users.'}
@@ -595,7 +613,7 @@ export default function AdminUsersPage() {
               Add user
             </Button>
           ) : isManager ? (
-            <Button onClick={() => setCreateOpen(true)} disabled={zones === null || managerHasNoZones}>
+            <Button onClick={() => setCreateOpen(true)} disabled={!mayAddSurveyor(zonesStatus)}>
               <IconPlus className="h-4.5 w-4.5" />
               Add surveyor
             </Button>
@@ -604,6 +622,11 @@ export default function AdminUsersPage() {
       />
       <UsersTabs />
 
+      {isManager && zonesStatus === 'error' && (
+        <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
+          {zonesError} — reload the page to add or edit surveyors.
+        </p>
+      )}
       {managerHasNoZones && (
         <p className="mb-3 rounded-btn bg-warn-tint px-4 py-3 text-sm font-normal text-warn">
           No zones assigned yet — ask an admin to give you your zones.
@@ -677,7 +700,7 @@ export default function AdminUsersPage() {
 
       {createOpen && (
         <UserFormModal
-          zones={zones ?? []}
+          zones={isManager ? zones : (zones ?? [])}
           asManager={isManager}
           onClose={() => setCreateOpen(false)}
           onSaved={refresh}
@@ -687,7 +710,7 @@ export default function AdminUsersPage() {
         <UserFormModal
           key={editUser.id}
           initial={editUser}
-          zones={zones ?? []}
+          zones={isManager ? zones : (zones ?? [])}
           asManager={isManager}
           isSelf={editUser.id === currentUser?.id}
           onClose={() => setEditUser(null)}
