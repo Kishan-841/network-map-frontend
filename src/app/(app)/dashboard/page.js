@@ -8,7 +8,10 @@ import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useOperators } from '@/hooks/useOperators'
 import { useCities } from '@/hooks/useCities'
 import { MANAGE_LINKS } from '@/lib/manage-links'
-import { canManageFiber, FIBER_PAGE_HREFS } from '@/lib/roles'
+import { canManageFiber, FIBER_PAGE_HREFS, isZoneManager, seesCompanyWideCharts } from '@/lib/roles'
+import { useZones } from '@/hooks/useZones'
+import { zoneManagerGate, isZonelessManager } from '@/lib/manager-team'
+import { NoZonesNotice } from '@/components/buildings/NoZonesNotice'
 import { useCountUp } from '@/hooks/useCountUp'
 import { Select } from '@/components/ui/Input'
 import {
@@ -96,6 +99,16 @@ function CountTile({ href, icon: TileIcon, label, value }) {
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const canManage = ['ADMIN', 'MANAGER'].includes(user?.role)
+  // Surveys over time and the by-operator bars span every zone: the API sends
+  // them empty to a zone manager, so only the admin gets those cards.
+  const companyWide = seesCompanyWideCharts(user?.role)
+  // Only a zone manager asks for zones here (other dashboard roles may not
+  // read /zones); the AuthGuard has the user before this mounts, so the
+  // list starts as loading and the notice never flashes.
+  const { zones, loading: zonesLoading, failed: zonesFailed } = useZones(isZoneManager(user?.role))
+  const zoneless = isZonelessManager(
+    zoneManagerGate({ role: user?.role, zones, loading: zonesLoading, failed: zonesFailed }),
+  )
   // The admin gets the whole grid. A zone manager gets their team ("My team")
   // and the fiber pages only if ticked — the /admin gate refuses them otherwise.
   const manageLinks =
@@ -203,6 +216,8 @@ export default function DashboardPage() {
         )}
       </header>
 
+      {zoneless && <NoZonesNotice className="mb-4" />}
+
       {/* Stats */}
       {stats === null ? (
         <div className="grid grid-cols-2 gap-4">
@@ -264,17 +279,21 @@ export default function DashboardPage() {
                   filterQuery={tierLinkQuery}
                 />
                 <LiveDonut byLive={serverStats.byLive} />
-                <SurveysLine overTime={serverStats.overTime} />
-                <OperatorBar
-                  title="Buildings by operator"
-                  byOperator={serverStats.byOperator}
-                  dataKey="buildings"
-                />
-                <OperatorBar
-                  title="Home pass by operator"
-                  byOperator={serverStats.byOperator}
-                  dataKey="homePass"
-                />
+                {companyWide && (
+                  <>
+                    <SurveysLine overTime={serverStats.overTime} />
+                    <OperatorBar
+                      title="Buildings by operator"
+                      byOperator={serverStats.byOperator}
+                      dataKey="buildings"
+                    />
+                    <OperatorBar
+                      title="Home pass by operator"
+                      byOperator={serverStats.byOperator}
+                      dataKey="homePass"
+                    />
+                  </>
+                )}
               </div>
             </section>
           )}

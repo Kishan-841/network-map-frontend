@@ -61,6 +61,12 @@ export const assignTargets = (team) => (team ?? []).filter((u) => u.role !== 'TE
 export const isZoneManager = (role) => role === 'MANAGER'
 
 /**
+ * Dashboard charts drawn across every zone (surveys over time, by operator).
+ * ADMIN only — the API sends them empty to anyone who reads by zone.
+ */
+export const seesCompanyWideCharts = (role) => role === 'ADMIN'
+
+/**
  * May create and edit building CONTENT, whoever logged it (a MANAGER only
  * within their own zones — the API scopes which buildings they can reach). Distinct from
  * administration (users, zones, operators, logs), which stays with ADMIN.

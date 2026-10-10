@@ -8,12 +8,30 @@
  * edited until the list is really there.
  */
 
+import { isZoneManager } from './roles'
+
 /** 'loading' | 'error' | 'none' (loaded, the admin gave no zones) | 'ready'. */
 export function managerZonesStatus({ zones, error }) {
   if (error) return 'error'
   if (!Array.isArray(zones)) return 'loading'
   return zones.length > 0 ? 'ready' : 'none'
 }
+
+/**
+ * A zone manager's own zones as the buildings pages and the dashboard read
+ * them (the session-cached /zones list, scoped to the manager by the API).
+ * Same states as managerZonesStatus, plus 'n/a' for every other role. Only
+ * 'none' means "the admin gave you no zones yet" — 'loading' and 'error'
+ * must never show that notice, or it flashes / lies.
+ */
+export function zoneManagerGate({ role, zones, loading, failed }) {
+  if (!isZoneManager(role)) return 'n/a'
+  if (loading) return 'loading'
+  return managerZonesStatus({ zones, error: failed ? 'failed' : null })
+}
+
+/** The manager has loaded zones and has none: notice instead of Add building. */
+export const isZonelessManager = (gate) => gate === 'none'
 
 /** Add surveyor needs zones to give. */
 export const mayAddSurveyor = (status) => status === 'ready'

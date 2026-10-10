@@ -32,6 +32,9 @@ export function createSessionResource(path) {
     const [data, setData] = useState(cached)
     const [loading, setLoading] = useState(enabled && cached === null)
     const [tick, setTick] = useState(0)
+    // A failed fetch is its own state, so a caller can tell "the list is
+    // empty" from "the list never came" (a zoneless manager's notice).
+    const [failed, setFailed] = useState(false)
 
     useEffect(() => {
       // Registered unconditionally so any invalidate() while this hook is
@@ -65,11 +68,15 @@ export function createSessionResource(path) {
           if (!cancelled && cache.promise === current) {
             setData(result)
             setLoading(false)
+            setFailed(false)
           }
         })
         .catch(() => {
           if (cache.promise === current) cache.promise = null // allow a retry on the next mount
-          if (!cancelled) setLoading(false)
+          if (!cancelled) {
+            setLoading(false)
+            setFailed(true)
+          }
         })
       return () => {
         cancelled = true
@@ -77,7 +84,7 @@ export function createSessionResource(path) {
       }
     }, [enabled, userId, tick])
 
-    return { data: data ?? cached ?? [], loading }
+    return { data: data ?? cached ?? [], loading, failed }
   }
 
   // Flip the stale flag: drops the cached copy (and any in-flight promise),

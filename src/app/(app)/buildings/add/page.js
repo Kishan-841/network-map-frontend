@@ -15,6 +15,9 @@ import { DetailsForm } from '@/components/buildings/DetailsForm'
 import { AcquisitionDetailsForm } from '@/components/buildings/AcquisitionDetailsForm'
 import { useAuthStore } from '@/stores/auth-store'
 import { isAgent } from '@/lib/roles'
+import { useZones } from '@/hooks/useZones'
+import { zoneManagerGate, isZonelessManager } from '@/lib/manager-team'
+import { NoZonesNotice } from '@/components/buildings/NoZonesNotice'
 
 const STEPS = [
   { key: 'find', title: 'Find the building' },
@@ -71,7 +74,14 @@ export default function AddBuildingPage() {
   const [manual, setManual] = useState(false)
   const [draft, setDraft] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-  const agent = isAgent(useAuthStore((s) => s.user?.role))
+  const role = useAuthStore((s) => s.user?.role)
+  const agent = isAgent(role)
+  // A zone manager with no zones cannot save a building (the API wants one of
+  // their zones) — say so up front rather than after a whole capture.
+  const { zones, loading: zonesLoading, failed: zonesFailed } = useZones()
+  const zoneless = isZonelessManager(
+    zoneManagerGate({ role, zones, loading: zonesLoading, failed: zonesFailed }),
+  )
   const [serverError, setServerError] = useState(null)
   const [duplicates, setDuplicates] = useState([])
   const [checkingDuplicates, setCheckingDuplicates] = useState(false)
@@ -234,6 +244,15 @@ export default function AddBuildingPage() {
       setServerError(getApiErrorMessage(err, 'Could not save the building'))
       setSubmitting(false)
     }
+  }
+
+  if (zoneless) {
+    return (
+      <main className="animate-fade-up mx-auto max-w-2xl">
+        <PageHeader backHref="/buildings" backLabel="Buildings" title="Add building" />
+        <NoZonesNotice />
+      </main>
+    )
   }
 
   return (

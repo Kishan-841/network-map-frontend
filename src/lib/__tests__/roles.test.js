@@ -16,6 +16,7 @@ import {
   mayHoldAccess,
   ROLE_LABELS,
   isZoneManager,
+  seesCompanyWideCharts,
 } from '../roles'
 
 const user = (role, canManageFiber = false) => ({ role, canManageFiber })
@@ -267,5 +268,14 @@ describe('isZoneManager', () => {
   it('is the MANAGER role only', () => {
     expect(isZoneManager('MANAGER')).toBe(true)
     for (const r of ['ADMIN', 'SURVEYOR', 'SALES_MANAGER', undefined]) expect(isZoneManager(r)).toBe(false)
+  })
+})
+
+describe('seesCompanyWideCharts', () => {
+  it('is ADMIN only — zone readers get the charts empty from the API', () => {
+    expect(seesCompanyWideCharts('ADMIN')).toBe(true)
+    for (const role of ['MANAGER', 'SURVEYOR', 'SUPERVISOR', undefined]) {
+      expect(seesCompanyWideCharts(role)).toBe(false)
+    }
   })
 })

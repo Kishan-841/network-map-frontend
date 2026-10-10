@@ -44,6 +44,8 @@ import {
   canManageBuildings,
 } from '@/lib/roles'
 import { useUsers } from '@/hooks/useUsers'
+import { zoneManagerGate, isZonelessManager } from '@/lib/manager-team'
+import { NoZonesNotice } from '@/components/buildings/NoZonesNotice'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -247,7 +249,13 @@ function BuildingsList() {
   const { pops } = usePops(canAssignOlt)
   const zoneId = searchParams.get('zoneId') ?? ''
   const tier = searchParams.get('tier') ?? ''
-  const { zones } = useZones()
+  const { zones, loading: zonesLoading, failed: zonesFailed } = useZones()
+  // A zone manager the admin has not given zones yet sees nothing and can add
+  // nothing (the API wants one of their zones) — say so instead of offering
+  // "Add building". Never while the list is loading or failed to load.
+  const zoneless = isZonelessManager(
+    zoneManagerGate({ role, zones, loading: zonesLoading, failed: zonesFailed }),
+  )
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   // "Select all N matching" — the ids are never loaded, the server resolves
   // the filter, so this works past the page (and past the 500-row list cap).
@@ -516,9 +524,11 @@ function BuildingsList() {
             ? agentFilter || cityId
               ? 'Nothing matches these filters — try clearing them.'
               : 'Buildings your agents log will appear here.'
-            : 'Capture your first building from its entrance to start the registry.'}
+            : zoneless
+              ? 'Buildings in your zones will appear here once an admin gives you zones.'
+              : 'Capture your first building from its entrance to start the registry.'}
       </p>
-      {!debouncedSearch && (
+      {!debouncedSearch && !zoneless && (
         <Link
           href="/buildings/add"
           className="mt-5 inline-flex h-12 items-center gap-2 rounded-btn bg-fiber px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-fiber-deep"
@@ -576,7 +586,7 @@ function BuildingsList() {
                 Bulk upload
               </button>
             )}
-            {!isLead(role) && (
+            {!isLead(role) && !zoneless && (
               <Link
                 href="/buildings/add"
                 className="inline-flex h-12 items-center gap-2 rounded-btn bg-fiber px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-fiber-deep"
@@ -588,6 +598,8 @@ function BuildingsList() {
           </div>
         }
       />
+
+      {zoneless && <NoZonesNotice className="mb-4" />}
 
       {/* Sticky search + filters — below `lg` the filters collapse into a
           single button that opens BuildingFilterSheet, so the row never has
@@ -772,7 +784,7 @@ function BuildingsList() {
         />
       )}
 
-      {!isLead(role) && <Fab href="/buildings/add" label="Add building" />}
+      {!isLead(role) && !zoneless && <Fab href="/buildings/add" label="Add building" />}
     </main>
   )
 }
