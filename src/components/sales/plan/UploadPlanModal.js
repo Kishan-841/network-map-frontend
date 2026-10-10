@@ -247,6 +247,12 @@ export function UploadPlanModal({ onClose, onSaved }) {
     setInclude((prev) => ({ ...prev, [rowNumber]: on }))
     setStale(true)
   }
+  /** Tick or untick every row at once — the server re-checks them all on "Check again". */
+  function toggleAll(on) {
+    previewSeq.current += 1
+    setInclude(Object.fromEntries(sheetRows.map((r) => [r.rowNumber, on])))
+    setStale(true)
+  }
 
   /**
    * Rewrite the Date (and a monthly Repeat until) of every row with a day/month
@@ -433,6 +439,25 @@ export function UploadPlanModal({ onClose, onSaved }) {
               </Button>
             </div>
           )}
+
+          <label className="flex items-center gap-2 px-3 text-sm">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm"
+              checked={included.length === sheetRows.length}
+              // Some rows ticked, not all: show the dash.
+              ref={(el) => {
+                if (el) el.indeterminate = included.length > 0 && included.length < sheetRows.length
+              }}
+              disabled={checking}
+              onChange={(e) => toggleAll(e.target.checked)}
+              aria-label="Include all rows"
+            />
+            <span className="font-semibold">Select all</span>
+            <span className="text-muted">
+              ({included.length} of {sheetRows.length})
+            </span>
+          </label>
 
           <ul className="flex flex-col gap-2" aria-label="Plan rows">
             {sheetRows.map((row) => {
