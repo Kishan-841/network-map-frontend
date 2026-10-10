@@ -104,16 +104,11 @@ export const MANAGE_LINKS = NAV_GROUPS.flatMap((group) =>
   group.items.map((item) => ({
     ...item,
     sub: SUBTITLES[item.href] ?? '',
-    // Everything in these groups is admin-only; a manager's grid shows the
-    // handful they can actually reach.
-    adminOnly: ![
-      '/admin/operators',
-      '/admin/zones',
-      '/admin/fiber',
-      '/admin/pops',
-      '/admin/closures',
-      '/admin/splitters',
-      '/admin/building-types',
-    ].includes(item.href),
+    // Everything in these groups is admin-only. A zone manager's grid: their
+    // team and, if ticked, the fiber pages (the dashboard drops those for an
+    // unticked manager).
+    adminOnly: !['/admin/users', '/admin/fiber', '/admin/pops', '/admin/closures', '/admin/splitters'].includes(
+      item.href,
+    ),
   })),
 )

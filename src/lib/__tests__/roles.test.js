@@ -15,6 +15,7 @@ import {
   isPermissionExecutive,
   mayHoldAccess,
   ROLE_LABELS,
+  isZoneManager,
 } from '../roles'
 
 const user = (role, canManageFiber = false) => ({ role, canManageFiber })
@@ -51,10 +52,21 @@ describe('mayOpenAdminPath', () => {
     expect(mayOpenAdminPath(ticked, '/admin/zones')).toBe(false)
   })
 
-  it('keeps an unticked manager out of the fiber pages but in the rest', () => {
+  it('keeps an unticked manager out of the fiber pages and the setup pages; Users stays open', () => {
     const manager = user('MANAGER')
     expect(mayOpenAdminPath(manager, '/admin/fiber')).toBe(false)
-    expect(mayOpenAdminPath(manager, '/admin/zones')).toBe(true)
+    expect(mayOpenAdminPath(manager, '/admin/users')).toBe(true)
+    for (const p of ['/admin/zones', '/admin/operators', '/admin/building-types', '/admin/cities', '/admin/system-logs', '/admin/app-releases']) {
+      expect(mayOpenAdminPath(manager, p)).toBe(false)
+    }
+    expect(mayOpenAdminPath(user('ADMIN'), '/admin/zones')).toBe(true)
+  })
+
+  it('lets a ticked manager into the fiber pages as well as Users', () => {
+    const ticked = user('MANAGER', true)
+    expect(mayOpenAdminPath(ticked, '/admin/fiber')).toBe(true)
+    expect(mayOpenAdminPath(ticked, '/admin/users')).toBe(true)
+    expect(mayOpenAdminPath(ticked, '/admin/zones')).toBe(false)
   })
 
   it('does not mistake /admin/fiber-something for a fiber page', () => {
@@ -240,5 +252,12 @@ describe('sales manager and the partner network', () => {
     expect(receivesVisitTasks('TEAM_LEADER')).toBe(true)
     expect(receivesVisitTasks('SALES_MANAGER')).toBe(false)
     expect(receivesVisitTasks('ADMIN')).toBe(false)
+  })
+})
+
+describe('isZoneManager', () => {
+  it('is the MANAGER role only', () => {
+    expect(isZoneManager('MANAGER')).toBe(true)
+    for (const r of ['ADMIN', 'SURVEYOR', 'SALES_MANAGER', undefined]) expect(isZoneManager(r)).toBe(false)
   })
 })

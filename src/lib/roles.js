@@ -55,7 +55,14 @@ export const canManageTeamZones = (role) => role === 'ADMIN' || role === 'SALES_
 /** Who the assign picker offers: never a team leader — they work zones now. */
 export const assignTargets = (team) => (team ?? []).filter((u) => u.role !== 'TEAM_LEADER')
 /**
- * May create and edit building CONTENT, whoever logged it. Distinct from
+ * A zone manager: works only the zones an admin gave them, and runs a team of
+ * surveyors (Users → "My team"). Mirrors the API's zone-scoped MANAGER.
+ */
+export const isZoneManager = (role) => role === 'MANAGER'
+
+/**
+ * May create and edit building CONTENT, whoever logged it (a MANAGER only
+ * within their own zones — the API scopes which buildings they can reach). Distinct from
  * administration (users, zones, operators, logs), which stays with ADMIN.
  * One list so a new role is one edit here, not a hunt through the components.
  */
@@ -128,8 +135,10 @@ const isFiberPage = (pathname) =>
 
 /**
  * The /admin section's gate. The fiber pages follow the tick — so an unticked
- * manager is kept out of them; partner approvals follow canApprovePartners —
- * and everything else stays ADMIN / MANAGER.
+ * manager is kept out of them; partner approvals follow canApprovePartners.
+ * A zone manager otherwise opens only Users (their own team of surveyors);
+ * the company setup — Zones, Operators, Building types, Cities, System logs,
+ * App releases — is the admin's alone, as on the API.
  */
 export const mayOpenAdminPath = (user, pathname) =>
   isFiberPage(pathname)
@@ -138,7 +147,7 @@ export const mayOpenAdminPath = (user, pathname) =>
       // same people the API lets through.
       pathname.startsWith('/admin/partner-approvals')
       ? canApprovePartners(user?.role)
-      : ['ADMIN', 'MANAGER'].includes(user?.role)
+      : user?.role === 'ADMIN' || (user?.role === 'MANAGER' && pathname.startsWith('/admin/users'))
 
 /**
  * Sidebar links for a ticked user who is not an admin. The admin already has

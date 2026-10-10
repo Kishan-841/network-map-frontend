@@ -11,7 +11,8 @@ export default function AdminLayout({ children }) {
   const pathname = usePathname()
   const user = useAuthStore((s) => s.user)
   const role = user?.role
-  // The fiber pages follow the per-user tick; the rest stay ADMIN / MANAGER.
+  // The fiber pages follow the per-user tick; a zone manager opens only Users;
+  // the rest is ADMIN's.
   const allowed = mayOpenAdminPath(user, pathname)
 
   useEffect(() => {

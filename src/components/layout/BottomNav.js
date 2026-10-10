@@ -43,6 +43,14 @@ const SURVEYOR_NAV = [
   COVERAGE_NAV[COVERAGE_NAV.length - 1],
 ]
 
+// A zone manager runs a team of surveyors (Users, scoped to their own team);
+// the company setup pages are the admin's.
+const MANAGER_NAV = [
+  ...COVERAGE_NAV.slice(0, -1),
+  { href: '/admin/users', label: 'My team', icon: IconUsers },
+  COVERAGE_NAV[COVERAGE_NAV.length - 1],
+]
+
 // Mirrors the sidebar: an admin does everything a partner manager does.
 // Ordered deliberately: the first four are what a thumb reaches without
 // opening More, so the registry work an admin does daily comes first.
@@ -155,7 +163,9 @@ export function BottomNav() {
                   ? ADMIN_NAV
                   : role === 'SURVEYOR'
                     ? SURVEYOR_NAV
-                    : COVERAGE_NAV
+                    : role === 'MANAGER'
+                      ? MANAGER_NAV
+                      : COVERAGE_NAV
 
   // The admin pages a phone could not reach at all — every Manage link for an
   // admin, the fiber pages for whoever was ticked. They go after the role's

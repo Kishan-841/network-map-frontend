@@ -8,6 +8,7 @@ import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useOperators } from '@/hooks/useOperators'
 import { useCities } from '@/hooks/useCities'
 import { MANAGE_LINKS } from '@/lib/manage-links'
+import { canManageFiber, FIBER_PAGE_HREFS } from '@/lib/roles'
 import { useCountUp } from '@/hooks/useCountUp'
 import { Select } from '@/components/ui/Input'
 import {
@@ -66,12 +67,17 @@ function StatCard({ icon: StatIcon, tone, label, value, sub, href }) {
 }
 
 /** Clickable count tile (Operators / Zones) that redirects. */
+// No `href` (a zone manager — Operators and Zones are the admin's pages): the
+// same tile, just not a link.
 function CountTile({ href, icon: TileIcon, label, value }) {
   const shown = useCountUp(value ?? 0)
+  const Tile = href ? Link : 'div'
   return (
-    <Link
-      href={href}
-      className="flex items-center gap-3.5 rounded-card bg-card p-5 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift"
+    <Tile
+      {...(href ? { href } : {})}
+      className={`flex items-center gap-3.5 rounded-card bg-card p-5 shadow-soft ${
+        href ? 'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift' : ''
+      }`}
     >
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fiber-tint text-fiber">
         <TileIcon className="h-5 w-5" strokeWidth={1.8} />
@@ -82,7 +88,7 @@ function CountTile({ href, icon: TileIcon, label, value }) {
         </span>
         <span className="block truncate text-sm font-normal text-muted">{label}</span>
       </span>
-    </Link>
+    </Tile>
   )
 }
 
@@ -90,6 +96,16 @@ function CountTile({ href, icon: TileIcon, label, value }) {
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const canManage = ['ADMIN', 'MANAGER'].includes(user?.role)
+  // The admin gets the whole grid. A zone manager gets their team ("My team")
+  // and the fiber pages only if ticked — the /admin gate refuses them otherwise.
+  const manageLinks =
+    user?.role === 'ADMIN'
+      ? MANAGE_LINKS
+      : MANAGE_LINKS.filter(
+          (link) => !link.adminOnly && (!FIBER_PAGE_HREFS.includes(link.href) || canManageFiber(user)),
+        ).map((link) =>
+          link.href === '/admin/users' ? { ...link, label: 'My team', sub: 'Surveyors who report to you' } : link,
+        )
   const [operatorId, setOperatorId] = useState('')
   const [cityId, setCityId] = useState('')
   const { operators } = useOperators()
@@ -223,13 +239,13 @@ export default function DashboardPage() {
         <>
           <div className="mt-4 grid grid-cols-2 gap-4">
             <CountTile
-              href="/admin/operators"
+              href={user?.role === 'ADMIN' ? '/admin/operators' : undefined}
               icon={IconLayers}
               label="Operators"
               value={serverStats?.operatorCount}
             />
             <CountTile
-              href="/admin/zones"
+              href={user?.role === 'ADMIN' ? '/admin/zones' : undefined}
               icon={IconPin}
               label={selectedOperatorName ? `Zones in ${selectedOperatorName}` : 'Zones'}
               value={serverStats?.zoneCount}
@@ -344,7 +360,7 @@ export default function DashboardPage() {
         <section className="mt-6">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">Manage</p>
           <div className="grid gap-3 sm:grid-cols-3">
-            {MANAGE_LINKS.filter((link) => !link.adminOnly || user?.role === 'ADMIN').map(
+            {manageLinks.map(
               ({ href, label, sub, icon: LinkIcon }) => (
                 <Link
                   key={href}

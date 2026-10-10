@@ -62,6 +62,14 @@ const SURVEYOR_NAV = [
   COVERAGE_NAV[COVERAGE_NAV.length - 1],
 ]
 
+// A zone manager runs a team of surveyors (Users, scoped to their own team);
+// the company setup pages are the admin's.
+const MANAGER_NAV = [
+  ...COVERAGE_NAV.slice(0, -1),
+  { href: '/admin/users', label: 'My team', icon: IconUsers },
+  COVERAGE_NAV[COVERAGE_NAV.length - 1],
+]
+
 /**
  * An admin does everything a partner manager does, so the partner tabs sit in
  * the admin's own nav rather than only in a role that cannot see the registry.
@@ -262,7 +270,9 @@ export function Sidebar() {
                   ? ADMIN_NAV
                   : role === 'SURVEYOR'
                     ? SURVEYOR_NAV
-                    : COVERAGE_NAV
+                    : role === 'MANAGER'
+                      ? MANAGER_NAV
+                      : COVERAGE_NAV
 
   // Fiber access is granted per user (Users → Assign accesses). Whoever holds
   // it gets the same two links the admin has, icons and all, in a group of
