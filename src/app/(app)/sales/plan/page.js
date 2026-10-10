@@ -12,6 +12,7 @@ import { UploadPlanModal } from '@/components/sales/plan/UploadPlanModal'
 import { PlanCalendar } from '@/components/sales/plan/PlanCalendar'
 import { TemplateMenu } from '@/components/sales/plan/TemplateMenu'
 import { RemoveUploadModal } from '@/components/sales/plan/RemoveUploadModal'
+import { UploadTasks } from '@/components/sales/plan/UploadTasks'
 import { Select } from '@/components/ui/Input'
 import { IconUpload, IconCalendar, IconChevronDown, IconTrash } from '@/components/ui/icons'
 
@@ -39,8 +40,9 @@ const fmtWhen = (iso) =>
  * reviews their plan day by day — live status, off-plan visits, a one-line
  * summary — and adds, edits, moves or deletes single tasks (§3–§4).
  *
- * The Uploads list (collapsed by default) can undo an upload: Remove deletes
- * its upcoming unvisited visits and keeps the rest (spec 2026-10-09 §3).
+ * The Uploads list (collapsed by default) shows every sheet uploaded; opening
+ * one lists its visits. ADMIN can delete a single unvisited visit there, or
+ * the whole upload while none of its visits has happened yet.
  */
 export default function TeamPlanPage() {
   const role = useAuthStore((s) => s.user?.role)
@@ -53,7 +55,9 @@ export default function TeamPlanPage() {
   const [picked, setPicked] = useState('')
   const [planVersion, setPlanVersion] = useState(0) // bumps after an upload so the calendar refetches
   const [showUploads, setShowUploads] = useState(false)
-  const [removing, setRemoving] = useState(null) // the upload whose Remove confirm is open
+  const [removing, setRemoving] = useState(null) // the upload whose Delete confirm is open
+  const [openUpload, setOpenUpload] = useState(null) // id of the upload whose visits are listed
+  const isAdmin = role === 'ADMIN'
 
   const load = useCallback(() => {
     apiClient
@@ -150,33 +154,70 @@ export default function TeamPlanPage() {
             </div>
           ) : (
             <ul className="flex flex-col gap-3" aria-label="Uploads">
-              {uploads.map((u) => (
-                <li key={u.id} className="flex items-start gap-3 rounded-card border border-line bg-card p-4">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-fiber">
-                    <IconCalendar className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-ink">{u.fileName || 'Plan upload'}</p>
-                    <p className="mt-0.5 truncate text-sm text-muted">
-                      {fmtWhen(u.createdAt)} by {u.createdBy?.name ?? u.uploadedBy?.name ?? 'someone'}
-                      {u.fromDate
-                        ? ` · ${fmtDay(u.fromDate)}${u.toDate && u.toDate !== u.fromDate ? ` – ${fmtDay(u.toDate)}` : ''}`
-                        : ''}
-                    </p>
-                    <p className="mt-1.5 text-sm text-ink">{uploadCounts(u)}</p>
-                  </div>
-                  {(u.upcomingCount ?? 0) > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setRemoving(u)}
-                      aria-label={`Remove upload ${u.fileName || ''}`.trim()}
-                      className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-2 py-1.5 text-sm font-semibold text-bad hover:bg-bad-tint"
-                    >
-                      <IconTrash className="h-4 w-4" aria-hidden="true" /> Remove
-                    </button>
-                  )}
-                </li>
-              ))}
+              {uploads.map((u) => {
+                const open = openUpload === u.id
+                const worked = (u.visitedCount ?? 0) > 0
+                return (
+                  <li key={u.id} className="rounded-card border border-line bg-card">
+                    <div className="flex items-start gap-3 p-4">
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        aria-controls={`upload-${u.id}`}
+                        onClick={() => setOpenUpload(open ? null : u.id)}
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                      >
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper text-fiber">
+                          <IconCalendar className="h-5 w-5" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-semibold text-ink">{u.fileName || 'Plan upload'}</span>
+                          <span className="mt-0.5 block truncate text-sm text-muted">
+                            {fmtWhen(u.createdAt)} by {u.createdBy?.name ?? u.uploadedBy?.name ?? 'someone'}
+                            {u.fromDate
+                              ? ` · ${fmtDay(u.fromDate)}${u.toDate && u.toDate !== u.fromDate ? ` – ${fmtDay(u.toDate)}` : ''}`
+                              : ''}
+                          </span>
+                          <span className="mt-1.5 block text-sm text-ink">{uploadCounts(u)}</span>
+                        </span>
+                        <IconChevronDown
+                          className={`mt-2.5 h-5 w-5 shrink-0 text-faint transition-transform ${open ? 'rotate-180' : ''}`}
+                          aria-hidden="true"
+                        />
+                      </button>
+                      {isAdmin && !worked && (
+                        <button
+                          type="button"
+                          onClick={() => setRemoving(u)}
+                          aria-label={`Delete upload ${u.fileName || ''}`.trim()}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-2 py-1.5 text-sm font-semibold text-bad hover:bg-bad-tint"
+                        >
+                          <IconTrash className="h-4 w-4" aria-hidden="true" /> Delete
+                        </button>
+                      )}
+                    </div>
+                    {open && (
+                      <div id={`upload-${u.id}`} className="border-t border-line px-4 pb-4 pt-3">
+                        {isAdmin && worked && (
+                          <p className="mb-2 text-xs text-muted">
+                            Visits in this upload have started, so it can&apos;t be deleted whole — delete single
+                            visits below.
+                          </p>
+                        )}
+                        <UploadTasks
+                          uploadId={u.id}
+                          canDelete={isAdmin}
+                          onChanged={(message) => {
+                            setToast(message)
+                            load()
+                            setPlanVersion((v) => v + 1)
+                          }}
+                        />
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
