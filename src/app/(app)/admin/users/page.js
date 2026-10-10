@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal'
 import { DataTable } from '@/components/ui/DataTable'
 import { ZoneMultiSelect } from '@/components/admin/ZoneMultiSelect'
 import { invalidateUsers } from '@/hooks/useUsers'
-import { ROLE_LABELS, SALES_ROLES } from '@/lib/roles'
+import { ROLE_LABELS, SALES_ROLES, isZoneManager } from '@/lib/roles'
 import { useCities } from '@/hooks/useCities'
 import { BulkAssignZonesModal } from '@/components/admin/BulkAssignZonesModal'
 import { ImportUsersModal } from '@/components/admin/ImportUsersModal'
@@ -32,8 +32,12 @@ const ROLES = [
   'PERMISSION_EXECUTIVE',
 ]
 const roleLabel = (role) => ROLE_LABELS[role] ?? role
-// Roles that work by zone: surveyors, and team leaders (given zones by their manager).
-const ZONE_ROLES = ['SURVEYOR', 'TEAM_LEADER']
+// Roles that work by zone: surveyors, team leaders (given zones by their
+// manager), and zone managers (who work only the zones the admin gives them).
+const ZONE_ROLES = ['SURVEYOR', 'TEAM_LEADER', 'MANAGER']
+// Which kind of manager a role reports to — a role change across families
+// drops the picked manager, which would not fit the new role.
+const REPORTS_TO_FAMILY = { SURVEYOR: 'zone', TEAM_LEADER: 'sales', SALES_EXECUTIVE: 'sales' }
 
 // Keep the assigned-zones line short so it never widens the row (which would
 // push the action buttons into a horizontal scroll). Show a couple of names,
@@ -76,8 +80,13 @@ function StatusBadge({ active }) {
   )
 }
 
-/** Shared create/edit dialog. `initial` set ⇒ edit mode (password optional). */
-function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
+/**
+ * Shared create/edit dialog. `initial` set ⇒ edit mode (password optional).
+ * `asManager` — a zone manager adding / editing their own surveyors: role is
+ * fixed, no reports-to, and zones come from the manager's own (`zones` is
+ * already scoped by the API).
+ */
+function UserFormModal({ onClose, onSaved, initial, isSelf, zones, asManager = false }) {
   const isEdit = Boolean(initial)
   // Mounted fresh per open (parent renders conditionally with a key), so state
   // initializes directly from props — no sync-setState-in-effect needed.
@@ -96,8 +105,10 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
   )
   // The sales chain's candidate lists — fetched once, small. Managers to put a
   // team leader / executive under; team leaders to put an executive under.
-  const [salesCandidates, setSalesCandidates] = useState({ managers: [], leaders: [] })
+  const [salesCandidates, setSalesCandidates] = useState({ managers: [], leaders: [], zoneManagers: [] })
   useEffect(() => {
+    // A zone manager picks no reports-to, and their /users is only their team.
+    if (asManager) return undefined
     let alive = true
     // The plain list returns every user as an array — filter to the two sales
     // levels we need for the pickers.
@@ -109,13 +120,15 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
         setSalesCandidates({
           managers: all.filter((u) => u.role === 'SALES_MANAGER'),
           leaders: all.filter((u) => u.role === 'TEAM_LEADER'),
+          // Coverage: who a surveyor can report to.
+          zoneManagers: all.filter((u) => u.role === 'MANAGER'),
         })
       })
       .catch(() => {})
     return () => {
       alive = false
     }
-  }, [])
+  }, [asManager])
   // Acquisition agents are mapped to a city + pincodes instead of zones.
   const [territory, setTerritory] = useState(() => ({
     cityId: initial?.pincodes?.[0]?.cityId ?? '',
@@ -130,13 +143,37 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
   const [error, setError] = useState(null)
 
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
+  const setRole = (e) => {
+    const role = e.target.value
+    setForm((prev) =>
+      REPORTS_TO_FAMILY[prev.role] === REPORTS_TO_FAMILY[role]
+        ? { ...prev, role }
+        : { ...prev, role, managerId: '', teamLeaderId: '' },
+    )
+  }
+  // The manager sees only their own zones. A surveyor may also hold zones
+  // outside them (given by the admin): those are not shown, never sent (the
+  // API refuses zones the manager does not manage) and kept by the server.
+  const visibleZoneIds = new Set(zones.map((zone) => zone.id))
+  const hiddenZoneCount = asManager ? form.zoneIds.filter((id) => !visibleZoneIds.has(id)).length : 0
+  const sentZoneIds = asManager ? form.zoneIds.filter((id) => visibleZoneIds.has(id)) : form.zoneIds
 
   async function submit(e) {
     e.preventDefault()
     setBusy(true)
     setError(null)
     try {
-      if (isEdit) {
+      if (asManager) {
+        // Role and reports-to are fixed by the API for a manager (sending them
+        // is refused) — only the person's own details and zones go up.
+        const body = { name: form.name, email: form.email, zoneIds: sentZoneIds }
+        if (isEdit) {
+          if (form.password.trim()) body.password = form.password
+          await apiClient.patch(`/users/${initial.id}`, body)
+        } else {
+          await apiClient.post('/users', { ...body, password: form.password, role: 'SURVEYOR' })
+        }
+      } else if (isEdit) {
         const patch = { name: form.name, email: form.email }
         if (!isSelf) patch.role = form.role // never let an admin change their own role
         if (form.password.trim()) patch.password = form.password
@@ -149,6 +186,10 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
         if (SALES_ROLES.includes(form.role)) {
           patch.managerId = form.managerId || null
           patch.teamLeaderId = form.role === 'SALES_EXECUTIVE' ? form.teamLeaderId || null : null
+        } else if (form.role === 'SURVEYOR') {
+          // A surveyor reports to a zone manager, or to nobody.
+          patch.managerId = form.managerId || null
+          patch.teamLeaderId = null
         } else {
           patch.managerId = null
           patch.teamLeaderId = null
@@ -162,7 +203,10 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
           body.pincodes = pincodeList
         }
         // The API rejects an empty-string id (min length 1) — omit, don't send ''.
-        if (!SALES_ROLES.includes(body.role)) {
+        if (body.role === 'SURVEYOR') {
+          if (!body.managerId) delete body.managerId
+          delete body.teamLeaderId
+        } else if (!SALES_ROLES.includes(body.role)) {
           delete body.managerId
           delete body.teamLeaderId
         } else {
@@ -184,10 +228,10 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
     <Modal
       open
       onClose={onClose}
-      title={isEdit ? 'Edit user' : 'Add team member'}
+      title={asManager ? (isEdit ? 'Edit surveyor' : 'Add surveyor') : isEdit ? 'Edit user' : 'Add team member'}
       footer={
         <Button type="submit" form="user-form" fullWidth loading={busy}>
-          {isEdit ? 'Save changes' : 'Create user'}
+          {isEdit ? 'Save changes' : asManager ? 'Create surveyor' : 'Create user'}
         </Button>
       }
     >
@@ -210,19 +254,28 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
           onChange={set('password')}
           required={!isEdit}
         />
-        <Select
-          id="u-role"
-          label={isSelf ? 'Role (you can’t change your own)' : 'Role'}
-          value={form.role}
-          onChange={set('role')}
-          disabled={isSelf}
-        >
-          {ROLES.map((role) => (
-            <option key={role} value={role}>
-              {roleLabel(role)}
-            </option>
-          ))}
-        </Select>
+        {asManager ? (
+          // Fixed: a manager's team is surveyors. Read-only text, not a
+          // disabled select — nothing here to change.
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-ink">Role</span>
+            <p className="text-sm font-normal text-muted">{roleLabel('SURVEYOR')}</p>
+          </div>
+        ) : (
+          <Select
+            id="u-role"
+            label={isSelf ? 'Role (you can’t change your own)' : 'Role'}
+            value={form.role}
+            onChange={setRole}
+            disabled={isSelf}
+          >
+            {ROLES.map((role) => (
+              <option key={role} value={role}>
+                {roleLabel(role)}
+              </option>
+            ))}
+          </Select>
+        )}
 
         {form.role === 'ACQUISITION_AGENT' && (
           <>
@@ -256,10 +309,33 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
             onChange={(zoneIds) => setForm((prev) => ({ ...prev, zoneIds }))}
           />
         )}
+        {hiddenZoneCount > 0 && (
+          <p className="text-xs font-normal text-faint">
+            Also works {hiddenZoneCount} zone{hiddenZoneCount === 1 ? '' : 's'} outside yours — kept as they are.
+          </p>
+        )}
+
+        {/* Coverage chain: a surveyor may report to a zone manager. The admin's
+            pick — a manager's own surveyors report to them automatically. */}
+        {!asManager && form.role === 'SURVEYOR' && (
+          <Select
+            id="u-zone-manager"
+            label="Reports to (manager)"
+            value={form.managerId}
+            onChange={set('managerId')}
+          >
+            <option value="">— None —</option>
+            {salesCandidates.zoneManagers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </Select>
+        )}
 
         {/* Field-sales chain. A manager reports to the admin (no picker); a team
             leader picks their manager; an executive picks both. */}
-        {(form.role === 'TEAM_LEADER' || form.role === 'SALES_EXECUTIVE') && (
+        {!asManager && (form.role === 'TEAM_LEADER' || form.role === 'SALES_EXECUTIVE') && (
           <Select id="u-manager" label="Reports to (sales manager)" value={form.managerId} onChange={set('managerId')}>
             <option value="">Select a sales manager…</option>
             {salesCandidates.managers.map((m) => (
@@ -269,7 +345,7 @@ function UserFormModal({ onClose, onSaved, initial, isSelf, zones }) {
             ))}
           </Select>
         )}
-        {form.role === 'SALES_EXECUTIVE' && (
+        {!asManager && form.role === 'SALES_EXECUTIVE' && (
           <Select id="u-leader" label="Team leader (optional)" value={form.teamLeaderId} onChange={set('teamLeaderId')}>
             <option value="">No team leader — reports to the manager directly</option>
             {salesCandidates.leaders.map((l) => (
@@ -328,6 +404,10 @@ function RowActions({ user, currentUserId, busyId, onEdit, onToggle }) {
 export default function AdminUsersPage() {
   const currentUser = useAuthStore((s) => s.user)
   const isAdmin = currentUser?.role === 'ADMIN'
+  // A zone manager sees "My team": only the surveyors who report to them (the
+  // API scopes /users), adds and edits them, and nothing admin-only.
+  const isManager = isZoneManager(currentUser?.role)
+  const canEditRows = isAdmin || isManager
   const [error, setError] = useState(null)
   const [busyId, setBusyId] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
@@ -343,7 +423,8 @@ export default function AdminUsersPage() {
   // { key, data } — loading derived from key mismatch, so effects never
   // call setState synchronously (react-hooks/set-state-in-effect).
   const [result, setResult] = useState(null)
-  const [zones, setZones] = useState([])
+  // null until loaded — so a manager's "no zones yet" notice never flashes.
+  const [zones, setZones] = useState(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -353,16 +434,16 @@ export default function AdminUsersPage() {
   useEffect(() => {
     apiClient
       .get('/zones')
-      .then((res) => setZones(res.data.data))
+      .then((res) => setZones(res.data.data ?? []))
       .catch(() => setZones([]))
   }, [])
 
   const paramsKey = useMemo(() => {
     const p = { page, pageSize: 50, tick: refreshTick }
     if (debouncedSearch.trim()) p.search = debouncedSearch.trim()
-    if (roleFilter) p.role = roleFilter
+    if (roleFilter && isAdmin) p.role = roleFilter
     return JSON.stringify(p)
-  }, [page, debouncedSearch, roleFilter, refreshTick])
+  }, [page, debouncedSearch, roleFilter, isAdmin, refreshTick])
 
   useEffect(() => {
     let cancelled = false
@@ -431,9 +512,10 @@ export default function AdminUsersPage() {
         </div>
       ),
     },
-    { key: 'role', header: 'Role', render: (u) => <RoleBadge role={u.role} /> },
+    // A manager's team is all surveyors — a Role column would say so on every row.
+    ...(isManager ? [] : [{ key: 'role', header: 'Role', render: (u) => <RoleBadge role={u.role} /> }]),
     { key: 'status', header: 'Status', render: (u) => <StatusBadge active={u.isActive} /> },
-    ...(isAdmin
+    ...(canEditRows
       ? [
           {
             key: 'actions',
@@ -472,12 +554,12 @@ export default function AdminUsersPage() {
             </p>
           )}
         </div>
-        <RoleBadge role={u.role} />
+        {!isManager && <RoleBadge role={u.role} />}
       </div>
       <div className="mt-2">
         <StatusBadge active={u.isActive} />
       </div>
-      {isAdmin && (
+      {canEditRows && (
         <div className="mt-3 border-t border-line/60 pt-3">
           <RowActions
             user={u}
@@ -491,24 +573,42 @@ export default function AdminUsersPage() {
     </div>
   )
 
+  // A manager with no zones cannot give a surveyor any — the admin must first.
+  const managerHasNoZones = isManager && zones !== null && zones.length === 0
+  const emptyState = managerHasNoZones ? null : (
+    <p className="text-sm font-normal text-muted">
+      {isManager && !debouncedSearch.trim() ? 'No surveyors yet. Add your first surveyor.' : 'No matching users.'}
+    </p>
+  )
+
   return (
     <main className="mx-auto max-w-3xl">
       <PageHeader
-        eyebrow="Administration"
-        title="Users"
-        sub="Survey team accounts and roles"
+        title={isManager ? 'My team' : 'Users'}
+        sub={isManager ? 'Surveyors who report to you' : 'Survey team accounts and roles'}
         backHref="/dashboard"
         backLabel="Dashboard"
         action={
-          isAdmin && (
+          isAdmin ? (
             <Button onClick={() => setCreateOpen(true)}>
               <IconPlus className="h-4.5 w-4.5" />
               Add user
             </Button>
-          )
+          ) : isManager ? (
+            <Button onClick={() => setCreateOpen(true)} disabled={zones === null || managerHasNoZones}>
+              <IconPlus className="h-4.5 w-4.5" />
+              Add surveyor
+            </Button>
+          ) : null
         }
       />
       <UsersTabs />
+
+      {managerHasNoZones && (
+        <p className="mb-3 rounded-btn bg-warn-tint px-4 py-3 text-sm font-normal text-warn">
+          No zones assigned yet — ask an admin to give you your zones.
+        </p>
+      )}
 
       {(error || listError) && (
         <p className="mb-3 rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
@@ -533,8 +633,8 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="sm:col-span-2">
+      <div className={`mb-4 grid grid-cols-1 gap-3 ${isAdmin ? 'sm:grid-cols-3' : ''}`}>
+        <div className={isAdmin ? 'sm:col-span-2' : ''}>
           <Input
             id="u-search"
             placeholder="Search name or email…"
@@ -545,21 +645,23 @@ export default function AdminUsersPage() {
             }}
           />
         </div>
-        <Select
-          id="u-role-filter"
-          value={roleFilter}
-          onChange={(e) => {
-            setRoleFilter(e.target.value)
-            setPage(1)
-          }}
-        >
-          <option value="">All roles</option>
-          {ROLES.map((role) => (
-            <option key={role} value={role}>
-              {roleLabel(role)}
-            </option>
-          ))}
-        </Select>
+        {isAdmin && (
+          <Select
+            id="u-role-filter"
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value)
+              setPage(1)
+            }}
+          >
+            <option value="">All roles</option>
+            {ROLES.map((role) => (
+              <option key={role} value={role}>
+                {roleLabel(role)}
+              </option>
+            ))}
+          </Select>
+        )}
       </div>
 
       <DataTable
@@ -570,17 +672,23 @@ export default function AdminUsersPage() {
         renderCard={renderCard}
         pagination={pagination}
         onPageChange={setPage}
-        emptyState={<p className="text-sm font-normal text-muted">No matching users.</p>}
+        emptyState={emptyState}
       />
 
       {createOpen && (
-        <UserFormModal zones={zones} onClose={() => setCreateOpen(false)} onSaved={refresh} />
+        <UserFormModal
+          zones={zones ?? []}
+          asManager={isManager}
+          onClose={() => setCreateOpen(false)}
+          onSaved={refresh}
+        />
       )}
       {editUser && (
         <UserFormModal
           key={editUser.id}
           initial={editUser}
-          zones={zones}
+          zones={zones ?? []}
+          asManager={isManager}
           isSelf={editUser.id === currentUser?.id}
           onClose={() => setEditUser(null)}
           onSaved={refresh}
