@@ -6,7 +6,6 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { canAssignSalesBuildings, isSales, isTeamLeader } from '@/lib/roles'
 import { useOpenVisit } from '@/hooks/useSales'
-import { useFibers } from '@/hooks/useFibers'
 import { usePops } from '@/hooks/usePops'
 import { useZones } from '@/hooks/useZones'
 import { useDetailStack } from '@/components/fiber/details/useDetailStack'
@@ -28,8 +27,8 @@ const NONE = []
  * The field-sales map: every building the person may act on, as pins — no
  * search needed. A manager/admin sees the whole registry; a team leader /
  * executive only their assigned buildings. A team leader's map is their pool —
- * every building in their zones — plus those zones' outlines, POPs and (on a
- * toggle) fibres, read-only. Tapping a pin works it in place:
+ * every building in their zones — plus those zones' outlines and POPs,
+ * read-only (no fibres: owner's call, 12 Oct). Tapping a pin works it in place:
  *  - assigned → check in (reuses the CheckInModal / open-visit flow);
  *  - unassigned (managers/admins only) → assign it to the team first.
  * One open visit at a time: while one is open, the map shows it and blocks a
@@ -49,12 +48,9 @@ export default function SalesMapPage() {
 
   const { visit: openVisit, refresh: refreshOpen } = useOpenVisit(canAct)
 
-  // A team leader also sees the network in their zones (read-only). Fibres
-  // start hidden — they are heavy — POPs start shown, like the coverage map.
+  // A team leader also sees their zones' POPs (read-only) — never the fibres.
   const isTL = isTeamLeader(role)
-  const [fiberShown, setFiberShown] = useState(false)
   const [popsShown, setPopsShown] = useState(true)
-  const { fibers } = useFibers(isTL && fiberShown)
   const { pops } = usePops(isTL)
   const { zones } = useZones(isTL)
   const details = useDetailStack()
@@ -62,7 +58,6 @@ export default function SalesMapPage() {
   const viewRef = useRef(null)
   // The place picked in the search box — a red pin, only on this screen.
   const [searchPin, setSearchPin] = useState(null)
-  const shownFibers = useMemo(() => (isTL && fiberShown && fibers ? fibers : NONE), [isTL, fiberShown, fibers])
   const shownPops = isTL && popsShown && pops?.length ? pops : NONE
   // Live / Not live / Society permission filters, as on the coverage map: a
   // society (shield marker) belongs to its own group whether or not it is live.
@@ -104,14 +99,11 @@ export default function SalesMapPage() {
       <BuildingsMap
         buildings={shownBuildings}
         zones={isTL ? (zones ?? NONE) : NONE}
-        fibers={shownFibers}
+        fibers={NONE}
         pops={shownPops}
         selectedId={checkInFor?.id ?? null}
         onSelect={onSelect}
         onPopSelect={(pop) => details.open('pop', pop.id)}
-        onFiberSelect={(id) => details.open('fiber', id)}
-        onClosureSelect={(id) => details.open('closure', id)}
-        onSplitterSelect={(id) => details.open('splitter', id)}
         centreRef={centreRef}
         viewRef={viewRef}
         searchPin={searchPin}
@@ -172,7 +164,6 @@ export default function SalesMapPage() {
           {isTL && (
             <div className="pointer-events-auto mt-2 flex gap-2">
               {[
-                ['Fibres', fiberShown, () => setFiberShown((v) => !v)],
                 ['POPs', popsShown, () => setPopsShown((v) => !v)],
               ].map(([label, on, toggle]) => (
                 <button
