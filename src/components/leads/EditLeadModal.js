@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import { LEAD_STATUSES, leadStatusClass, STAFF_LEAD_STATUS_LABEL } from '@/lib/lead-status'
 
-const PERIODS = [
+export const BILLING_PERIODS = [
   { value: 'QUARTERLY', label: 'Quarterly' },
   { value: 'HALF_YEARLY', label: 'Half-yearly' },
   { value: 'YEARLY', label: 'Yearly' },
@@ -185,7 +185,7 @@ export function EditLeadModal({ lead, rates, rateCardProblem = null, fixedAmount
               Billing
             </legend>
             <div className="mt-2 flex flex-wrap gap-2">
-              {PERIODS.map(({ value, label }) => (
+              {BILLING_PERIODS.map(({ value, label }) => (
                 <button
                   key={value}
                   type="button"

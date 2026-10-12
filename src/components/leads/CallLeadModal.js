@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Textarea, Field } from '@/components/ui/Input'
 
-const OUTCOMES = [
+export const CALL_OUTCOMES = [
   { value: 'INTERESTED', label: 'Interested', tone: 'bg-ok-tint text-ok ring-ok/50' },
   { value: 'CALL_LATER', label: 'Call later', tone: 'bg-warn-tint text-warn ring-warn/50' },
   { value: 'NOT_REACHABLE', label: 'Not reachable', tone: 'bg-paper text-muted ring-muted/40' },
@@ -153,7 +153,7 @@ export function CallLeadModal({ lead, onClose, onLogged, submit }) {
               What happened?
             </legend>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {OUTCOMES.map((o) => (
+              {CALL_OUTCOMES.map((o) => (
                 <button
                   key={o.value}
                   type="button"

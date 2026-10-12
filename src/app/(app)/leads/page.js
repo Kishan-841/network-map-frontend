@@ -1,9 +1,12 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
+import { canManagePartners } from '@/lib/roles'
+import { useRateCard } from '@/hooks/useRateCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Input, Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
@@ -23,13 +26,6 @@ const PARTNER_TYPE = {
   DSA: 'DSA',
 }
 const dateFormat = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' })
-
-/**
- * Everyone who can reach this page may move a lead along; the API decides
- * WHICH leads (a partner manager only reaches their own partners'). Mirrored
- * here so the control is never offered where the save would be refused.
- */
-const CAN_UPDATE_STATUS = ['ADMIN', 'MANAGER', 'SUPERVISOR', 'PARTNER_MANAGER']
 
 const rupees = (n) => `₹${(n ?? 0).toLocaleString('en-IN')}`
 
@@ -93,7 +89,10 @@ function EarningNote({ lead, onFix }) {
   return (
     <button
       type="button"
-      onClick={onFix}
+      onClick={(e) => {
+        e.stopPropagation()
+        onFix?.()
+      }}
       className="mt-1 block text-xs font-medium text-warn underline underline-offset-2 transition-opacity hover:opacity-70"
     >
       Add plan
@@ -136,13 +135,17 @@ function LeadsTable() {
   const [editing, setEditing] = useState(null)
   const [calling, setCalling] = useState(null)
   const now = useMinute()
-  const [rates, setRates] = useState([])
-  // Why a conversion can't be priced, said out loud rather than leaving the
-  // speed choices silently empty (production once had no rate card rows).
-  const [rateCardProblem, setRateCardProblem] = useState(null)
-  // The flat amount per partner type ({ AGENT: 500, … }), for the convert preview.
-  const [fixedAmountByType, setFixedAmountByType] = useState({})
-  const canUpdate = CAN_UPDATE_STATUS.includes(role)
+  const router = useRouter()
+  const { rates, fixedAmountByType, problem: rateCardProblem } = useRateCard()
+  // Everyone who can reach this page may move a lead along; the API decides
+  // WHICH leads (a partner manager only reaches their own partners').
+  const canUpdate = canManagePartners(role)
+  const open = (lead) => router.push(`/leads/${lead.id}`)
+  // A button inside a clickable row must not also open the lead.
+  const only = (fn) => (e) => {
+    e.stopPropagation()
+    fn()
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -150,27 +153,6 @@ function LeadsTable() {
       .get('/leads')
       .then((res) => !cancelled && setLeads(res.data.data))
       .catch((err) => !cancelled && setError(getApiErrorMessage(err, 'Could not load referrals')))
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // The rate card, so the modal can price a conversion without a round trip
-  // per keystroke. Same source the calculator quotes from.
-  useEffect(() => {
-    let cancelled = false
-    apiClient
-      .get('/rate-card')
-      .then((res) => {
-        if (cancelled) return
-        const loaded = res.data.data.rates ?? []
-        setRates(loaded)
-        setFixedAmountByType(res.data.data.fixedAmountByType ?? {})
-        setRateCardProblem(loaded.length ? null : "The rate card isn't set up yet, so a conversion can't be priced.")
-      })
-      .catch((err) => {
-        if (!cancelled) setRateCardProblem(getApiErrorMessage(err, "Couldn't load the rate card, so a conversion can't be priced."))
-      })
     return () => {
       cancelled = true
     }
@@ -242,7 +224,13 @@ function LeadsTable() {
       header: 'Customer',
       render: (lead) => (
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{lead.customerName}</p>
+          <Link
+            href={`/leads/${lead.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="block truncate text-sm font-medium hover:text-primary hover:underline"
+          >
+            {lead.customerName}
+          </Link>
           <p className="truncate text-xs font-normal text-muted">{lead.customerMobile}</p>
           <CallbackDue at={lead.nextCallAt} now={now} />
         </div>
@@ -297,7 +285,7 @@ function LeadsTable() {
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setCalling(lead)}
+              onClick={only(() => setCalling(lead))}
               aria-label={`Call ${lead.customerName}`}
               title="Call this lead"
               className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-ok/10 hover:text-ok"
@@ -306,7 +294,7 @@ function LeadsTable() {
             </button>
             <button
               type="button"
-              onClick={() => setEditing(lead)}
+              onClick={only(() => setEditing(lead))}
               disabled={saving === lead.id}
               aria-label={`Update ${lead.customerName}`}
               title="Update this lead"
@@ -321,10 +309,12 @@ function LeadsTable() {
   ]
 
   const renderCard = (lead) => (
-    <div className="rounded-card bg-card p-4 shadow-soft">
+    <div className="cursor-pointer rounded-card bg-card p-4 shadow-soft" onClick={() => open(lead)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-bold">{lead.customerName}</p>
+          <Link href={`/leads/${lead.id}`} onClick={(e) => e.stopPropagation()} className="block truncate font-bold">
+            {lead.customerName}
+          </Link>
           <p className="truncate text-sm font-normal text-muted">{lead.customerMobile}</p>
           {lead.customerEmail && (
             <p className="truncate text-sm font-normal text-muted">{lead.customerEmail}</p>
@@ -339,7 +329,7 @@ function LeadsTable() {
             <>
               <button
                 type="button"
-                onClick={() => setCalling(lead)}
+                onClick={only(() => setCalling(lead))}
                 aria-label={`Call ${lead.customerName}`}
                 className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-ok/10 hover:text-ok"
               >
@@ -347,7 +337,7 @@ function LeadsTable() {
               </button>
               <button
                 type="button"
-                onClick={() => setEditing(lead)}
+                onClick={only(() => setEditing(lead))}
                 disabled={saving === lead.id}
                 aria-label={`Update ${lead.customerName}`}
                 className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
@@ -421,6 +411,7 @@ function LeadsTable() {
         rows={shown}
         loading={leads === null}
         keyField="id"
+        onRowClick={open}
         renderCard={renderCard}
         emptyState={
           <div className="flex flex-col items-center rounded-card bg-card px-6 py-16 text-center shadow-soft">
