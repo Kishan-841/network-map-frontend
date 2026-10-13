@@ -23,6 +23,14 @@ const DetailDrawer = dynamic(() => import('@/components/fiber/details/DetailDraw
 // Stable empties: the map's overlays rebuild whenever these change identity.
 const NONE = []
 
+// The last map list, kept for the JS session (per signed-in user): coming back
+// to this screen shows it at once instead of re-downloading every building.
+// Older than this, it is refreshed quietly in the background — assignments are
+// changed from several screens (and by other people), so the copy must not go
+// stale for long.
+const FRESH_MS = 60_000
+const mapCache = { userId: null, data: null, at: 0 }
+
 /**
  * The field-sales map: every building the person may act on, as pins — no
  * search needed. A manager/admin sees the whole registry; a team leader /
@@ -36,11 +44,13 @@ const NONE = []
  */
 export default function SalesMapPage() {
   const role = useAuthStore((s) => s.user?.role)
+  const userId = useAuthStore((s) => s.user?.id)
   const canAct = isSales(role) || role === 'ADMIN'
   const canAssign = canAssignSalesBuildings(role)
 
-  const [buildings, setBuildings] = useState([])
-  const [loading, setLoading] = useState(true)
+  const cached = mapCache.userId === userId ? mapCache.data : null
+  const [buildings, setBuildings] = useState(() => cached ?? [])
+  const [loading, setLoading] = useState(() => cached === null)
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
   const [checkInFor, setCheckInFor] = useState(null)
@@ -62,27 +72,43 @@ export default function SalesMapPage() {
   // Live / Not live / Society permission filters, as on the coverage map: a
   // society (shield marker) belongs to its own group whether or not it is live.
   const [groupShown, setGroupShown] = useState({ live: true, notLive: true, society: true })
-  const groupCounts = countBuildingGroups(buildings)
+  const groupCounts = useMemo(() => countBuildingGroups(buildings), [buildings])
   const shownBuildings = useMemo(
     () => (groupShown.live && groupShown.notLive && groupShown.society ? buildings : buildings.filter((b) => groupShown[buildingGroup(b)])),
     [buildings, groupShown],
   )
   const toggleGroup = (key) => setGroupShown((g) => ({ ...g, [key]: !g[key] }))
 
-  const load = useCallback(() => {
+  // Fetch the list; state is only set when the answer lands. `quiet`: a
+  // background refresh behind the pins already shown — a failure keeps them
+  // rather than blanking the map.
+  const fetchMap = useCallback(
+    ({ quiet = false } = {}) =>
+      apiClient
+        .get('/sales/map-buildings')
+        .then((res) => {
+          Object.assign(mapCache, { userId, data: res.data.data, at: Date.now() })
+          setBuildings(res.data.data)
+          setLoading(false)
+        })
+        .catch((err) => {
+          if (!quiet) setError(getApiErrorMessage(err, 'Could not load the map'))
+          setLoading(false)
+        }),
+    [userId],
+  )
+  // After an assignment on this screen: show the spinner and refetch.
+  const load = () => {
     setLoading(true)
-    apiClient
-      .get('/sales/map-buildings')
-      .then((res) => {
-        setBuildings(res.data.data)
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(getApiErrorMessage(err, 'Could not load the map'))
-        setLoading(false)
-      })
-  }, [])
-  useEffect(load, [load])
+    fetchMap()
+  }
+  // First visit this session: fetch (loading already starts true). Coming
+  // back: the cached pins are already on screen; refresh them quietly if old.
+  useEffect(() => {
+    if (!userId) return
+    if (!(mapCache.userId === userId && mapCache.data)) fetchMap()
+    else if (Date.now() - mapCache.at > FRESH_MS) fetchMap({ quiet: true })
+  }, [userId, fetchMap])
 
   function onSelect(building) {
     if (openVisit) {
