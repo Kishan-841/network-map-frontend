@@ -7,9 +7,11 @@
  * drawn) cannot be hidden. Fiber is left out on purpose: it starts off, so
  * "off" there is the default, not something the reader did.
  */
-export function hiddenLayerCount({ buildings, live, notLive, society, zones, pops }) {
+export function hiddenLayerCount({ buildings, live, notLive, society, zones, pops, fiber, closures, splitters }) {
   const insideBuildings = buildings === false ? [] : [live, notLive, society]
-  return [buildings, ...insideBuildings, zones, pops].filter((shown) => shown === false).length
+  // Fiber is off by default, so only its inner filters count — and only while it is on.
+  const insideFiber = fiber === true ? [closures, splitters] : []
+  return [buildings, ...insideBuildings, zones, pops, ...insideFiber].filter((shown) => shown === false).length
 }
 
 /**

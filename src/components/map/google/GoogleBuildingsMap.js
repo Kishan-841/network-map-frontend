@@ -59,6 +59,8 @@ export default function GoogleBuildingsMap({
   zones = [],
   fibers = NO_FIBERS,
   pops = NO_POPS,
+  showClosures = true,
+  showSplitters = true,
   selectedId,
   onSelect,
   onFiberSelect,
@@ -270,6 +272,8 @@ export default function GoogleBuildingsMap({
     fibers,
     dim: false,
     cluster: true,
+    showClosures,
+    showSplitters,
     onFiberClick: (fiber) => {
       onFiberSelect?.(fiber.id)
       // The whole cable, not the spot that was tapped.
@@ -281,7 +285,9 @@ export default function GoogleBuildingsMap({
       if (point.type === 'CLOSURE' && point.closureId) onClosureSelect?.(point.closureId)
       else if (point.type === 'SPLITTER' && point.splitterId && onSplitterSelect) onSplitterSelect(point.splitterId)
       else if (point.type === 'SPLITTER' && fiber) onFiberSelect?.(fiber.id)
-      focusRef.current?.(point)
+      // Bring the point into view, but keep the reader's zoom — jumping to
+      // street level on every tap was jarring (and redrew the whole layer).
+      map?.panTo({ lat: point.latitude, lng: point.longitude })
     },
     onFiberHover: (fiber, domEvent) => {
       if (!fiber || !domEvent) return setHover(null)

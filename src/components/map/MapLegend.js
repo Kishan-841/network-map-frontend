@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
 import { POINT_COLORS } from '@/lib/fiber/constants'
 import { hiddenLayerCount } from '@/lib/map-layers'
-import { IconLayers, IconClose, IconTriangle, IconShield } from '@/components/ui/icons'
+import { IconLayers, IconClose, IconTriangle, IconShield, IconBuildings } from '@/components/ui/icons'
 
 /**
  * Map key + declutter control. The Buildings row toggles all pins on/off; the
@@ -32,6 +32,10 @@ export function MapLegend({
   fiberShown,
   fiberCount,
   onToggleFiber,
+  closuresShown = true,
+  onToggleClosures,
+  splittersShown = true,
+  onToggleSplitters,
   popsShown,
   popCount,
   onTogglePops,
@@ -52,135 +56,183 @@ export function MapLegend({
     society: societyCount > 0 ? societyShown : undefined,
     zones: zoneCount > 0 ? zonesShown : undefined,
     pops: popCount > 0 ? popsShown : undefined,
+    fiber: fiberShown,
+    closures: closuresShown,
+    splitters: splittersShown,
   })
 
-  const keyDot = (color) => (
-    <span
-      className="h-3 w-3 shrink-0 rounded-full border-2 border-white shadow-sm"
-      style={{ backgroundColor: color }}
-    />
+  /**
+   * A layer tile, like Google Maps' "Map details": the layer's own symbol on a
+   * square, the name and count under it. On = coloured border + tinted label.
+   */
+  const tile = ({ symbol, label, count, on, onToggle }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={Boolean(on)}
+      className="group flex min-w-0 flex-col items-center gap-1.5 rounded-btn text-center focus-visible:outline-none"
+    >
+      <span
+        className={`flex aspect-square w-full items-center justify-center rounded-xl border-2 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-focus ${
+          on ? 'border-fiber bg-fiber/10' : 'border-line bg-paper group-hover:border-faint'
+        }`}
+        aria-hidden="true"
+      >
+        {symbol}
+      </span>
+      <span className={`w-full truncate text-xs leading-tight ${on ? 'font-semibold text-fiber' : 'font-medium text-ink'}`}>
+        {label}
+      </span>
+      {count != null && <span className="-mt-1 text-[11px] leading-none tabular-nums text-muted">{count}</span>}
+    </button>
   )
 
-  const rows = (
-    <div className="flex flex-col gap-0.5">
-      <button
-        onClick={onToggleBuildings}
-        aria-pressed={buildingsShown}
-        className={`flex items-center gap-2.5 rounded-btn px-2 py-1.5 text-left transition-colors hover:bg-paper ${
-          buildingsShown ? '' : 'opacity-40'
-        }`}
-      >
-        <IconLayers className="h-4 w-4 shrink-0 text-muted" strokeWidth={1.8} />
-        <span className="flex-1 truncate text-sm font-medium">Buildings</span>
-        <span className="shrink-0 text-xs font-normal tabular-nums text-faint">
-          {buildingCount}
-        </span>
-      </button>
-
-      {/* Colour key — each row is also a filter within the Buildings layer */}
-      <div className="ml-2 mb-1 flex flex-col gap-0.5 border-l border-line/60 pl-2">
-        <button
-          onClick={onToggleLive}
-          aria-pressed={liveShown}
-          className={`flex w-full items-center gap-2 rounded-btn px-1.5 py-1 text-left text-xs font-normal text-muted transition-colors hover:bg-paper ${
-            liveShown ? '' : 'opacity-40'
-          }`}
-        >
-          {keyDot(LIVE_COLOR)} Live
-          <span className="ml-auto tabular-nums text-faint">{liveCount}</span>
-        </button>
-        <button
-          onClick={onToggleNotLive}
-          aria-pressed={notLiveShown}
-          className={`flex w-full items-center gap-2 rounded-btn px-1.5 py-1 text-left text-xs font-normal text-muted transition-colors hover:bg-paper ${
-            notLiveShown ? '' : 'opacity-40'
-          }`}
-        >
-          {keyDot(NOT_LIVE_COLOR)} Not live
-          <span className="ml-auto tabular-nums text-faint">{notLiveCount}</span>
-        </button>
-        {/* Approved societies: their own filter, drawn as a shield in the
-            same live / not-live colour (Live / Not live above leave them be). */}
-        {societyCount > 0 && (
-          <button
-            onClick={onToggleSociety}
-            aria-pressed={societyShown}
-            className={`flex w-full items-center gap-2 rounded-btn px-1.5 py-1 text-left text-xs font-normal text-muted transition-colors hover:bg-paper ${
-              societyShown ? '' : 'opacity-40'
-            }`}
-          >
-            <IconShield className="h-3.5 w-3.5 shrink-0 text-muted" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
-            Society permission
-            <span className="ml-auto tabular-nums text-faint">{societyCount}</span>
-          </button>
-        )}
-      </div>
-
-      {zoneCount > 0 && (
-        <button
-          onClick={onToggleZones}
-          aria-pressed={zonesShown}
-          className={`flex items-center gap-2.5 rounded-btn px-2 py-1.5 text-left transition-colors hover:bg-paper ${
-            zonesShown ? '' : 'opacity-40'
-          }`}
-        >
-          <span className="h-3 w-3 shrink-0 rounded-[3px] border-2 border-dashed border-fiber bg-fiber/15" />
-          <span className="flex-1 truncate text-sm font-medium">Coverage zones</span>
-          <span className="shrink-0 text-xs font-normal tabular-nums text-faint">{zoneCount}</span>
-        </button>
+  /**
+   * A filter chip inside the Buildings layer: a filled dot (or shield) when
+   * shown, hollow when not — on/off without fading anything.
+   */
+  const chip = ({ color, shield = false, symbol, label, count, on, onToggle }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={Boolean(on)}
+      className={`flex min-h-9 items-center gap-2 rounded-full border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+        on ? 'border-fiber/40 bg-fiber/10 text-ink' : 'border-line bg-card text-muted hover:border-faint'
+      }`}
+    >
+      {symbol ? (
+        symbol(on)
+      ) : shield ? (
+        <IconShield
+          className={`h-3.5 w-3.5 shrink-0 ${on ? 'text-ink' : 'text-faint'}`}
+          fill={on ? 'currentColor' : 'none'}
+          strokeWidth={1.8}
+          aria-hidden="true"
+        />
+      ) : (
+        <span
+          className="h-2.5 w-2.5 shrink-0 rounded-full border-2"
+          style={{ borderColor: color, backgroundColor: on ? color : 'transparent' }}
+          aria-hidden="true"
+        />
       )}
-
-      {popCount > 0 && (
-        <button
-          onClick={onTogglePops}
-          aria-pressed={popsShown}
-          className={`flex items-center gap-2.5 rounded-btn px-2 py-1.5 text-left transition-colors hover:bg-paper ${
-            popsShown ? '' : 'opacity-40'
-          }`}
-        >
-          {/* Same shape and colour as the pin on the map. */}
+      {label}
+      {count != null && <span className="tabular-nums text-muted">{count}</span>}
+    </button>
+  )
+  const tiles = [
+    tile({
+      symbol: <IconBuildings className="h-7 w-7 text-ok" strokeWidth={1.7} />,
+      label: 'Buildings',
+      count: buildingCount,
+      on: buildingsShown,
+      onToggle: onToggleBuildings,
+    }),
+    zoneCount > 0 &&
+      tile({
+        symbol: <span className="h-6 w-6 rounded-md border-2 border-dashed border-fiber bg-fiber/15" />,
+        label: 'Zones',
+        count: zoneCount,
+        on: zonesShown,
+        onToggle: onToggleZones,
+      }),
+    popCount > 0 &&
+      tile({
+        // Same shape and colour as the pin on the map.
+        symbol: (
           <IconTriangle
-            className="h-4 w-4 shrink-0"
+            className="h-7 w-7"
             fill={POINT_COLORS.POP}
             stroke={POINT_COLORS.POP}
             strokeWidth={1.5}
             strokeLinejoin="round"
-            aria-hidden="true"
           />
-          <span className="flex-1 truncate text-sm font-medium">POPs</span>
-          <span className="shrink-0 text-xs font-normal tabular-nums text-faint">{popCount}</span>
-        </button>
-      )}
-
-      <button
-        onClick={onToggleFiber}
-        aria-pressed={fiberShown}
-        className={`flex items-center gap-2.5 rounded-btn px-2 py-1.5 text-left transition-colors hover:bg-paper ${
-          fiberShown ? '' : 'opacity-40'
-        }`}
-      >
-        {/* The line, then the three typed points it can pass through: POP
-            (square), closure (circle), splitter (diamond). */}
-        <span className="flex shrink-0 items-center gap-1">
-          <span className="h-0.5 w-4 rounded-full bg-[#f59e0b]" />
+        ),
+        label: 'POPs',
+        count: popCount,
+        on: popsShown,
+        onToggle: onTogglePops,
+      }),
+    tile({
+      // A cable with a closure on it.
+      symbol: (
+        <span className="relative flex h-6 w-9 items-center">
+          <span className="h-1 w-full rounded-full bg-[#f59e0b]" />
           <span
-            className="h-2.5 w-2.5 rounded-[2px]"
-            style={{ backgroundColor: POINT_COLORS.POP }}
-          />
-          <span
-            className="h-2.5 w-2.5 rounded-full"
+            className="absolute left-1/2 h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 border-white"
             style={{ backgroundColor: POINT_COLORS.CLOSURE }}
           />
-          <span
-            className="h-2 w-2 rotate-45"
-            style={{ backgroundColor: POINT_COLORS.SPLITTER }}
-          />
         </span>
-        <span className="flex-1 truncate text-sm font-medium">Fiber</span>
-        <span className="shrink-0 text-xs font-normal tabular-nums text-faint">
-          {fiberShown ? fiberCount : ''}
-        </span>
-      </button>
+      ),
+      label: 'Fiber',
+      count: fiberShown ? fiberCount : null,
+      on: fiberShown,
+      onToggle: onToggleFiber,
+    }),
+  ].filter(Boolean)
+
+  const rows = (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-4 gap-3">{tiles}</div>
+
+      {/* Filters within the Buildings layer — only while it is on. */}
+      {buildingsShown && (
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted">Show buildings that are</p>
+          <div className="flex flex-wrap gap-2">
+            {chip({ color: LIVE_COLOR, label: 'Live', count: liveCount, on: liveShown, onToggle: onToggleLive })}
+            {chip({
+              color: NOT_LIVE_COLOR,
+              label: 'Not live',
+              count: notLiveCount,
+              on: notLiveShown,
+              onToggle: onToggleNotLive,
+            })}
+            {/* Approved societies: their own filter, drawn as a shield. */}
+            {societyCount > 0 &&
+              chip({
+                shield: true,
+                label: 'Society permission',
+                count: societyCount,
+                on: societyShown,
+                onToggle: onToggleSociety,
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Filters within the Fiber layer — only while cables are drawn. */}
+      {fiberShown && (
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted">Show on fiber lines</p>
+          <div className="flex flex-wrap gap-2">
+            {chip({
+              symbol: (on) => (
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full border-2"
+                  style={{ borderColor: POINT_COLORS.CLOSURE, backgroundColor: on ? POINT_COLORS.CLOSURE : 'transparent' }}
+                  aria-hidden="true"
+                />
+              ),
+              label: 'Closures',
+              on: closuresShown,
+              onToggle: onToggleClosures,
+            })}
+            {chip({
+              symbol: (on) => (
+                <span
+                  className="h-2 w-2 shrink-0 rotate-45 border-2"
+                  style={{ borderColor: POINT_COLORS.SPLITTER, backgroundColor: on ? POINT_COLORS.SPLITTER : 'transparent' }}
+                  aria-hidden="true"
+                />
+              ),
+              label: 'Splitters',
+              on: splittersShown,
+              onToggle: onToggleSplitters,
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -226,15 +278,12 @@ export function MapLegend({
       {open && (
         <>
           <div className="fixed inset-0 z-40 hidden lg:block" onClick={() => setOpen(false)} />
-          <div className="pointer-events-auto absolute bottom-20 left-6 z-50 hidden w-56 rounded-card border border-line bg-card/95 p-4 shadow-lift backdrop-blur lg:block">
+          <div className="pointer-events-auto absolute bottom-20 left-6 z-50 hidden w-80 rounded-card border border-line bg-card/95 p-4 shadow-lift backdrop-blur lg:block">
             <div className="mb-2.5 flex items-center justify-between">
-              <p className="flex items-center gap-2 text-sm font-bold">
-                <IconLayers className="h-4 w-4 text-fiber" strokeWidth={1.8} />
-                Legend
-              </p>
+              <p className="text-sm font-bold">Map layers</p>
               <button
                 onClick={() => setOpen(false)}
-                aria-label="Close legend"
+                aria-label="Close map layers"
                 className="-m-1 p-1 text-faint transition-colors hover:text-ink"
               >
                 <IconClose className="h-4 w-4" />

@@ -1,37 +1,30 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { useMemo } from 'react'
 import { usePops } from '@/hooks/usePops'
 import { useClosures } from '@/hooks/useClosures'
+import { useBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { RATIO_LABELS } from '@/lib/fiber/constants'
 
+const NONE = []
+
 /**
- * Snap targets for the fiber draw editor — POPs, closures and buildings,
- * merged into one flat list of `{ kind, id, label, latitude, longitude, splitter }`.
- * Fetches once per mount while `enabled`; `ready` flips once all three sources
- * have loaded (empty or not).
+ * Snap targets for the fiber draw editor — POPs, closures and buildings, each
+ * `{ kind, id, label, latitude, longitude, splitter }`.
+ *
+ * Buildings come from the session cache the map already filled (no second
+ * download of every building), and are returned on their own as
+ * `buildingTargets`: saving a closure refetches closures, and that must not
+ * hand the building layer a new array — it would redraw every building dot.
+ * `ready` flips once all three sources have loaded (empty or not).
  */
-export function useSnapTargets({ enabled }) {
+export function useSnapTargets() {
   const { pops, loading: popsLoading } = usePops()
   const { closures, loading: closuresLoading } = useClosures()
-  const [buildings, setBuildings] = useState([])
-  const [buildingsLoading, setBuildingsLoading] = useState(true)
-  const fetchedRef = useRef(false)
+  const { markers, loading: buildingsLoading } = useBuildingMarkers()
+  const buildings = markers ?? NONE
 
-  useEffect(() => {
-    if (!enabled || fetchedRef.current) return
-    fetchedRef.current = true
-    apiClient
-      .get('/buildings/markers')
-      .then((res) => {
-        setBuildings(res.data.data)
-        setBuildingsLoading(false)
-      })
-      .catch(() => setBuildingsLoading(false))
-  }, [enabled])
-
-  const targets = useMemo(
+  const nodeTargets = useMemo(
     () => [
       ...pops.map((p) => ({ kind: 'POP', id: p.id, label: p.name, latitude: p.latitude, longitude: p.longitude, splitter: null })),
       ...closures.map((c) => ({
@@ -42,10 +35,14 @@ export function useSnapTargets({ enabled }) {
         longitude: c.longitude,
         splitter: RATIO_LABELS[c.splitters?.[0]?.ratio] ?? null,
       })),
-      ...buildings.map((b) => ({ kind: 'BUILDING', id: b.id, label: b.buildingName, latitude: b.latitude, longitude: b.longitude, splitter: null })),
     ],
-    [pops, closures, buildings]
+    [pops, closures],
   )
+  const buildingTargets = useMemo(
+    () => buildings.map((b) => ({ kind: 'BUILDING', id: b.id, label: b.buildingName, latitude: b.latitude, longitude: b.longitude, splitter: null })),
+    [buildings],
+  )
+  const targets = useMemo(() => [...nodeTargets, ...buildingTargets], [nodeTargets, buildingTargets])
 
-  return { targets, ready: !popsLoading && !closuresLoading && !buildingsLoading }
+  return { targets, nodeTargets, buildingTargets, ready: !popsLoading && !closuresLoading && !buildingsLoading }
 }

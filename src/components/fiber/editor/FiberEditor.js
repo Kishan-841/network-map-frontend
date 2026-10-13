@@ -85,7 +85,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const drawing = mode === 'draw' || mode === 'editLine'
   const frozen = drawing || mode === 'addClosure' || mode === 'addSplitter'
 
-  const { targets } = useSnapTargets({ enabled: true })
+  const { targets, nodeTargets, buildingTargets } = useSnapTargets()
   // Fetched while the "Other fiber" overlay is on — and for a brand new line,
   // whose opening view falls back to the last fiber anyone drew.
   const { fibers } = useFibers(overlays.others || !initialFiber)
@@ -177,7 +177,8 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   useEditorOverlays({
     map,
     ready,
-    targets,
+    nodeTargets,
+    buildingTargets,
     buildingsShown: overlays.buildings,
     zonesShown: overlays.zones,
     onTargetClick: handleTargetClick,

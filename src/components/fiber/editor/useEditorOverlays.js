@@ -79,29 +79,37 @@ const badgeText = (target) => {
   return target.splitter ? `${target.label} · ${target.splitter}` : target.label
 }
 
-/** The badge that floats above `marker`, plus its hover (dark tone) listeners. */
-function attachBadge(map, marker, position, text, zIndex) {
-  if (!text) return null
-  const icons = { light: labelBadgeIcon(text), dark: labelBadgeIcon(text, { tone: 'dark' }) }
-  const badge = new google.maps.Marker({
+/**
+ * The badge floating above a POP/closure node — built the first time it is
+ * needed (in view and zoomed in, or hovered), not up front: there can be well
+ * over a thousand closures and most are never on screen.
+ */
+function nodeBadge(map, entry) {
+  if (entry.badge !== undefined) return entry.badge
+  const text = badgeText(entry.target)
+  if (!text) {
+    entry.badge = null
+    return null
+  }
+  entry.icons = { light: labelBadgeIcon(text), dark: labelBadgeIcon(text, { tone: 'dark' }) }
+  entry.badge = new google.maps.Marker({
     map,
-    position,
+    position: entry.marker.getPosition(),
     clickable: false,
-    visible: false, // the layer's applyZoom has the final say
-    zIndex,
-    icon: mapsIcon(icons.light),
+    visible: false,
+    zIndex: 9,
+    icon: mapsIcon(entry.icons.light),
   })
-  // Hover only reaches a CLICKABLE marker — in Draw / Add-closure the symbols
-  // step out of the way, and there the badge simply never lights up.
-  marker.addListener('mouseover', () => {
-    badge.setIcon(mapsIcon(icons.dark))
-    badge.setVisible(true)
-  })
-  marker.addListener('mouseout', () => {
-    badge.setIcon(mapsIcon(icons.light))
-    badge.setVisible((map.getZoom() ?? 0) >= BADGE_MIN_ZOOM)
-  })
-  return badge
+  return entry.badge
+}
+
+/** Whether `marker` sits inside the map's current view. */
+const inView = (map, marker) => Boolean(map.getBounds()?.contains(marker.getPosition()))
+
+function removeNode(entry) {
+  google.maps.event.clearInstanceListeners(entry.marker)
+  entry.marker.setMap(null)
+  entry.badge?.setMap(null)
 }
 
 /**
@@ -113,7 +121,8 @@ function attachBadge(map, marker, position, text, zIndex) {
 export function useEditorOverlays({
   map,
   ready,
-  targets,
+  nodeTargets,
+  buildingTargets,
   buildingsShown,
   zonesShown,
   onTargetClick,
@@ -146,55 +155,127 @@ export function useEditorOverlays({
   // ---- POP + closure markers (always visible) -------------------------------
   // Excluding by a SORTED JOINED KEY, not by the Set's identity: the draft
   // rebuilds that Set on every point move, and the context layer must only
-  // rebuild when its membership actually changed.
+  // change when its membership actually changed.
   const excludeKey = useMemo(() => [...excludeIds].sort().join('|'), [excludeIds])
   const nodes = useMemo(() => {
     const skip = new Set(excludeKey ? excludeKey.split('|') : [])
     // POPs stay whatever the draft does — they are landmarks, not annotations.
-    return targets.filter(
+    return nodeTargets.filter(
       (target) => target.kind === 'POP' || (target.kind === 'CLOSURE' && !skip.has(target.id)),
     )
-  }, [targets, excludeKey])
+  }, [nodeTargets, excludeKey])
+
+  // Kept by id and updated in place: every save refetches all closures, and
+  // tearing down + recreating every marker (there can be well over a thousand)
+  // for one changed closure froze slow phones. id → { target, kind, marker, badge }
+  const nodeEntriesRef = useRef(new Map())
+  const nodeMapRef = useRef(null)
+  const applyNodeBadgesRef = useRef(() => {})
 
   useEffect(() => {
     if (!map || !ready) return
-    const entries = nodes.map((target) => {
-      const kind = target.kind === 'CLOSURE' && target.splitter ? 'SPLITTER' : target.kind
-      const marker = new google.maps.Marker({
-        map,
-        position: { lat: target.latitude, lng: target.longitude },
-        icon: mapsIcon(typedMarkerIcon(kind)),
-        clickable: clickableRef.current,
-        zIndex: 8,
-      })
-      marker.addListener('click', () => clickRef.current?.(target))
-      const position = { lat: target.latitude, lng: target.longitude }
-      return { marker, badge: attachBadge(map, marker, position, badgeText(target), 9) }
-    })
-    nodeMarkersRef.current = entries.map((entry) => entry.marker)
-
-    const applyZoom = () => {
-      const shown = (map.getZoom() ?? 0) >= BADGE_MIN_ZOOM
-      entries.forEach(({ badge }) => badge?.setVisible(shown))
+    const entries = nodeEntriesRef.current
+    if (nodeMapRef.current !== map) {
+      for (const entry of entries.values()) removeNode(entry)
+      entries.clear()
+      nodeMapRef.current = map
     }
-    applyZoom()
-    const zoomListener = map.addListener('zoom_changed', applyZoom)
 
+    const badgeShown = (entry) => (map.getZoom() ?? 0) >= BADGE_MIN_ZOOM && inView(map, entry.marker)
+    const applyNodeBadges = () => {
+      for (const entry of entries.values()) {
+        if (entry.hovered) continue
+        if (badgeShown(entry)) nodeBadge(map, entry)?.setVisible(true)
+        else entry.badge?.setVisible(false)
+      }
+    }
+    applyNodeBadgesRef.current = applyNodeBadges
+
+    const next = new Set(nodes.map((target) => target.id))
+    for (const [id, entry] of entries) {
+      if (!next.has(id)) {
+        removeNode(entry)
+        entries.delete(id)
+      }
+    }
+    for (const target of nodes) {
+      const kind = target.kind === 'CLOSURE' && target.splitter ? 'SPLITTER' : target.kind
+      const position = { lat: target.latitude, lng: target.longitude }
+      const entry = entries.get(target.id)
+      if (!entry) {
+        const created = {
+          target,
+          kind,
+          marker: new google.maps.Marker({
+            map,
+            position,
+            icon: mapsIcon(typedMarkerIcon(kind)),
+            clickable: clickableRef.current,
+            zIndex: 8,
+          }),
+          badge: undefined, // built on first need
+        }
+        created.marker.addListener('click', () => clickRef.current?.(created.target))
+        // Hover only reaches a CLICKABLE marker — in Draw / Add-closure the
+        // symbols step out of the way, and there the badge never lights up.
+        created.marker.addListener('mouseover', () => {
+          created.hovered = true
+          const badge = nodeBadge(map, created)
+          badge?.setIcon(mapsIcon(created.icons.dark))
+          badge?.setVisible(true)
+        })
+        created.marker.addListener('mouseout', () => {
+          created.hovered = false
+          created.badge?.setIcon(mapsIcon(created.icons.light))
+          created.badge?.setVisible(badgeShown(created))
+        })
+        entries.set(target.id, created)
+        continue
+      }
+      if (entry.target.latitude !== target.latitude || entry.target.longitude !== target.longitude) {
+        entry.marker.setPosition(position)
+        entry.badge?.setPosition(position)
+      }
+      if (entry.kind !== kind) entry.marker.setIcon(mapsIcon(typedMarkerIcon(kind)))
+      if (badgeText(entry.target) !== badgeText(target) && entry.badge !== undefined) {
+        // The name changed: drop the old badge; it is rebuilt on next need.
+        entry.badge?.setMap(null)
+        entry.badge = undefined
+      }
+      entry.target = target
+      entry.kind = kind
+    }
+    nodeMarkersRef.current = [...entries.values()].map((entry) => entry.marker)
+    applyNodeBadges()
+  }, [map, ready, nodes])
+
+  // Badges follow the view: shown on zoom-in for what is on screen.
+  useEffect(() => {
+    if (!map || !ready) return
+    const run = () => applyNodeBadgesRef.current()
+    const zoomListener = map.addListener('zoom_changed', run)
+    const idleListener = map.addListener('idle', run)
     return () => {
       google.maps.event.removeListener(zoomListener)
-      nodeMarkersRef.current = []
-      entries.forEach(({ marker, badge }) => {
-        google.maps.event.clearInstanceListeners(marker)
-        marker.setMap(null)
-        badge?.setMap(null)
-      })
+      google.maps.event.removeListener(idleListener)
     }
-  }, [map, ready, nodes])
+  }, [map, ready])
+
+  // Everything goes when the editor closes.
+  useEffect(
+    () => () => {
+      for (const entry of nodeEntriesRef.current.values()) removeNode(entry)
+      nodeEntriesRef.current.clear()
+      nodeMapRef.current = null
+      nodeMarkersRef.current = []
+    },
+    [],
+  )
 
   // ---- building dots (lazy, clustered) -------------------------------------
   useEffect(() => {
     if (!map || !ready || !buildingsShown) return
-    const buildings = targets.filter((target) => target.kind === 'BUILDING')
+    const buildings = buildingTargets
     const markers = buildings.map((target) => {
       const dot = buildingDotIcon(BUILDING_DOT_COLOR)
       const marker = new google.maps.Marker({
@@ -213,36 +294,32 @@ export function useEditorOverlays({
     buildingMarkersRef.current = markers
     const clusterer = new MarkerClusterer({ map, markers, renderer: clusterRenderer })
 
-    // Building names: there can be thousands, so the badges are only BUILT the
-    // first time the map is zoomed right in — and each is only shown while the
-    // clusterer has not swallowed its dot.
-    let badges = null
+    // Building names: there can be thousands, so a badge is only BUILT the
+    // first time its building is on screen with the map zoomed right in — and
+    // each is only shown while the clusterer has not swallowed its dot.
+    const badges = new Map() // index → badge
     const applyZoom = () => {
-      const shown = (map.getZoom() ?? 0) >= BUILDING_BADGE_MIN_ZOOM
-      if (!shown) {
-        badges?.forEach(({ badge }) => badge.setVisible(false))
+      if ((map.getZoom() ?? 0) < BUILDING_BADGE_MIN_ZOOM) {
+        badges.forEach((badge) => badge.setVisible(false))
         return
       }
-      if (!badges) {
-        badges = buildings.flatMap((target, i) =>
-          target.label
-            ? [
-                {
-                  marker: markers[i],
-                  badge: new google.maps.Marker({
-                    map,
-                    position: { lat: target.latitude, lng: target.longitude },
-                    clickable: false,
-                    visible: false,
-                    zIndex: 3,
-                    icon: mapsIcon(labelBadgeIcon(target.label)),
-                  }),
-                },
-              ]
-            : [],
-        )
-      }
-      badges.forEach(({ marker, badge }) => badge.setVisible(Boolean(marker.getMap())))
+      buildings.forEach((target, i) => {
+        if (!target.label) return
+        const show = Boolean(markers[i].getMap()) && inView(map, markers[i])
+        let badge = badges.get(i)
+        if (show && !badge) {
+          badge = new google.maps.Marker({
+            map,
+            position: { lat: target.latitude, lng: target.longitude },
+            clickable: false,
+            visible: false,
+            zIndex: 3,
+            icon: mapsIcon(labelBadgeIcon(target.label)),
+          })
+          badges.set(i, badge)
+        }
+        badge?.setVisible(show)
+      })
     }
     applyZoom()
     // `idle` as well as `zoom_changed`: the clusterer re-splits its markers on
@@ -253,7 +330,7 @@ export function useEditorOverlays({
     return () => {
       google.maps.event.removeListener(zoomListener)
       google.maps.event.removeListener(idleListener)
-      badges?.forEach(({ badge }) => badge.setMap(null))
+      badges.forEach((badge) => badge.setMap(null))
       buildingMarkersRef.current = []
       clusterer.clearMarkers()
       // clearMarkers only empties the list — the clusterer is an OverlayView
@@ -264,7 +341,7 @@ export function useEditorOverlays({
         marker.setMap(null)
       })
     }
-  }, [map, ready, targets, buildingsShown])
+  }, [map, ready, buildingTargets, buildingsShown])
 
   // ---- zone outlines (lazy fetch, then lazy draw) ---------------------------
   const [zones, setZones] = useState(null)

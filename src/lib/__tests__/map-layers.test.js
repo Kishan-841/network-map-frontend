@@ -46,4 +46,9 @@ describe('building groups (Live / Not live / Society permission)', () => {
     expect(hiddenLayerCount({ ...ALL_ON, society: false })).toBe(1)
     expect(hiddenLayerCount({ ...ALL_ON, buildings: false, society: false })).toBe(1)
   })
+
+  it('counts hidden closures / splitters only while the Fiber layer is on', () => {
+    expect(hiddenLayerCount({ ...ALL_ON, fiber: true, closures: false, splitters: true })).toBe(1)
+    expect(hiddenLayerCount({ ...ALL_ON, fiber: false, closures: false, splitters: false })).toBe(0)
+  })
 })

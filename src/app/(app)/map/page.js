@@ -58,6 +58,9 @@ function CoverageMapPage() {
   // A fiber with no zone (drawn before fibers recorded one) drops out of a
   // zone-filtered view rather than pretending to belong.
   const [fiberShown, setFiberShown] = useState(false)
+  // Within the Fiber layer: closures / splitters drawn on the lines.
+  const [closuresShown, setClosuresShown] = useState(true)
+  const [splittersShown, setSplittersShown] = useState(true)
   const { fibers } = useFibers(fiberShown)
   const visibleFibers = useMemo(() => {
     if (!fiberShown) return NO_FIBERS
@@ -117,6 +120,8 @@ function CoverageMapPage() {
         buildings={visibleBuildings}
         zones={zonesShown ? zones : []}
         fibers={visibleFibers}
+        showClosures={closuresShown}
+        showSplitters={splittersShown}
         pops={visiblePops}
         selectedId={details.current?.kind === 'building' ? details.current.id : null}
         onSelect={(building) => details.open('building', building.id)}
@@ -186,6 +191,10 @@ function CoverageMapPage() {
         fiberShown={fiberShown}
         fiberCount={visibleFibers.length}
         onToggleFiber={() => setFiberShown((v) => !v)}
+        closuresShown={closuresShown}
+        onToggleClosures={() => setClosuresShown((v) => !v)}
+        splittersShown={splittersShown}
+        onToggleSplitters={() => setSplittersShown((v) => !v)}
         popsShown={popsShown}
         popCount={popCount}
         onTogglePops={() => setPopsShown((v) => !v)}

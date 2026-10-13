@@ -10,7 +10,6 @@ import { polylineRanges, collectMarkers, markerText } from '@/lib/fiber/overlays
 const WAYPOINT_MIN_ZOOM = 15 // plain waypoints are noise when zoomed out
 // Badges carry their own background, so they read far earlier than a bare
 // label did; below this only hovering a (clickable) symbol reveals one.
-const BADGE_MIN_ZOOM = 15
 const CLUSTER_MAX_ZOOM = 13 // below this, closures collapse into count bubbles
 
 // Takes both icon shapes: a square symbol (`size`) and a badge (`width`/`height`).
@@ -27,12 +26,26 @@ const latLngs = (points) => new google.maps.MVCArray(points.map((p) => new googl
  * Google map. Shared by the map page (full weight, interactive) and the
  * fiber editor (`dim`, as context behind the draft line).
  *
- * Everything lives in refs and is rebuilt wholesale whenever the inputs change:
- * the fiber list is small and identity-stable per fetch, so diffing would cost
- * more than it saves. Callbacks are mirrored into refs, so a caller passing a
+ * Everything lives in refs and is rebuilt whenever the inputs change. Markers
+ * are created detached and only those on screen are attached once the view
+ * settles; name badges are built on first need (the whole network is
+ * thousands of points — attaching all of them is what lagged on zoom). Callbacks are mirrored into refs, so a caller passing a
  * fresh arrow function on every render never triggers a rebuild.
  */
-export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, cluster = true, onFiberClick, onPointClick, onFiberHover }) {
+export function useFiberOverlays({
+  map,
+  ready,
+  fibers,
+  exclude,
+  dim = false,
+  cluster = true,
+  // Legend filters within the Fiber layer: hide closures / splitters on lines.
+  showClosures = true,
+  showSplitters = true,
+  onFiberClick,
+  onPointClick,
+  onFiberHover,
+}) {
   const polylinesRef = useRef([])
   const markersRef = useRef([]) // [{ marker, badge, isWaypoint }]
   const clusterableRef = useRef([]) // the subset the clusterer owns below z13
@@ -42,6 +55,10 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
   const onFiberClickRef = useRef(onFiberClick)
   const onPointClickRef = useRef(onPointClick)
   const onFiberHoverRef = useRef(onFiberHover)
+  // Read by the view pass, so flipping a filter re-attaches markers without
+  // rebuilding the layer.
+  const kindsRef = useRef({ CLOSURE: showClosures, SPLITTER: showSplitters })
+  const applyViewRef = useRef(null)
 
   useEffect(() => {
     onFiberClickRef.current = onFiberClick
@@ -86,99 +103,155 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
     })
 
     // ---- markers: one per real entity, however many fibers touch it --------
-    const { entities, waypoints } = collectMarkers(shown)
+    const collected = collectMarkers(shown)
+    // Behind the editor's draft (dim), the snap layer already draws every POP
+    // and closure, and other lines' waypoints are only bends the polyline
+    // shows anyway — drawing them again here meant thousands of extra markers,
+    // all rebuilt after every save.
+    const entities = dim
+      ? collected.entities.filter(({ point }) => point.type !== 'CLOSURE' && point.type !== 'POP')
+      : collected.entities
+    const waypoints = dim ? [] : collected.waypoints
     const clickablePoints = Boolean(onPointClickRef.current)
-    const markers = []
+    // Nothing is put on the map here: `applyView` attaches only what is on
+    // screen once the view settles. The whole network is thousands of points.
+    const markers = [] // [{ marker, point, text, kind, isWaypoint, clusterable, on, badge, icons, hovered }]
     markersRef.current = markers
     const clusterable = [] // closures/splitters only — POPs and buildings never cluster
     clusterableRef.current = clusterable
 
-    entities.forEach(({ kind, point, fibers: owners }) => {
-      const text = markerText(kind, point)
-      const marker = new google.maps.Marker({
+    // Names show on HOVER only (a click opens the drawer): drawing every name
+    // in a dense area made an unreadable wall and lagged. A badge is BUILT the
+    // first time its point is hovered, never up front for the whole network.
+    const ensureBadge = (entry) => {
+      if (entry.badge !== undefined) return entry.badge
+      if (!entry.text) {
+        entry.badge = null
+        return null
+      }
+      entry.icons = { light: labelBadgeIcon(entry.text), dark: labelBadgeIcon(entry.text, { tone: 'dark' }) }
+      entry.badge = new google.maps.Marker({
         map,
-        position: { lat: point.latitude, lng: point.longitude },
-        icon: mapsIcon(typedMarkerIcon(kind, { size: dim ? 16 : 18 })),
-        clickable: clickablePoints,
-        zIndex: 8,
+        position: entry.marker.getPosition(),
+        clickable: false,
+        visible: false,
+        zIndex: 9,
+        icon: mapsIcon(entry.icons.light),
       })
+      return entry.badge
+    }
+
+    entities.forEach(({ kind, point, fibers: owners }) => {
+      const entry = {
+        marker: new google.maps.Marker({
+          position: { lat: point.latitude, lng: point.longitude },
+          icon: mapsIcon(typedMarkerIcon(kind, { size: dim ? 16 : 18 })),
+          clickable: clickablePoints,
+          zIndex: 8,
+        }),
+        point,
+        kind,
+        text: markerText(kind, point),
+        isWaypoint: false,
+        clusterable: kind === 'CLOSURE' || kind === 'SPLITTER',
+        on: false,
+        badge: undefined,
+      }
       if (clickablePoints) {
-        marker.addListener('click', (event) => onPointClickRef.current?.(point, owners[0], event.domEvent))
-      }
-      // The code/ratio rides ABOVE the symbol on its own marker, so the teal
-      // circle / orange diamond underneath stays visible.
-      const badgeIcons = text ? { light: labelBadgeIcon(text), dark: labelBadgeIcon(text, { tone: 'dark' }) } : null
-      const badge = badgeIcons
-        ? new google.maps.Marker({
-            map,
-            position: { lat: point.latitude, lng: point.longitude },
-            clickable: false,
-            visible: false, // applyZoom below has the final say
-            zIndex: 9,
-            icon: mapsIcon(badgeIcons.light),
-          })
-        : null
-      // Zoomed out the badges are hidden; hovering one reveals just that name.
-      // Hover only reaches a CLICKABLE marker — the dim editor context layer
-      // passes no click handler, so it gets no hover either.
-      if (badge && clickablePoints) {
-        marker.addListener('mouseover', () => {
-          badge.setIcon(mapsIcon(badgeIcons.dark))
-          badge.setVisible(true)
+        entry.marker.addListener('click', (event) => onPointClickRef.current?.(point, owners[0], event.domEvent))
+        // Hover reveals this point's name. Hover only reaches a CLICKABLE
+        // marker — the dim editor layer has no names at all.
+        entry.marker.addListener('mouseover', () => {
+          entry.hovered = true
+          const badge = ensureBadge(entry)
+          badge?.setIcon(mapsIcon(entry.icons.dark))
+          badge?.setVisible(true)
         })
-        marker.addListener('mouseout', () => {
-          badge.setIcon(mapsIcon(badgeIcons.light))
-          badge.setVisible((map.getZoom() ?? 0) >= BADGE_MIN_ZOOM)
+        entry.marker.addListener('mouseout', () => {
+          entry.hovered = false
+          entry.badge?.setIcon(mapsIcon(entry.icons.light))
+          entry.badge?.setVisible(false)
         })
       }
-      markers.push({ marker, badge, isWaypoint: false })
-      if (kind === 'CLOSURE' || kind === 'SPLITTER') clusterable.push(marker)
+      markers.push(entry)
+      if (entry.clusterable) clusterable.push(entry.marker)
     })
 
     waypoints.forEach(({ point }) => {
       // Pure geometry: a waypoint has nothing to say, so it never gets a badge.
       markers.push({
         marker: new google.maps.Marker({
-          map,
           position: { lat: point.latitude, lng: point.longitude },
           icon: mapsIcon(typedMarkerIcon('WAYPOINT', { size: 12 })),
           clickable: false,
           zIndex: 7,
         }),
-        badge: null,
+        point,
+        kind: 'WAYPOINT',
+        text: null,
         isWaypoint: true,
+        clusterable: false,
+        on: false,
+        badge: null,
       })
     })
 
-    // ---- zoom rules --------------------------------------------------------
+    // ---- view rules --------------------------------------------------------
     clustererRef.current = cluster && clusterable.length ? new MarkerClusterer({ map, markers: [], renderer: clusterRenderer }) : null
     clusteredRef.current = null
 
-    const applyZoom = () => {
+    // Runs once the view SETTLES (`idle`), not on every step of a zoom:
+    // attaches what is on screen (plus a margin, so a small pan doesn't pop),
+    // detaches the rest, and only touches markers whose state changes.
+    const kindShown = (entry) => kindsRef.current[entry.kind] ?? true
+    let clusteredKinds = null // which kinds the clusterer was last handed
+    const applyView = () => {
+      const bounds = map.getBounds()
+      if (!bounds) return
       const zoom = map.getZoom() ?? 0
-      markersRef.current.forEach(({ marker, badge, isWaypoint }) => {
-        if (isWaypoint) marker.setVisible(zoom >= WAYPOINT_MIN_ZOOM)
-        else badge?.setVisible(zoom >= BADGE_MIN_ZOOM)
-      })
+
       const clusterer = clustererRef.current
-      if (!clusterer) return
-      const clustered = zoom < CLUSTER_MAX_ZOOM
-      if (clustered === clusteredRef.current) return
-      clusteredRef.current = clustered
-      if (clustered) {
-        // addMarkers draws them itself, as cluster bubbles.
-        clusterableRef.current.forEach((marker) => marker.setMap(null))
-        clusterer.addMarkers(clusterableRef.current)
-      } else {
+      const clustered = Boolean(clusterer) && zoom < CLUSTER_MAX_ZOOM
+      const kindsKey = `${kindsRef.current.CLOSURE}|${kindsRef.current.SPLITTER}`
+      if (clusterer && (clustered !== clusteredRef.current || (clustered && kindsKey !== clusteredKinds))) {
+        clusteredRef.current = clustered
+        clusteredKinds = kindsKey
         clusterer.clearMarkers()
-        clusterableRef.current.forEach((marker) => marker.setMap(map))
+        if (clustered) {
+          // The clusterer draws them itself, as count bubbles.
+          markers.forEach((entry) => {
+            if (entry.clusterable && entry.on) {
+              entry.marker.setMap(null)
+              entry.on = false
+            }
+          })
+          clusterer.addMarkers(markers.filter((entry) => entry.clusterable && kindShown(entry)).map((entry) => entry.marker))
+        }
+      }
+
+      const ne = bounds.getNorthEast()
+      const sw = bounds.getSouthWest()
+      const padLat = (ne.lat() - sw.lat()) * 0.25
+      const padLng = (ne.lng() - sw.lng()) * 0.25
+      const inView = ({ latitude, longitude }) =>
+        latitude <= ne.lat() + padLat && latitude >= sw.lat() - padLat &&
+        longitude <= ne.lng() + padLng && longitude >= sw.lng() - padLng
+
+      for (const entry of markers) {
+        const want = inView(entry.point) && kindShown(entry) &&
+          (entry.isWaypoint ? zoom >= WAYPOINT_MIN_ZOOM : !(entry.clusterable && clustered))
+        if (want !== entry.on) {
+          entry.marker.setMap(want ? map : null)
+          entry.on = want
+        }
       }
     }
-    applyZoom()
-    const zoomListener = map.addListener('zoom_changed', applyZoom)
+    applyViewRef.current = applyView
+    applyView()
+    const viewListener = map.addListener('idle', applyView)
 
     return () => {
-      google.maps.event.removeListener(zoomListener)
+      google.maps.event.removeListener(viewListener)
       // clearMarkers only empties the list; the clusterer is an OverlayView
       // holding an `idle` listener on the map, and only setMap(null) (→
       // onRemove) gives that back. Without it every rebuild leaks one.
@@ -198,6 +271,13 @@ export function useFiberOverlays({ map, ready, fibers, exclude, dim = false, clu
       markersRef.current = []
       polylinesRef.current = []
       clusterableRef.current = []
+      applyViewRef.current = null
     }
   }, [map, ready, fibers, exclude, dim, cluster])
+
+  // A legend filter changed: re-run the view pass, no rebuild.
+  useEffect(() => {
+    kindsRef.current = { CLOSURE: showClosures, SPLITTER: showSplitters }
+    applyViewRef.current?.()
+  }, [showClosures, showSplitters])
 }
