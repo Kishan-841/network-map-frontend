@@ -26,6 +26,7 @@ const DetailDrawer = dynamic(() => import('@/components/fiber/details/DetailDraw
 // empty array for "hidden" keeps a toggled-off layer from rebuilding forever.
 const NO_FIBERS = []
 const NO_POPS = []
+const NO_BUILDINGS = []
 
 export default function MapPage() {
   const role = useAuthStore((s) => s.user?.role)
@@ -97,9 +98,15 @@ function CoverageMapPage() {
 
   // The Buildings row is the master switch; Live / Not live / Society
   // permission filter within it (a society belongs to its own row only).
-  const groupShown = { live: liveShown, notLive: notLiveShown, society: societyShown }
-  const visibleBuildings = buildingsShown ? buildings.filter((b) => groupShown[buildingGroup(b)]) : []
-  const groupCounts = countBuildingGroups(buildings)
+  // Memoised: a new array here makes the map re-check every marker, so it must
+  // change only when the buildings or these toggles do — not when a drawer or
+  // the legend opens.
+  const visibleBuildings = useMemo(() => {
+    if (!buildingsShown) return NO_BUILDINGS
+    const groupShown = { live: liveShown, notLive: notLiveShown, society: societyShown }
+    return buildings.filter((b) => groupShown[buildingGroup(b)])
+  }, [buildings, buildingsShown, liveShown, notLiveShown, societyShown])
+  const groupCounts = useMemo(() => countBuildingGroups(buildings), [buildings])
 
   return (
     // z-50 lifts the page's own stacking context above the z-40 bottom nav —
