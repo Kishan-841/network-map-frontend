@@ -6,6 +6,8 @@ import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { buildingPinCached, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { wingSummary } from '@/lib/building-wings'
+import { canManageBuildings } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 import MapSearchBox from '@/components/map/MapSearchBox'
 import { Button } from '@/components/ui/Button'
 import { Toast } from '@/components/ui/Toast'
@@ -31,6 +33,9 @@ const wingLabel = (name) => ({ text: name, color: '#fff', fontWeight: '700' })
  */
 export function LocateWingsModal({ building, onClose, onSaved }) {
   const total = wingSummary(building).total
+  // Only admins or managers mark live (mirrors LiveToggle); the API keeps a
+  // surveyor's wings' Live as it was and starts their new wings not live.
+  const canMarkLive = canManageBuildings(useAuthStore((st) => st.user?.role))
   const wasComplete = wingSummary(building).complete
   const initialWings = useMemo(() => (building.wings ?? []).map((w) => ({ ...w, key: w.id })), [building.wings])
   const [wings, setWings] = useState(initialWings)
@@ -267,8 +272,10 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
             <h3 className="mb-3 text-sm font-bold text-ink">{editing ? `Edit wing ${editing.name}` : 'New wing'}</h3>
             <WingForm
               key={sheet.key ?? 'new'}
-              initial={editing}
+              // A new wing starts with the building's own Live (not live for a surveyor).
+              initial={editing ?? { isLive: canMarkLive && Boolean(building.isLive) }}
               otherNames={otherNames}
+              canMarkLive={canMarkLive}
               onSave={saveWing}
               onCancel={() => setSheet(null)}
               onDelete={editing ? deleteWing : undefined}

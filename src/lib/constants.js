@@ -34,13 +34,13 @@ export const fiberTypeColor = (type) => FIBER_TYPE_COLORS[type] ?? FIBER_TYPE_CO
 export const LIVE_COLOR = '#22c55e' // green
 export const NOT_LIVE_COLOR = '#dc2626' // red
 export const PARTIAL_COLOR = '#f59e0b' // amber — some, not all, wings live
-// A building with placed wings takes its colour from them: all live green,
-// some live amber, none red (spec 2026-10-14). Otherwise its own Live flag.
+// A building whose wings are ALL placed takes its colour from them: all live
+// green, some live amber, none red (spec 2026-10-14). While only partly placed
+// it keeps its own Live flag (the badge still shows how many are placed).
 export const buildingColor = (building) => {
-  const wings = building?.wings ?? []
-  if (wings.length) {
-    const { state } = wingSummary(building)
-    return state === 'all' ? LIVE_COLOR : state === 'some' ? PARTIAL_COLOR : NOT_LIVE_COLOR
+  const summary = wingSummary(building)
+  if (summary.complete) {
+    return summary.state === 'all' ? LIVE_COLOR : summary.state === 'some' ? PARTIAL_COLOR : NOT_LIVE_COLOR
   }
   return building?.isLive ? LIVE_COLOR : NOT_LIVE_COLOR
 }

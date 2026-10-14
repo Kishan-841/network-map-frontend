@@ -3,12 +3,20 @@ export const WING_NAME_MAX = 40
 
 export function wingSummary(building) {
   const wings = building?.wings ?? []
-  const total = building?.details?.wings ?? 0
+  // Map lists carry only details.wings; the older flat `wingCount` is read too.
+  const total = building?.details?.wings ?? building?.wingCount ?? 0
   const live = wings.filter((w) => w.isLive).length
   const placed = wings.length
   const state = placed === 0 ? 'none' : live === placed ? 'all' : live === 0 ? 'off' : 'some'
   return { placed, total, live, complete: total > 0 && placed === total, state }
 }
+
+/** Buildings drawn amber: every wing placed, some (not all) of them live. */
+export const countPartlyLive = (buildings = []) =>
+  buildings.reduce((n, b) => {
+    const { complete, state } = wingSummary(b)
+    return complete && state === 'some' ? n + 1 : n
+  }, 0)
 
 /** Field errors for the wing form; `otherNames` are the names of the building's OTHER wings. */
 export function wingFormErrors({ name, homePass }, otherNames = []) {

@@ -68,7 +68,8 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
   const [error, setError] = useState(null)
   const [showMap, setShowMap] = useState(false)
 
-  const [form, setForm] = useState({
+  // Kept so the Locate wings button can tell whether the form has unsaved edits.
+  const [initialForm] = useState(() => ({
     buildingName: building.buildingName ?? '',
     formattedAddress: building.formattedAddress ?? '',
     zoneId: building.zoneId ?? '',
@@ -88,7 +89,9 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
     ownerMobile: building.permission?.ownerMobile ?? '',
     // An approved society keeps a logged history: every edit needs a reason.
     changeRemark: '',
-  })
+  }))
+  const [form, setForm] = useState(initialForm)
+  const dirty = JSON.stringify(form) !== JSON.stringify(initialForm)
   const society = isSociety(building)
   const wingInfo = wingSummary(building)
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
@@ -106,7 +109,8 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
         zoneId: form.zoneId,
         latitude: form.latitude,
         longitude: form.longitude,
-        ...(restricted ? {} : { isLive: form.isLive }),
+        // A complete building's Live comes from its wings — the API ignores it, so don't send it.
+        ...(restricted || wingInfo.complete ? {} : { isLive: form.isLive }),
         details: {
           wings: numOrNull(form.wings),
           floors: numOrNull(form.floors),
@@ -191,7 +195,7 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
           )}
         </div>
 
-        {!restricted && (
+        {!restricted && !wingInfo.complete && (
           <YesNo
             label="Building RFS"
             value={form.isLive}
@@ -199,7 +203,15 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
           />
         )}
         {!restricted && wingInfo.complete && (
-          <p className="-mt-1 text-xs font-normal text-muted">Switching this also switches every wing.</p>
+          <div className="flex items-center justify-between gap-3 rounded-btn border border-line bg-card px-4 py-3">
+            <span className="flex flex-col">
+              <span className="text-sm font-medium text-ink">Building RFS</span>
+              <span className="text-xs font-normal text-muted">Comes from its wings</span>
+            </span>
+            <span className={`text-sm font-medium ${building.isLive ? 'text-fiber' : 'text-muted'}`}>
+              {building.isLive ? 'Yes' : 'No'}
+            </span>
+          </div>
         )}
 
         <div className="grid grid-cols-2 gap-3">
@@ -208,7 +220,10 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
             {wingInfo.total > 0 && onLocate && (
               <button
                 type="button"
-                onClick={onLocate}
+                onClick={() => {
+                  if (dirty && !window.confirm('Discard your changes to this building?')) return
+                  onLocate()
+                }}
                 className="inline-flex h-9 items-center justify-center gap-1.5 rounded-btn border border-line px-3 text-sm font-medium text-ink hover:border-fiber/50 hover:bg-paper"
               >
                 <IconPin className="h-4 w-4 text-muted" aria-hidden="true" />

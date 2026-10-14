@@ -15,6 +15,7 @@ import { FilterSheet } from '@/components/map/FilterSheet'
 import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 import { MapLegend } from '@/components/map/MapLegend'
 import { buildingGroup, countBuildingGroups } from '@/lib/map-layers'
+import { countPartlyLive } from '@/lib/building-wings'
 import { Fab } from '@/components/ui/Fab'
 import MapSearchBox from '@/components/map/MapSearchBox'
 
@@ -110,6 +111,7 @@ function CoverageMapPage() {
     return buildings.filter((b) => groupShown[buildingGroup(b)])
   }, [buildings, buildingsShown, liveShown, notLiveShown, societyShown])
   const groupCounts = useMemo(() => countBuildingGroups(buildings), [buildings])
+  const partlyLiveCount = useMemo(() => countPartlyLive(buildings), [buildings])
 
   return (
     // z-50 lifts the page's own stacking context above the z-40 bottom nav —
@@ -176,6 +178,7 @@ function CoverageMapPage() {
         buildingCount={buildings.length}
         liveCount={groupCounts.live}
         notLiveCount={groupCounts.notLive}
+        partlyLiveCount={partlyLiveCount}
         societyCount={groupCounts.society}
         societyShown={societyShown}
         onToggleSociety={() => setSocietyShown((v) => !v)}

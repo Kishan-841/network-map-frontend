@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
+import { LIVE_COLOR, NOT_LIVE_COLOR, PARTIAL_COLOR } from '@/lib/constants'
 import { POINT_COLORS } from '@/lib/fiber/constants'
 import { hiddenLayerCount } from '@/lib/map-layers'
 import { IconLayers, IconClose, IconTriangle, IconShield, IconBuildings } from '@/components/ui/icons'
@@ -17,6 +17,7 @@ export function MapLegend({
   buildingCount,
   liveCount,
   notLiveCount,
+  partlyLiveCount = 0,
   societyCount = 0,
   societyShown = true,
   onToggleSociety,
@@ -198,6 +199,14 @@ export function MapLegend({
                 onToggle: onToggleSociety,
               })}
           </div>
+          {/* A key, not a filter: amber pins are complete buildings with only
+              some wings live — they count under Live above. */}
+          {partlyLiveCount > 0 && (
+            <p className="mt-2 flex items-center gap-2 text-xs text-muted">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: PARTIAL_COLOR }} aria-hidden="true" />
+              Some wings live
+            </p>
+          )}
         </div>
       )}
 

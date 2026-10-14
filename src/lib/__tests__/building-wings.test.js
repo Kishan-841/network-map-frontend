@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { wingSummary, wingFormErrors } from '@/lib/building-wings'
+import { wingSummary, wingFormErrors, countPartlyLive } from '@/lib/building-wings'
 import { buildingColor, LIVE_COLOR, NOT_LIVE_COLOR, PARTIAL_COLOR } from '@/lib/constants'
 
 const b = (wings, total = wings.length, isLive = false) => ({ isLive, details: { wings: total }, wings })
@@ -25,6 +25,15 @@ describe('buildingColor with wings', () => {
     expect(buildingColor(b([w(false)]))).toBe(NOT_LIVE_COLOR)
     expect(buildingColor({ isLive: true })).toBe(LIVE_COLOR)
   })
+  it('a partly placed building keeps its own Live colour', () => {
+    expect(buildingColor(b([w(true)], 3, false))).toBe(NOT_LIVE_COLOR)
+    expect(buildingColor(b([w(false)], 3, true))).toBe(LIVE_COLOR)
+    expect(buildingColor(b([w(true), w(false)], 3, false))).toBe(NOT_LIVE_COLOR)
+  })
+  it('reads the wing count from a flat wingCount too', () => {
+    expect(wingSummary({ wingCount: 2, wings: [w(true), w(false)] })).toMatchObject({ total: 2, complete: true })
+    expect(buildingColor({ isLive: false, wingCount: 2, wings: [w(true), w(false)] })).toBe(PARTIAL_COLOR)
+  })
 })
 
 describe('wingFormErrors', () => {
@@ -34,5 +43,16 @@ describe('wingFormErrors', () => {
     expect(wingFormErrors({ name: 'B', homePass: '-1' }, [])).toHaveProperty('homePass')
     expect(wingFormErrors({ name: 'B', homePass: '' }, [])).toHaveProperty('homePass')
     expect(wingFormErrors({ name: 'B', homePass: '12' }, ['A'])).toEqual({})
+  })
+})
+
+describe('countPartlyLive', () => {
+  it('counts only complete buildings with some wings live', () => {
+    expect(countPartlyLive([
+      b([w(true), w(false)]), // complete, some → amber
+      b([w(true), w(false)], 3), // partial → not counted
+      b([w(true), w(true)]), // all live
+      { isLive: true },
+    ])).toBe(1)
   })
 })

@@ -14,7 +14,7 @@ import { DuplicateWarningStep } from '@/components/buildings/DuplicateWarningSte
 import { DetailsForm } from '@/components/buildings/DetailsForm'
 import { AcquisitionDetailsForm } from '@/components/buildings/AcquisitionDetailsForm'
 import { useAuthStore } from '@/stores/auth-store'
-import { isAgent } from '@/lib/roles'
+import { isAgent, canEditBuilding } from '@/lib/roles'
 import { useZones } from '@/hooks/useZones'
 import { zoneManagerGate, isZonelessManager } from '@/lib/manager-team'
 import { NoZonesNotice } from '@/components/buildings/NoZonesNotice'
@@ -74,7 +74,14 @@ export default function AddBuildingPage() {
   const [manual, setManual] = useState(false)
   const [draft, setDraft] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-  const role = useAuthStore((s) => s.user?.role)
+  const user = useAuthStore((s) => s.user)
+  const role = user?.role
+  // With wings, go straight on to locating them — only if this user may edit
+  // the new building (the wings API is gated like editing it).
+  const afterCreate = (created, wings) =>
+    Number(wings ?? 0) > 0 && created?.id && canEditBuilding(user, created)
+      ? `/buildings/${created.id}?locateWings=1`
+      : '/buildings'
   const agent = isAgent(role)
   // A zone manager with no zones cannot save a building (the API wants one of
   // their zones) — say so up front rather than after a whole capture.
@@ -196,9 +203,7 @@ export default function AddBuildingPage() {
       // The map draws from a session-cached marker set — drop it so the new
       // building has a pin the moment the user opens /map.
       invalidateBuildingMarkers()
-      router.replace(
-        Number(details?.wings ?? 0) > 0 ? `/buildings/${res.data.data.id}?locateWings=1` : '/buildings'
-      )
+      router.replace(afterCreate(res.data.data, details?.wings))
     } catch (err) {
       setServerError(getApiErrorMessage(err, 'Could not save the building'))
       setSubmitting(false)
@@ -241,11 +246,7 @@ export default function AddBuildingPage() {
 
       const res = await apiClient.post('/buildings', payload)
       invalidateBuildingMarkers()
-      router.replace(
-        Number(payload.details?.wings ?? 0) > 0
-          ? `/buildings/${res.data.data.id}?locateWings=1`
-          : '/buildings'
-      )
+      router.replace(afterCreate(res.data.data, payload.details?.wings))
     } catch (err) {
       setServerError(getApiErrorMessage(err, 'Could not save the building'))
       setSubmitting(false)
