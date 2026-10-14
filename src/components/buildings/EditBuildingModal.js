@@ -208,7 +208,7 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
               <span className="text-sm font-medium text-ink">Building RFS</span>
               <span className="text-xs font-normal text-muted">Comes from its wings</span>
             </span>
-            <span className={`text-sm font-medium ${building.isLive ? 'text-fiber' : 'text-muted'}`}>
+            <span className={`text-sm font-medium ${building.isLive ? 'text-ok' : 'text-muted'}`}>
               {building.isLive ? 'Yes' : 'No'}
             </span>
           </div>
