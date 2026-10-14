@@ -15,7 +15,7 @@ export const buildingMarkerShape = (building) => (building?.source === 'PERMISSI
 const SHIELD_PATH = 'M20 3 L35 8.5 V21 C35 32 28 41 20 48 C12 41 5 32 5 21 V8.5 Z'
 const TEARDROP_PATH = 'M20 48s15-16.8 15-28A15 15 0 1 0 5 20c0 11.2 15 28 15 28z'
 
-export function buildingPin({ color = '#22c55e', selected = false, shape = 'pin' }) {
+export function buildingPin({ color = '#22c55e', selected = false, shape = 'pin', badge = 0 }) {
   const society = shape === 'society'
   const scale = selected ? 1.3 : 1
   const width = Math.round(40 * scale)
@@ -24,6 +24,11 @@ export function buildingPin({ color = '#22c55e', selected = false, shape = 'pin'
   // Halo ring behind the head marks the selected pin.
   const halo = selected
     ? `<circle cx="20" cy="19" r="17" fill="none" stroke="${color}" stroke-opacity="0.3" stroke-width="5"/>`
+    : ''
+
+  // Count badge (wings placed on the building) at the top-right of the head.
+  const badgeSvg = badge > 0
+    ? `<g data-badge="1"><circle cx="32" cy="9" r="8" fill="#0f172a" stroke="#ffffff" stroke-width="2"/><text x="32" y="12.5" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff">${badge > 99 ? '99+' : badge}</text></g>`
     : ''
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 40 50">
@@ -42,6 +47,7 @@ export function buildingPin({ color = '#22c55e', selected = false, shape = 'pin'
     <rect x="17.4" y="19.2" width="1.7" height="1.7"/>
     <rect x="20.9" y="19.2" width="1.7" height="1.7"/>
   </g>
+  ${badgeSvg}
 </svg>`
 
   return { svg, width, height, anchorX: width / 2, anchorY: height }
@@ -58,11 +64,11 @@ const pinCache = new Map()
  * hundreds of buildings — caching lets the browser reuse one decoded image
  * instead of re-encoding identical SVGs on every marker (re)build.
  */
-export function buildingPinCached({ color, selected = false, shape = 'pin' }) {
-  const key = `${color}|${selected}|${shape}`
+export function buildingPinCached({ color, selected = false, shape = 'pin', badge = 0 }) {
+  const key = `${color}|${selected}|${shape}|${badge}`
   let cached = pinCache.get(key)
   if (!cached) {
-    const pin = buildingPin({ color, selected, shape })
+    const pin = buildingPin({ color, selected, shape, badge })
     cached = { ...pin, url: pinDataUri(pin) }
     pinCache.set(key, cached)
   }

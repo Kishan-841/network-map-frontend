@@ -30,3 +30,10 @@ describe('building marker shape', () => {
     expect(buildingPinCached({ color: '#ef4444', shape: 'society' })).toBe(b)
   })
 })
+
+describe('badge pin', () => {
+  it('draws a count badge only when badge > 0', () => {
+    expect(buildingPin({ color: '#22c55e', badge: 3 }).svg).toContain('>3<')
+    expect(buildingPin({ color: '#22c55e' }).svg).not.toContain('data-badge')
+  })
+})

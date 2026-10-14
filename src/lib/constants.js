@@ -1,3 +1,5 @@
+import { wingSummary } from './building-wings'
+
 export const GPS_ACCURACY_WARN_METERS = 20
 
 // Zone boundary colors — assigned by list index (zones are name-ordered, so
@@ -31,7 +33,17 @@ export const fiberTypeColor = (type) => FIBER_TYPE_COLORS[type] ?? FIBER_TYPE_CO
 // red when it isn't yet.
 export const LIVE_COLOR = '#22c55e' // green
 export const NOT_LIVE_COLOR = '#dc2626' // red
-export const buildingColor = (building) => (building?.isLive ? LIVE_COLOR : NOT_LIVE_COLOR)
+export const PARTIAL_COLOR = '#f59e0b' // amber — some, not all, wings live
+// A building with placed wings takes its colour from them: all live green,
+// some live amber, none red (spec 2026-10-14). Otherwise its own Live flag.
+export const buildingColor = (building) => {
+  const wings = building?.wings ?? []
+  if (wings.length) {
+    const { state } = wingSummary(building)
+    return state === 'all' ? LIVE_COLOR : state === 'some' ? PARTIAL_COLOR : NOT_LIVE_COLOR
+  }
+  return building?.isLive ? LIVE_COLOR : NOT_LIVE_COLOR
+}
 
 // System log filter options — must match backend module/action names
 // (see backend src/modules/system-logs + route annotations).
