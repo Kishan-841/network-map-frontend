@@ -288,7 +288,7 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[45%] shrink-0 lg:h-auto lg:min-w-0 lg:flex-1">
           <div ref={containerRef} className="h-full w-full bg-paper" />
-          {mapReady && !placing && (
+          {mapReady && (
             <div className="absolute left-3 right-3 top-3 max-w-md">
               <MapSearchBox
                 buildings={[]}
@@ -303,13 +303,6 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
                 onBuilding={() => {}}
                 onClear={() => {}}
               />
-            </div>
-          )}
-          {placing && (
-            <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-center">
-              <p className="rounded-full bg-ink/90 px-4 py-2 text-sm font-medium text-card shadow-soft" role="status">
-                Tap the map where wing {nextName} is
-              </p>
             </div>
           )}
         </div>

@@ -30,7 +30,8 @@ export function WingCard({
   const nameRef = useRef(null)
   // A wing just dropped on the map opens with its name ready to retype.
   useEffect(() => {
-    if (expanded && autoFocus) {
+    // Not on touch screens: the keyboard would cover the map and panel at once.
+    if (expanded && autoFocus && !window.matchMedia('(pointer: coarse)').matches) {
       nameRef.current?.focus({ preventScroll: true })
       nameRef.current?.select()
     }
@@ -110,6 +111,8 @@ export function WingCard({
               value={wing.homePass}
               error={shown.homePass ? errors.homePass : undefined}
               onChange={(e) => onChange({ homePass: e.target.value })}
+              // A focused number input changes on wheel — let the panel scroll instead.
+              onWheel={(e) => e.currentTarget.blur()}
               onBlur={() => onBlurField('homePass')}
             />
           </div>
