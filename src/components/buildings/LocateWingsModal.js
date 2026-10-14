@@ -43,10 +43,10 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markersRef = useRef(new Map())
-  const latest = useRef({ wings, total })
+  const latest = useRef({ wings, total, sheetOpen: false })
   useEffect(() => {
-    latest.current = { wings, total }
-  }, [wings, total])
+    latest.current = { wings, total, sheetOpen: Boolean(sheet) }
+  }, [wings, total, sheet])
 
   const dirty = JSON.stringify(wings) !== JSON.stringify(initialWings)
   const completes = wings.length === total && total > 0 && !wasComplete
@@ -90,7 +90,8 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
       })
       markers.set('__building', ref)
       clickListener = map.addListener('click', (e) => {
-        const { wings: current, total: max } = latest.current
+        const { wings: current, total: max, sheetOpen } = latest.current
+        if (sheetOpen) return
         if (current.length < max) {
           setSheet({ latitude: e.latLng.lat(), longitude: e.latLng.lng() })
         } else {
@@ -243,10 +244,17 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
                 <span className="text-muted"> · {w.homePass} home pass · </span>
                 <span className={w.isLive ? 'text-ok' : 'text-bad'}>{w.isLive ? 'Live' : 'Not live'}</span>
               </span>
-              <button type="button" onClick={() => openEdit(w.key)}
-                className="h-9 shrink-0 rounded-btn border border-line px-3 text-sm font-medium text-ink hover:bg-paper">
-                Edit
-              </button>
+              <span className="flex shrink-0 gap-2">
+                <button type="button" onClick={() => openEdit(w.key)}
+                  className="h-9 rounded-btn border border-line px-3 text-sm font-medium text-ink hover:bg-paper">
+                  Edit
+                </button>
+                <button type="button" onClick={() => setWings((prev) => prev.filter((x) => x.key !== w.key))}
+                  aria-label={`Delete wing ${w.name}`}
+                  className="h-9 rounded-btn border border-bad/40 px-3 text-sm font-medium text-bad hover:bg-bad-tint">
+                  Delete
+                </button>
+              </span>
             </li>
           ))}
         </ul>

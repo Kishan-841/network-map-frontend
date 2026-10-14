@@ -61,7 +61,7 @@ const dateInput = (value) => (value ? String(value).slice(0, 10) : '')
  * without the permission record or the live flag. Hiding them is a courtesy —
  * the API refuses those fields from a surveyor whatever the form sends.
  */
-export function EditBuildingModal({ building, onClose, onSaved, restricted = false }) {
+export function EditBuildingModal({ building, onClose, onSaved, restricted = false, onLocate }) {
   const { zones, loading: zonesLoading } = useZones()
   const { types: buildingTypes } = useBuildingTypes()
   const [busy, setBusy] = useState(false)
@@ -205,8 +205,15 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
             <Input id="eb-wings" label="Wings" type="number" value={form.wings} onChange={set('wings')} />
-            {wingInfo.placed > 0 && (
-              <p className="text-xs font-normal text-muted">{wingInfo.placed} of {wingInfo.total} located</p>
+            {wingInfo.total > 0 && onLocate && (
+              <button
+                type="button"
+                onClick={onLocate}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-btn border border-line px-3 text-sm font-medium text-ink hover:border-fiber/50 hover:bg-paper"
+              >
+                <IconPin className="h-4 w-4 text-muted" aria-hidden="true" />
+                Locate wings ({wingInfo.placed} of {wingInfo.total})
+              </button>
             )}
           </div>
           <Input id="eb-floors" label="Floors" type="number" value={form.floors} onChange={set('floors')} />

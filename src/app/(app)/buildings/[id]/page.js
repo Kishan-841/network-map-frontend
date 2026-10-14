@@ -11,6 +11,7 @@ import { PhotoManager } from '@/components/buildings/PhotoManager'
 import { LiveToggle } from '@/components/buildings/LiveToggle'
 import { EditBuildingModal } from '@/components/buildings/EditBuildingModal'
 import { WingsSection } from '@/components/buildings/WingsSection'
+import { wingSummary } from '@/lib/building-wings'
 import { LocateWingsModal } from '@/components/buildings/LocateWingsModal'
 import { Button } from '@/components/ui/Button'
 import { IconEdit, IconTrash } from '@/components/ui/icons'
@@ -55,7 +56,8 @@ export default function BuildingDetailPage({ params }) {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   // The add-building flow lands here with ?locateWings=1 to place the wings.
-  const [locating, setLocating] = useState(useSearchParams().get('locateWings') === '1')
+  const wantsLocate = useSearchParams().get('locateWings') === '1'
+  const [locating, setLocating] = useState(wantsLocate)
   // Depends on the building too: a granted surveyor edits only what they
   // logged, so this is false until the row has loaded.
   const canEdit = canEditBuilding(user, building)
@@ -63,6 +65,11 @@ export default function BuildingDetailPage({ params }) {
   // permission record or the live flag — the API refuses those outright.
   const editRestricted = !canManageBuildings(role)
   const [deleting, setDeleting] = useState(false)
+  // Closing the locator also drops ?locateWings=1 so reload/back don't reopen it.
+  const closeLocator = () => {
+    setLocating(false)
+    if (wantsLocate) router.replace(`/buildings/${id}`)
+  }
   const [deleteError, setDeleteError] = useState(null)
 
   async function handleDelete() {
@@ -200,12 +207,12 @@ export default function BuildingDetailPage({ params }) {
 
       <PhotoManager building={building} onChanged={fetchBuilding} />
 
-      {locating && (
+      {locating && canEdit && wingSummary(building).total > 0 && (
         <LocateWingsModal
           building={building}
-          onClose={() => setLocating(false)}
+          onClose={closeLocator}
           onSaved={() => {
-            setLocating(false)
+            closeLocator()
             fetchBuilding()
           }}
         />
@@ -216,6 +223,10 @@ export default function BuildingDetailPage({ params }) {
           building={building}
           restricted={editRestricted}
           onClose={() => setEditOpen(false)}
+          onLocate={() => {
+            setEditOpen(false)
+            setLocating(true)
+          }}
           onSaved={fetchBuilding}
         />
       )}
