@@ -39,6 +39,7 @@ let pooledFitted = false
 // Below this zoom, small zone polygons are near-invisible — show a colored
 // dot notation at the centroid instead.
 const ZONE_DETAIL_ZOOM = 13
+const wingsKeyOf = (b) => (b.wings ?? []).map((w) => `${w.id}|${w.name}|${w.latitude}|${w.longitude}|${w.isLive}`).join(';')
 // What a marker's icon depends on — a change re-icons just that marker.
 const pinKeyOf = (building, selected) => `${buildingColor(building)}|${buildingMarkerShape(building)}|${selected}|${building.wings?.length ?? 0}`
 
@@ -180,6 +181,8 @@ export default function GoogleBuildingsMap({
   // click does. Clicking the map or zooming back out collapses it.
   const expandedIdRef = useRef(null)
   const wingMarkersRef = useRef([])
+  const expandingRef = useRef(false) // fitBounds in flight: its zoom changes must not collapse
+  const wingsKeyRef = useRef('')
   const clearWingMarkers = useCallback(() => {
     wingMarkersRef.current.forEach((m) => { google.maps.event.clearInstanceListeners(m); m.setMap(null) })
     wingMarkersRef.current = []
@@ -188,6 +191,8 @@ export default function GoogleBuildingsMap({
     clearWingMarkers()
     const id = expandedIdRef.current
     expandedIdRef.current = null
+    expandingRef.current = false
+    wingsKeyRef.current = ''
     const pin = id && markersRef.current.get(id)
     if (pin) pin.setVisible(true)
   }, [clearWingMarkers])
@@ -195,6 +200,7 @@ export default function GoogleBuildingsMap({
     const map = mapRef.current
     if (!map) return
     clearWingMarkers()
+    wingsKeyRef.current = wingsKeyOf(building)
     wingMarkersRef.current = building.wings.map((wing) => {
       const m = new google.maps.Marker({
         map,
@@ -218,8 +224,14 @@ export default function GoogleBuildingsMap({
     const bounds = new google.maps.LatLngBounds()
     bounds.extend({ lat: building.latitude, lng: building.longitude })
     building.wings.forEach((w) => bounds.extend({ lat: w.latitude, lng: w.longitude }))
+    expandingRef.current = true
     map.fitBounds(bounds, 80)
-    google.maps.event.addListenerOnce(map, 'idle', () => { if ((map.getZoom() ?? 0) > 19) map.setZoom(19) })
+    // No idle fires if the view already fits — don't leave the flag stuck.
+    setTimeout(() => { expandingRef.current = false }, 3000)
+    google.maps.event.addListenerOnce(map, 'idle', () => {
+      expandingRef.current = false
+      if ((map.getZoom() ?? 0) > 19) map.setZoom(19)
+    })
   }, [collapse, drawWings])
 
   useEffect(() => {
@@ -227,7 +239,7 @@ export default function GoogleBuildingsMap({
     expandRef.current = expand
     const clickL = map.addListener('click', collapse)
     const zoomL = map.addListener('zoom_changed', () => {
-      if (expandedIdRef.current && (map.getZoom() ?? 0) < 15) collapse()
+      if (expandedIdRef.current && !expandingRef.current && (map.getZoom() ?? 0) < 15) collapse()
     })
     return () => {
       clickL.remove()
@@ -462,7 +474,10 @@ export default function GoogleBuildingsMap({
     if (openId) {
       const fresh = buildings.find((b) => b.id === openId)
       if (!fresh || !fresh.wings?.length) collapse()
-      else { markers.get(openId)?.setVisible(false); drawWings(fresh) }
+      else {
+        markers.get(openId)?.setVisible(false)
+        if (wingsKeyOf(fresh) !== wingsKeyRef.current) drawWings(fresh)
+      }
     }
 
     // Fit-to-all on first load (user decision) — later refetches keep the view.
