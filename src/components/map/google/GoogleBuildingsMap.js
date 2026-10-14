@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
-import { buildingColor, zoneColor } from '@/lib/constants'
+import { buildingColor, zoneColor, LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { buildingMarkerShape, buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
@@ -40,12 +40,12 @@ let pooledFitted = false
 // dot notation at the centroid instead.
 const ZONE_DETAIL_ZOOM = 13
 // What a marker's icon depends on — a change re-icons just that marker.
-const pinKeyOf = (building, selected) => `${buildingColor(building)}|${buildingMarkerShape(building)}|${selected}`
+const pinKeyOf = (building, selected) => `${buildingColor(building)}|${buildingMarkerShape(building)}|${selected}|${building.wings?.length ?? 0}`
 
 // An approved society (source PERMISSION) gets a shield instead of the
 // teardrop, in the same live / not-live colour.
 const pinIcon = (building, selected) => {
-  const pin = buildingPinCached({ color: buildingColor(building), selected, shape: buildingMarkerShape(building) })
+  const pin = buildingPinCached({ color: buildingColor(building), selected, shape: buildingMarkerShape(building), badge: building.wings?.length ?? 0 })
   return {
     url: pin.url,
     scaledSize: new google.maps.Size(pin.width, pin.height),
@@ -82,6 +82,7 @@ export default function GoogleBuildingsMap({
   // "Frame this" — one handle used by every click on the map, and published
   // to the parent through centreRef for the detail panels.
   const focusRef = useRef(null)
+  const expandRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   const selectedIdRef = useRef(selectedId)
   const prevSelectedRef = useRef(null)
@@ -173,6 +174,68 @@ export default function GoogleBuildingsMap({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // One building's wings at a time (spec 2026-10-14): its pin hides and one
+  // small labelled pin per wing shows; a wing click does what the building
+  // click does. Clicking the map or zooming back out collapses it.
+  const expandedIdRef = useRef(null)
+  const wingMarkersRef = useRef([])
+  const clearWingMarkers = useCallback(() => {
+    wingMarkersRef.current.forEach((m) => { google.maps.event.clearInstanceListeners(m); m.setMap(null) })
+    wingMarkersRef.current = []
+  }, [])
+  const collapse = useCallback(() => {
+    clearWingMarkers()
+    const id = expandedIdRef.current
+    expandedIdRef.current = null
+    const pin = id && markersRef.current.get(id)
+    if (pin) pin.setVisible(true)
+  }, [clearWingMarkers])
+  const drawWings = useCallback((building) => {
+    const map = mapRef.current
+    if (!map) return
+    clearWingMarkers()
+    wingMarkersRef.current = building.wings.map((wing) => {
+      const m = new google.maps.Marker({
+        map,
+        position: { lat: wing.latitude, lng: wing.longitude },
+        title: `${building.buildingName} · ${wing.name}`,
+        label: { text: wing.name, color: '#ffffff', fontSize: '11px', fontWeight: '700' },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 12, fillColor: wing.isLive ? LIVE_COLOR : NOT_LIVE_COLOR, fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2 },
+        zIndex: 2000,
+      })
+      m.addListener('click', () => onSelectRef.current(building))
+      return m
+    })
+  }, [clearWingMarkers])
+  const expand = useCallback((building) => {
+    const map = mapRef.current
+    if (!map) return
+    collapse()
+    expandedIdRef.current = building.id
+    markersRef.current.get(building.id)?.setVisible(false)
+    drawWings(building)
+    const bounds = new google.maps.LatLngBounds()
+    bounds.extend({ lat: building.latitude, lng: building.longitude })
+    building.wings.forEach((w) => bounds.extend({ lat: w.latitude, lng: w.longitude }))
+    map.fitBounds(bounds, 80)
+    google.maps.event.addListenerOnce(map, 'idle', () => { if ((map.getZoom() ?? 0) > 19) map.setZoom(19) })
+  }, [collapse, drawWings])
+
+  useEffect(() => {
+    if (!map || !ready) return
+    expandRef.current = expand
+    const clickL = map.addListener('click', collapse)
+    const zoomL = map.addListener('zoom_changed', () => {
+      if (expandedIdRef.current && (map.getZoom() ?? 0) < 15) collapse()
+    })
+    return () => {
+      clickL.remove()
+      zoomL.remove()
+      expandRef.current = null
+      collapse()
+    }
+  }, [map, ready, expand, collapse])
 
   // Apply layer changes to the live map (initial value is set at creation).
   useEffect(() => {
@@ -353,8 +416,13 @@ export default function GoogleBuildingsMap({
           zIndex: selected ? 1000 : 1, // selected pin sits on top
         })
         marker.addListener('click', () => {
-          onSelectRef.current(marker.buildingData)
-          focusRef.current?.(marker.buildingData)
+          const b = marker.buildingData
+          if (b.wings?.length) {
+            expandRef.current?.(b) // zoom to the wings and show wing pins; no drawer yet
+            return
+          }
+          onSelectRef.current(b)
+          focusRef.current?.(b)
         })
         marker.pinKey = key
         marker.buildingData = building
@@ -388,6 +456,15 @@ export default function GoogleBuildingsMap({
 
     if (changed) clusterer.render()
 
+    // A refresh (sales map quiet reload, markers invalidate) keeps the open
+    // building open and redraws its wing pins from the new data.
+    const openId = expandedIdRef.current
+    if (openId) {
+      const fresh = buildings.find((b) => b.id === openId)
+      if (!fresh || !fresh.wings?.length) collapse()
+      else { markers.get(openId)?.setVisible(false); drawWings(fresh) }
+    }
+
     // Fit-to-all on first load (user decision) — later refetches keep the view.
     // Fit once per SESSION — revisits keep the viewport the user left at.
     if (!pooledFitted && buildings.length > 0) {
@@ -396,7 +473,7 @@ export default function GoogleBuildingsMap({
       map.fitBounds(bounds, 48)
       pooledFitted = true
     }
-  }, [buildings, ready])
+  }, [buildings, ready, collapse, drawWings])
 
   // Selection: restyle only the previously- and newly-selected pins.
   useEffect(() => {
