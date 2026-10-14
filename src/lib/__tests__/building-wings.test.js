@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { wingSummary, wingFormErrors, countPartlyLive } from '@/lib/building-wings'
+import { wingSummary, wingFormErrors, countPartlyLive, nextWingName, wingTotals } from '@/lib/building-wings'
 import { buildingColor, LIVE_COLOR, NOT_LIVE_COLOR, PARTIAL_COLOR } from '@/lib/constants'
 
 const b = (wings, total = wings.length, isLive = false) => ({ isLive, details: { wings: total }, wings })
@@ -54,5 +54,28 @@ describe('countPartlyLive', () => {
       b([w(true), w(true)]), // all live
       { isLive: true },
     ])).toBe(1)
+  })
+})
+
+describe('nextWingName', () => {
+  it('first unused letter, case-insensitive', () => {
+    expect(nextWingName([])).toBe('A')
+    expect(nextWingName(['a', 'B', 'D'])).toBe('C')
+  })
+  it('falls back to numbers once A–Z are taken', () => {
+    const letters = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i))
+    expect(nextWingName(letters)).toBe('1')
+    expect(nextWingName([...letters, '1', '2'])).toBe('3')
+  })
+})
+
+describe('wingTotals', () => {
+  it('sums valid home pass and counts live', () => {
+    expect(wingTotals([
+      { homePass: 100, isLive: true },
+      { homePass: '50', isLive: false },
+      { homePass: '', isLive: true },
+      { homePass: '-3', isLive: false },
+    ])).toEqual({ homePass: 150, live: 2, placed: 4 })
   })
 })

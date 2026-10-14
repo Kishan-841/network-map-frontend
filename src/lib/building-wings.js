@@ -29,3 +29,28 @@ export function wingFormErrors({ name, homePass }, otherNames = []) {
   if (hp === '' || !/^\d+$/.test(hp)) errors.homePass = 'A whole number, 0 or more'
   return errors
 }
+
+/**
+ * Suggested name for the next wing: the first letter A–Z no wing uses
+ * (case-insensitive), then the first unused number from 1.
+ */
+export function nextWingName(names = []) {
+  const used = new Set(names.map((n) => String(n).trim().toUpperCase()))
+  for (let i = 0; i < 26; i++) {
+    const letter = String.fromCharCode(65 + i)
+    if (!used.has(letter)) return letter
+  }
+  for (let n = 1; ; n++) if (!used.has(String(n))) return String(n)
+}
+
+/** Panel footer numbers for a draft: home pass total (valid entries only) and live count. */
+export function wingTotals(wings = []) {
+  let homePass = 0
+  let live = 0
+  for (const w of wings) {
+    const hp = String(w.homePass ?? '').trim()
+    if (/^\d+$/.test(hp)) homePass += Number(hp)
+    if (w.isLive) live++
+  }
+  return { homePass, live, placed: wings.length }
+}
