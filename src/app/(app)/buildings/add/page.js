@@ -174,7 +174,7 @@ export default function AddBuildingPage() {
         designationOther,
         ...details
       } = values
-      await apiClient.post('/buildings', {
+      const res = await apiClient.post('/buildings', {
         placeId: draft.placeId,
         buildingName: draft.buildingName,
         formattedAddress: draft.formattedAddress,
@@ -196,7 +196,9 @@ export default function AddBuildingPage() {
       // The map draws from a session-cached marker set — drop it so the new
       // building has a pin the moment the user opens /map.
       invalidateBuildingMarkers()
-      router.replace('/buildings')
+      router.replace(
+        Number(details?.wings ?? 0) > 0 ? `/buildings/${res.data.data.id}?locateWings=1` : '/buildings'
+      )
     } catch (err) {
       setServerError(getApiErrorMessage(err, 'Could not save the building'))
       setSubmitting(false)
@@ -237,9 +239,13 @@ export default function AddBuildingPage() {
         photos: photos.length ? photos : undefined,
       }
 
-      await apiClient.post('/buildings', payload)
+      const res = await apiClient.post('/buildings', payload)
       invalidateBuildingMarkers()
-      router.replace('/buildings')
+      router.replace(
+        Number(payload.details?.wings ?? 0) > 0
+          ? `/buildings/${res.data.data.id}?locateWings=1`
+          : '/buildings'
+      )
     } catch (err) {
       setServerError(getApiErrorMessage(err, 'Could not save the building'))
       setSubmitting(false)

@@ -1,7 +1,7 @@
 'use client'
 
 import { use, useCallback, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { Modal } from '@/components/ui/Modal'
@@ -10,6 +10,8 @@ import { IconPin } from '@/components/ui/icons'
 import { PhotoManager } from '@/components/buildings/PhotoManager'
 import { LiveToggle } from '@/components/buildings/LiveToggle'
 import { EditBuildingModal } from '@/components/buildings/EditBuildingModal'
+import { WingsSection } from '@/components/buildings/WingsSection'
+import { LocateWingsModal } from '@/components/buildings/LocateWingsModal'
 import { Button } from '@/components/ui/Button'
 import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
@@ -52,6 +54,8 @@ export default function BuildingDetailPage({ params }) {
   const [error, setError] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // The add-building flow lands here with ?locateWings=1 to place the wings.
+  const [locating, setLocating] = useState(useSearchParams().get('locateWings') === '1')
   // Depends on the building too: a granted surveyor edits only what they
   // logged, so this is false until the row has loaded.
   const canEdit = canEditBuilding(user, building)
@@ -171,6 +175,8 @@ export default function BuildingDetailPage({ params }) {
         ]}
       />
 
+      <WingsSection building={building} canEdit={canEdit} onLocate={() => setLocating(true)} />
+
       <Section title="Permission" rows={[['Amount paid', building.permission?.amountPaid]]} />
 
       <Section
@@ -193,6 +199,17 @@ export default function BuildingDetailPage({ params }) {
       />
 
       <PhotoManager building={building} onChanged={fetchBuilding} />
+
+      {locating && (
+        <LocateWingsModal
+          building={building}
+          onClose={() => setLocating(false)}
+          onSaved={() => {
+            setLocating(false)
+            fetchBuilding()
+          }}
+        />
+      )}
 
       {editOpen && (
         <EditBuildingModal

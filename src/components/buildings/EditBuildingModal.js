@@ -12,6 +12,7 @@ import { useBuildingTypes } from '@/hooks/useBuildingTypes'
 import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { IconPin } from '@/components/ui/icons'
 import { isSociety } from '@/lib/society'
+import { wingSummary } from '@/lib/building-wings'
 
 const LocationPicker = dynamic(() => import('@/components/map/LocationPicker'), { ssr: false })
 
@@ -89,6 +90,7 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
     changeRemark: '',
   })
   const society = isSociety(building)
+  const wingInfo = wingSummary(building)
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
 
   const canSave =
@@ -196,13 +198,30 @@ export function EditBuildingModal({ building, onClose, onSaved, restricted = fal
             onChange={(isLive) => setForm((prev) => ({ ...prev, isLive }))}
           />
         )}
+        {!restricted && wingInfo.complete && (
+          <p className="-mt-1 text-xs font-normal text-muted">Switching this also switches every wing.</p>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
-          <Input id="eb-wings" label="Wings" type="number" value={form.wings} onChange={set('wings')} />
+          <div className="flex flex-col gap-1">
+            <Input id="eb-wings" label="Wings" type="number" value={form.wings} onChange={set('wings')} />
+            {wingInfo.placed > 0 && (
+              <p className="text-xs font-normal text-muted">{wingInfo.placed} of {wingInfo.total} located</p>
+            )}
+          </div>
           <Input id="eb-floors" label="Floors" type="number" value={form.floors} onChange={set('floors')} />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Input id="eb-homepass" label="Home pass" type="number" value={form.homePass} onChange={set('homePass')} />
+          {wingInfo.complete ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-ink">Home pass</span>
+              <p className="flex h-12 items-center text-[15px] text-ink">
+                {building.details?.homePass ?? 0} <span className="ml-1 text-xs text-muted">— total of the wings</span>
+              </p>
+            </div>
+          ) : (
+            <Input id="eb-homepass" label="Home pass" type="number" value={form.homePass} onChange={set('homePass')} />
+          )}
           <Select id="eb-type" label="Building type" value={form.buildingType} onChange={set('buildingType')}>
             <option value="">Select type</option>
             {buildingTypes.map((type) => (
