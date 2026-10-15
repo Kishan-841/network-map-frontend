@@ -5,6 +5,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { parseSpreadsheetSheets } from '@/lib/spreadsheet'
 import { readPlanSheet, fmtDay, visitsText } from '@/lib/visit-plan-sheet'
 import { istToday, fmtLongDay, rowDateSwap, applyDateSwaps } from '@/lib/plan-sheet-dates'
+import { planProblems } from '@/lib/plan-upload-problems'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { IconUpload, IconWarn, IconSearch, IconCalendar } from '@/components/ui/icons'
@@ -132,6 +133,9 @@ export function UploadPlanModal({ onClose, onSaved }) {
   const [error, setError] = useState(null)
   const [swappedFrom, setSwappedFrom] = useState({}) // rowNumber → { date: { from, to }, until? } applied by the planner
   const [unchecked, setUnchecked] = useState({}) // rowNumber → true: dates swapped since that row's last preview
+  const [onlyProblems, setOnlyProblems] = useState(false) // list only the rows to fix
+  const [flashRow, setFlashRow] = useState(null) // the row "Go to row" just scrolled to
+  const flashTimer = useRef(null)
   // The IST day the server checks "has passed" against — fixed while the modal is open.
   const [today] = useState(() => istToday())
   // Every preview, pick, tick and reset bumps this; a preview answer is applied
@@ -153,9 +157,22 @@ export function UploadPlanModal({ onClose, onSaved }) {
     setPicks({})
     setSwappedFrom({})
     setUnchecked({})
+    setOnlyProblems(false)
+    setFlashRow(null)
     setStale(false)
     setError(null)
     setBusy(null)
+  }
+
+  /**
+   * Jump the modal to a row's card and outline it for a moment. A jump, not a
+   * smooth scroll: across a long sheet the glide outlasts the outline.
+   */
+  function goToRow(rowNumber) {
+    document.querySelector(`[data-row="${rowNumber}"]`)?.scrollIntoView({ block: 'start' })
+    setFlashRow(rowNumber)
+    clearTimeout(flashTimer.current)
+    flashTimer.current = setTimeout(() => setFlashRow(null), 2000)
   }
 
   /** Preview `rows` (with any picks attached) and merge the answers in. */
@@ -285,6 +302,12 @@ export function UploadPlanModal({ onClose, onSaved }) {
   const swapCount = Object.keys(swaps).length
 
   const included = (sheetRows ?? []).filter((r) => include[r.rowNumber])
+  // Every row to fix, gathered for the panel at the top (a pick waiting for
+  // "Check again" is not one — its row says so itself).
+  const problems = planProblems(sheetRows, items, { outdated: unchecked, pendingPick: stale ? picks : {} })
+  const problemRows = new Set(problems.map((pr) => pr.rowNumber))
+  const showOnlyProblems = onlyProblems && problems.length > 0
+  const visibleRows = showOnlyProblems ? sheetRows.filter((r) => problemRows.has(r.rowNumber)) : (sheetRows ?? [])
   const recheck = () => runPreview(included, picks)
   const fixable = (item) => item.state === 'fix' || Boolean(picks[item.rowNumber])
   const notReady = included.filter((r) => items[r.rowNumber]?.state !== 'ok')
@@ -427,6 +450,42 @@ export function UploadPlanModal({ onClose, onSaved }) {
           )}
           {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
 
+          {problems.length > 0 && (
+            <section className="rounded-btn bg-bad-tint p-3" aria-label="Rows to fix">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-bad">
+                  {problems.length} row{problems.length === 1 ? '' : 's'} to fix
+                </p>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-sm"
+                    checked={onlyProblems}
+                    onChange={(e) => setOnlyProblems(e.target.checked)}
+                  />
+                  Show only rows to fix
+                </label>
+              </div>
+              <ul className="flex max-h-56 flex-col divide-y divide-line/60 overflow-y-auto rounded-btn bg-card">
+                {problems.map((pr) => (
+                  <li key={pr.rowNumber} className="flex items-start gap-3 px-3 py-2 text-sm">
+                    <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATE[pr.state].cls}`}>
+                      Row {pr.rowNumber}
+                    </span>
+                    <span className="min-w-0 flex-1 break-words text-ink">{pr.messages.join(' · ')}</span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-sm font-medium text-primary hover:underline"
+                      onClick={() => goToRow(pr.rowNumber)}
+                    >
+                      Go to row
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           {swapCount > 0 && (
             <div className="flex flex-col gap-3 rounded-btn bg-warn-tint px-4 py-3 sm:flex-row sm:items-center">
               <p className="min-w-0 flex-1 text-sm font-normal text-warn">
@@ -460,7 +519,7 @@ export function UploadPlanModal({ onClose, onSaved }) {
           </label>
 
           <ul className="flex flex-col gap-2" aria-label="Plan rows">
-            {sheetRows.map((row) => {
+            {visibleRows.map((row) => {
               const item = items[row.rowNumber]
               const on = Boolean(include[row.rowNumber])
               const p = picks[row.rowNumber] ?? {}
@@ -477,7 +536,9 @@ export function UploadPlanModal({ onClose, onSaved }) {
                 <li
                   key={row.rowNumber}
                   data-row={row.rowNumber}
-                  className={`rounded-btn border border-line p-3 ${on ? '' : 'opacity-60'}`}
+                  className={`scroll-mt-4 rounded-btn border p-3 transition-shadow ${
+                    flashRow === row.rowNumber ? 'border-primary ring-2 ring-primary/40' : 'border-line'
+                  } ${on ? '' : 'opacity-60'}`}
                 >
                   <div className="flex items-center gap-2">
                     <label className="flex min-w-0 flex-1 items-center gap-2 text-sm">
