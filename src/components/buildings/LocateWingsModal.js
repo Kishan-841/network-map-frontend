@@ -6,7 +6,7 @@ import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { buildingPinCached, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
 import { nextWingName, wingFormErrors, wingSummary, wingTotals } from '@/lib/building-wings'
-import { canManageBuildings } from '@/lib/roles'
+import { canLocateWings } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import MapSearchBox from '@/components/map/MapSearchBox'
 import { Button } from '@/components/ui/Button'
@@ -65,9 +65,9 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
   const [countDraft, setCountDraft] = useState(savedCount ? String(savedCount) : '')
   const [editingCount, setEditingCount] = useState(savedCount === 0)
   const [countShown, setCountShown] = useState(false)
-  // Only admins or managers mark live (mirrors LiveToggle); the API keeps a
-  // surveyor's wings' Live as it was and starts their new wings not live.
-  const canMarkLive = canManageBuildings(useAuthStore((st) => st.user?.role))
+  // Whoever may locate the wings sets their Live too — including the surveyor
+  // who added the building (owner's call, 15 Oct; mirrors the API).
+  const canMarkLive = canLocateWings(useAuthStore((st) => st.user), building)
   const wasComplete = wingSummary(building).complete
   const initialWings = useMemo(() => (building.wings ?? []).map((w) => ({ ...w, key: w.id })), [building.wings])
   const [wings, setWings] = useState(initialWings)

@@ -12,7 +12,7 @@ const hpText = (hp) => (String(hp ?? '').trim() === '' ? '— HP' : `${hp} HP`)
  * One wing in the Locate-wings panel. Collapsed it is a one-line summary
  * (name · home pass · live); expanded it edits the draft in place. The parent
  * owns the draft, the errors and which fields show them (`shown`).
- * `canMarkLive` false (only admins or managers mark live) shows Live as text.
+ * `canMarkLive` false (someone who can't locate the wings) shows Live as text.
  */
 export function WingCard({
   wing,
