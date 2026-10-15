@@ -14,7 +14,7 @@ import { DuplicateWarningStep } from '@/components/buildings/DuplicateWarningSte
 import { DetailsForm } from '@/components/buildings/DetailsForm'
 import { AcquisitionDetailsForm } from '@/components/buildings/AcquisitionDetailsForm'
 import { useAuthStore } from '@/stores/auth-store'
-import { isAgent, canEditBuilding } from '@/lib/roles'
+import { isAgent, canLocateWings } from '@/lib/roles'
 import { useZones } from '@/hooks/useZones'
 import { zoneManagerGate, isZonelessManager } from '@/lib/manager-team'
 import { NoZonesNotice } from '@/components/buildings/NoZonesNotice'
@@ -79,7 +79,7 @@ export default function AddBuildingPage() {
   // With wings, go straight on to locating them — only if this user may edit
   // the new building (the wings API is gated like editing it).
   const afterCreate = (created, wings) =>
-    Number(wings ?? 0) > 0 && created?.id && canEditBuilding(user, created)
+    Number(wings ?? 0) > 0 && created?.id && canLocateWings(user, created)
       ? `/buildings/${created.id}?locateWings=1`
       : '/buildings'
   const agent = isAgent(role)

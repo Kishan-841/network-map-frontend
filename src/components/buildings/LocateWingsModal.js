@@ -10,6 +10,7 @@ import { canManageBuildings } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import MapSearchBox from '@/components/map/MapSearchBox'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { IconPlus } from '@/components/ui/icons'
 import { WingCard } from './WingCard'
 
@@ -48,8 +49,22 @@ const errorsOf = (wing, wings) =>
  * the Google map is created once per open and torn down on unmount. Save sends
  * the whole set.
  */
+/** The wing count a person may type: a whole number 1–100, never below the wings placed. */
+function countError(value, placed) {
+  const n = Number(value)
+  if (!/^\d+$/.test(String(value).trim()) || n < 1 || n > 100) return 'A whole number from 1 to 100'
+  if (n < placed) return `${placed} wings are placed — delete one first`
+  return null
+}
+
 export function LocateWingsModal({ building, onClose, onSaved }) {
-  const total = wingSummary(building).total
+  // The wing count as saved, and as it stands in this edit — the building's
+  // owner may set it here (they can't open the edit form without the tick).
+  const savedCount = wingSummary(building).total
+  const [total, setTotal] = useState(savedCount)
+  const [countDraft, setCountDraft] = useState(savedCount ? String(savedCount) : '')
+  const [editingCount, setEditingCount] = useState(savedCount === 0)
+  const [countShown, setCountShown] = useState(false)
   // Only admins or managers mark live (mirrors LiveToggle); the API keeps a
   // surveyor's wings' Live as it was and starts their new wings not live.
   const canMarkLive = canManageBuildings(useAuthStore((st) => st.user?.role))
@@ -71,7 +86,7 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
   // Google listeners call through this ref so they always see the latest state.
   const handlers = useRef({})
 
-  const dirty = JSON.stringify(payloadOf(wings)) !== JSON.stringify(payloadOf(initialWings))
+  const dirty = total !== savedCount || JSON.stringify(payloadOf(wings)) !== JSON.stringify(payloadOf(initialWings))
   const completes = wings.length === total && total > 0 && !wasComplete
   const full = wings.length >= total
   const totals = wingTotals(wings)
@@ -257,6 +272,7 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
     setError(null)
     try {
       const res = await apiClient.put(`/buildings/${building.id}/wings`, {
+        ...(total !== savedCount ? { wingCount: total } : {}),
         wings: payloadOf(wings).map((w) => ({ ...w, homePass: Number(w.homePass) })),
       })
       invalidateBuildingMarkers()
@@ -268,7 +284,8 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
   }
 
   let hint
-  if (full) hint = 'Drag a pin to move it'
+  if (total === 0) hint = 'How many wings? Answer above'
+  else if (full) hint = 'Drag a pin to move it'
   else if (wings.length === 0) hint = 'Then tap the map where the wing is'
   else hint = `${total - wings.length} more to place`
 
@@ -277,13 +294,67 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
       <header className="flex items-center gap-3 border-b border-line px-4 py-3">
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-bold text-ink">{building.buildingName}</h2>
-          <p className="text-sm text-muted">{wings.length} of {total} wings located</p>
+          {editingCount ? null : (
+            <p className="text-sm text-muted">
+              {wings.length} of {total} wings located ·{' '}
+              <button
+                type="button"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+                onClick={() => {
+                  setCountDraft(String(total))
+                  setCountShown(false)
+                  setEditingCount(true)
+                }}
+              >
+                Change
+              </button>
+            </p>
+          )}
         </div>
         <Button variant="secondary" className="h-10 min-h-10" disabled={saving} onClick={cancel}>Cancel</Button>
         <Button className="h-10 min-h-10" disabled={!dirty} loading={saving} onClick={save}>Save</Button>
       </header>
 
       {error && <p className="mx-4 mt-3 rounded-btn bg-bad-tint px-4 py-2 text-sm text-bad" role="alert">{error}</p>}
+
+      {editingCount && (
+        <form
+          noValidate
+          className="mx-4 mt-3 flex flex-col gap-3 rounded-card border border-line bg-paper p-4 sm:flex-row sm:items-end"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setCountShown(true)
+            if (countError(countDraft, wings.length)) return
+            setTotal(Number(countDraft))
+            setEditingCount(false)
+          }}
+        >
+          <div className="min-w-0 flex-1">
+            <Input
+              id="wing-count"
+              label="How many wings does this building have?"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={100}
+              value={countDraft}
+              error={countShown ? countError(countDraft, wings.length) : undefined}
+              onChange={(e) => setCountDraft(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
+            />
+          </div>
+          <div className="flex gap-2">
+            {total > 0 && (
+              <Button type="button" variant="secondary" className="h-12 min-h-12" onClick={() => setEditingCount(false)}>
+                Keep {total}
+              </Button>
+            )}
+            <Button type="submit" className="h-12 min-h-12">
+              {total > 0 ? 'Update' : 'Continue'}
+            </Button>
+          </div>
+        </form>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[45%] shrink-0 lg:h-auto lg:min-w-0 lg:flex-1">
@@ -321,8 +392,9 @@ export function LocateWingsModal({ building, onClose, onSaved }) {
                 Cancel adding
               </Button>
             ) : (
-              <Button className="h-11 min-h-11" fullWidth disabled={full} onClick={armPlacing}>
-                <IconPlus size={18} aria-hidden /> {full ? `All ${total} wings are placed` : `Add wing ${nextName}`}
+              <Button className="h-11 min-h-11" fullWidth disabled={full || editingCount} onClick={armPlacing}>
+                <IconPlus size={18} aria-hidden />{' '}
+                {total === 0 ? 'Set the number of wings first' : full ? `All ${total} wings are placed` : `Add wing ${nextName}`}
               </Button>
             )}
           </div>

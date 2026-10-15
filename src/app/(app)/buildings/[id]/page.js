@@ -16,7 +16,7 @@ import { LocateWingsModal } from '@/components/buildings/LocateWingsModal'
 import { Button } from '@/components/ui/Button'
 import { IconEdit, IconTrash } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
-import { canEditBuilding, canManageBuildings } from '@/lib/roles'
+import { canEditBuilding, canLocateWings, canManageBuildings } from '@/lib/roles'
 import { isSociety } from '@/lib/society'
 import { SocietyBadge } from '@/components/societies/SocietyBadge'
 import Link from 'next/link'
@@ -61,6 +61,8 @@ export default function BuildingDetailPage({ params }) {
   // Depends on the building too: a granted surveyor edits only what they
   // logged, so this is false until the row has loaded.
   const canEdit = canEditBuilding(user, building)
+  // Wings: editors, and the surveyor who added the building (tick or not).
+  const canLocate = canLocateWings(user, building)
   // A surveyor's grant covers the building's own details, never the legal
   // permission record or the live flag — the API refuses those outright.
   const editRestricted = !canManageBuildings(role)
@@ -182,7 +184,7 @@ export default function BuildingDetailPage({ params }) {
         ]}
       />
 
-      <WingsSection building={building} canEdit={canEdit} onLocate={() => setLocating(true)} />
+      <WingsSection building={building} canEdit={canLocate} onLocate={() => setLocating(true)} />
 
       <Section title="Permission" rows={[['Amount paid', building.permission?.amountPaid]]} />
 
@@ -207,7 +209,7 @@ export default function BuildingDetailPage({ params }) {
 
       <PhotoManager building={building} onChanged={fetchBuilding} />
 
-      {locating && canEdit && wingSummary(building).total > 0 && (
+      {locating && canLocate && (
         <LocateWingsModal
           building={building}
           onClose={closeLocator}

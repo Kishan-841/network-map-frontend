@@ -106,6 +106,16 @@ export const canEditBuilding = (user, building) =>
         Boolean(building?.createdById) &&
         building.createdById === user?.id)
 
+// May locate a building's wings (spec 2026-10-14): whoever may edit it, or —
+// edit tick or not — the surveyor who added it (owner's call, 15 Oct).
+// Mirrors assertCanEditWings on the API. Never a society for a non-admin.
+export const canLocateWings = (user, building) =>
+  canEditBuilding(user, building) ||
+  (building?.source !== 'PERMISSION' &&
+    user?.role === 'SURVEYOR' &&
+    Boolean(building?.createdById) &&
+    building.createdById === user?.id)
+
 
 /**
  * May build and edit the fiber network — draw routes, add closures, splitters

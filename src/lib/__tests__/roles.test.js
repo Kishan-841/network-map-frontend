@@ -5,6 +5,7 @@ import {
   canManageTeamZones,
   canAssignOlt,
   canEditBuilding,
+  canLocateWings,
   canManageFiber,
   fiberNavFor,
   homePathFor,
@@ -276,6 +277,32 @@ describe('seesCompanyWideCharts', () => {
     expect(seesCompanyWideCharts('ADMIN')).toBe(true)
     for (const role of ['MANAGER', 'SURVEYOR', 'SUPERVISOR', undefined]) {
       expect(seesCompanyWideCharts(role)).toBe(false)
+    }
+  })
+})
+
+describe('canLocateWings', () => {
+  const building = (createdById, source = 'COVERAGE') => ({ id: 'b1', createdById, source })
+  const surveyor = (id, canEditBuildings) => ({ id, role: 'SURVEYOR', canEditBuildings })
+
+  it('lets the surveyor who added the building, with or without the edit tick', () => {
+    expect(canLocateWings(surveyor('me', false), building('me'))).toBe(true)
+    expect(canLocateWings(surveyor('me', true), building('me'))).toBe(true)
+  })
+
+  it("never another surveyor's building, nor a society", () => {
+    expect(canLocateWings(surveyor('me', true), building('someone-else'))).toBe(false)
+    expect(canLocateWings(surveyor('me', false), building('me', 'PERMISSION'))).toBe(false)
+  })
+
+  it('anyone who may edit the building', () => {
+    expect(canLocateWings({ id: 'a', role: 'ADMIN' }, building('someone-else'))).toBe(true)
+    expect(canLocateWings({ id: 'm', role: 'MANAGER' }, building('someone-else'))).toBe(true)
+  })
+
+  it('no one else', () => {
+    for (const role of ['PERMISSION_EXECUTIVE', 'ACQUISITION_AGENT', 'SALES_EXECUTIVE']) {
+      expect(canLocateWings({ id: 'me', role }, building('me'))).toBe(false)
     }
   })
 })
