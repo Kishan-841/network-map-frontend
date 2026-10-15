@@ -2,8 +2,8 @@
 
 import { ROLE_LABELS } from '@/lib/roles'
 import { leadStatusBadge, leadStatusLabel } from '@/lib/sales-lead-status'
+import { ACTIVITY_LABEL } from '@/lib/visit-activities'
 
-const ACTIVITY_LABEL = { DESK: 'Desk', UMBRELLA: 'Umbrella', LIFT: 'Leafleting' }
 // Visits happen in India — show India time whatever the viewer's device says.
 const fmtDateTime = (iso) =>
   new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })

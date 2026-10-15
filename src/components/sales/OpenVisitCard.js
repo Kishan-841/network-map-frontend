@@ -6,12 +6,8 @@ import { getCurrentLocation } from '@/lib/geolocation'
 import { Button } from '@/components/ui/Button'
 import { IconLocate, IconOkCircle, IconPlus } from '@/components/ui/icons'
 import { InquiryModal } from './InquiryModal'
+import { VISIT_ACTIVITIES } from '@/lib/visit-activities'
 
-const ACTIVITIES = [
-  { type: 'DESK', label: 'Desk' },
-  { type: 'UMBRELLA', label: 'Umbrella' },
-  { type: 'LIFT', label: 'Leafleting' },
-]
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 const pad = (n) => String(n).padStart(2, '0')
 
@@ -107,7 +103,7 @@ export function OpenVisitCard({ visit, onChanged }) {
         {/* Activities — a set of what was done here. */}
         <p className="mt-5 text-sm font-medium text-muted">Work done here — tap all that apply</p>
         <div className="mt-2 flex flex-wrap gap-2">
-          {ACTIVITIES.map((a) => {
+          {VISIT_ACTIVITIES.map((a) => {
             const on = selected.has(a.type)
             return (
               <button
