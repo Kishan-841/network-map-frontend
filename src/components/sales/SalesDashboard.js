@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiClient } from '@/lib/api-client'
 import { ROLE_LABELS } from '@/lib/roles'
 import { VisitTimeline } from './VisitTimeline'
-import { TeamPerformanceChart } from './DashboardCharts'
 
 const startOfDay = (d) => {
   const x = new Date(d)
@@ -52,6 +51,51 @@ function avgDuration(visits) {
   const h = Math.floor(mins / 60)
   const m = Math.round(mins % 60)
   return h ? `${h}h ${m}m` : `${m}m`
+}
+
+const initials = (name = '') =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join('')
+
+function PersonDetails({ person, visits }) {
+  if (!person) return <p className="text-sm font-normal text-muted">No data for this person in this period.</p>
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+      <div className="flex items-center gap-3">
+        <div
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold"
+          style={{ backgroundColor: 'color-mix(in srgb, var(--color-fiber) 12%, transparent)', color: 'var(--color-fiber)' }}
+        >
+          {initials(person.name)}
+        </div>
+        <div>
+          <p className="font-medium text-ink">{person.name}</p>
+          <p className="text-sm font-normal text-muted">{ROLE_LABELS[person.role] ?? person.role}</p>
+        </div>
+      </div>
+
+      <div className="ml-auto flex items-end gap-6">
+        <div className="text-right">
+          <p className="text-3xl font-bold tabular-nums" style={{ color: 'var(--color-ok)' }}>
+            {person.inquiries}
+          </p>
+          <p className="text-sm font-normal text-muted">Inquiries</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-bold tabular-nums text-ink">{person.visits}</p>
+          <p className="text-sm font-normal text-muted">Visits</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-bold tabular-nums text-ink">{avgDuration(visits)}</p>
+          <p className="text-sm font-normal text-muted">Avg / visit</p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -167,7 +211,7 @@ export function SalesDashboard() {
           }}
           className="ml-auto h-9 rounded-btn border border-line bg-card px-3 text-sm font-medium"
         >
-          <option value="">All roles</option>
+          <option value="">All</option>
           {TIERS.map((t) => (
             <option key={t.value} value={t.value}>
               {t.label}
@@ -179,7 +223,7 @@ export function SalesDashboard() {
           onChange={(e) => setUserId(e.target.value)}
           className="h-9 rounded-btn border border-line bg-card px-3 text-sm font-medium"
         >
-          <option value="">{tier ? `All ${TIERS.find((t) => t.value === tier)?.label.toLowerCase()}` : 'Everyone'}</option>
+          <option value="">Overall</option>
           {tierTeam.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name} · {ROLE_LABELS[u.role] ?? u.role}
@@ -190,17 +234,40 @@ export function SalesDashboard() {
       </div>
 
       {/* KPI tiles */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className={`grid grid-cols-2 gap-3 ${userId ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
         <Tile label="Buildings visited" value={sumVisits} accent="var(--color-fiber)" />
         <Tile label="Inquiries generated" value={sumInquiries} accent="var(--color-ok)" />
         <Tile label="Avg time / visit" value={avgDuration(shownVisits)} />
-        <Tile label={userId ? 'Person' : 'People'} value={shownTeam.length} />
+        {!userId && <Tile label="People" value={shownTeam.length} />}
       </div>
 
-      {/* Chart */}
-      <Card title={tier ? `Visits by ${TIERS.find((t) => t.value === tier)?.label.toLowerCase()}` : 'Visits by person'}>
-        <TeamPerformanceChart team={shownTeam} />
-      </Card>
+      {/* Chart / details */}
+      {userId ? (
+        <Card title="Details for selected person">
+          <PersonDetails person={shownTeam[0]} visits={shownVisits} />
+        </Card>
+      ) : (
+        <Card title="Overall details">
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted">Total visits</span>
+              <span className="font-medium tabular-nums">{sumVisits}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Total inquiries</span>
+              <span className="font-medium tabular-nums">{sumInquiries}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">People in scope</span>
+              <span className="font-medium tabular-nums">{shownTeam.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Avg time / visit</span>
+              <span className="font-medium tabular-nums">{avgDuration(shownVisits)}</span>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <VisitTimeline visits={shownVisits} loading={loading} />
     </section>
