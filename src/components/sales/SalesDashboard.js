@@ -66,8 +66,8 @@ function PersonDetails({ person, visits }) {
   // Complementary angles on this person's work — deliberately different from the
   // volume tiles above (visits / inquiries / avg time) so nothing is repeated.
   const activeDays = new Set(visits.map((v) => startOfDay(v.visitedAt).toDateString())).size
-  const visitsPerDay = activeDays ? (person.visits / activeDays).toFixed(1) : '—'
-  const inquiryRate = person.visits ? `${(person.inquiries / person.visits).toFixed(2)}/visit` : '—'
+  const visitsPerDay = activeDays ? Math.round(person.visits / activeDays) : '—'
+  const inquiryRate = person.visits ? `${Math.round((person.inquiries / person.visits) * 100)}%` : '—'
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
       <div className="flex items-center gap-3">
@@ -96,7 +96,7 @@ function PersonDetails({ person, visits }) {
           <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-ok)' }}>
             {inquiryRate}
           </p>
-          <p className="text-sm font-normal text-muted">Inquiries / visit</p>
+          <p className="text-sm font-normal text-muted">Inquiry rate</p>
         </div>
       </div>
     </div>
