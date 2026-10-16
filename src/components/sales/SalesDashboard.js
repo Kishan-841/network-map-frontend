@@ -63,6 +63,11 @@ const initials = (name = '') =>
 
 function PersonDetails({ person, visits }) {
   if (!person) return <p className="text-sm font-normal text-muted">No data for this person in this period.</p>
+  // Complementary angles on this person's work — deliberately different from the
+  // volume tiles above (visits / inquiries / avg time) so nothing is repeated.
+  const activeDays = new Set(visits.map((v) => startOfDay(v.visitedAt).toDateString())).size
+  const visitsPerDay = activeDays ? (person.visits / activeDays).toFixed(1) : '—'
+  const inquiryRate = person.visits ? `${(person.inquiries / person.visits).toFixed(2)}/visit` : '—'
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
       <div className="flex items-center gap-3">
@@ -80,18 +85,18 @@ function PersonDetails({ person, visits }) {
 
       <div className="ml-auto flex items-end gap-6">
         <div className="text-right">
-          <p className="text-3xl font-bold tabular-nums" style={{ color: 'var(--color-ok)' }}>
-            {person.inquiries}
+          <p className="text-xl font-bold tabular-nums text-ink">{activeDays}</p>
+          <p className="text-sm font-normal text-muted">Active days</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-bold tabular-nums text-ink">{visitsPerDay}</p>
+          <p className="text-sm font-normal text-muted">Visits / day</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-ok)' }}>
+            {inquiryRate}
           </p>
-          <p className="text-sm font-normal text-muted">Inquiries</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xl font-bold tabular-nums text-ink">{person.visits}</p>
-          <p className="text-sm font-normal text-muted">Visits</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xl font-bold tabular-nums text-ink">{avgDuration(visits)}</p>
-          <p className="text-sm font-normal text-muted">Avg / visit</p>
+          <p className="text-sm font-normal text-muted">Inquiries / visit</p>
         </div>
       </div>
     </div>
