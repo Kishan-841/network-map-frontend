@@ -53,6 +53,7 @@ function Point({ label, at, lat, lng }) {
  */
 export function VisitDetailBody({ visit }) {
   const acts = [...new Set((visit.activities ?? []).map((a) => ACTIVITY_LABEL[a.type] ?? a.type))]
+  const photographed = (visit.activities ?? []).filter((a) => a.images?.length)
   const dur = duration(visit.visitedAt, visit.checkOutAt)
   return (
     <>
@@ -116,6 +117,29 @@ export function VisitDetailBody({ visit }) {
           </div>
         ) : (
           <p className="text-sm font-normal text-muted">No activities logged.</p>
+        )}
+        {photographed.length > 0 && (
+          <div className="mt-3 flex flex-col gap-3">
+            {photographed.map((a) => (
+              <div key={a.type}>
+                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-faint">
+                  {ACTIVITY_LABEL[a.type] ?? a.type}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {a.images.map((url) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt={`${ACTIVITY_LABEL[a.type] ?? a.type} photo`}
+                        className="h-20 w-20 rounded-btn border border-line object-cover"
+                      />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </Section>
 

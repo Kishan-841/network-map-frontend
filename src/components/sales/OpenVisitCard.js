@@ -6,6 +6,7 @@ import { getCurrentLocation } from '@/lib/geolocation'
 import { Button } from '@/components/ui/Button'
 import { IconLocate, IconOkCircle, IconPlus } from '@/components/ui/icons'
 import { InquiryModal } from './InquiryModal'
+import { ActivityPhotos } from './ActivityPhotos'
 import { VISIT_ACTIVITIES } from '@/lib/visit-activities'
 
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -128,6 +129,24 @@ export function OpenVisitCard({ visit, onChanged }) {
             )
           })}
         </div>
+
+        {/* Proof photos — one compact strip per activity that is ticked, laid
+            out sideways so several share a row instead of stacking down the
+            card. Optional; hidden until something is selected. */}
+        {nActs > 0 && (
+          <div className="mt-3 flex flex-wrap items-start gap-2">
+            {VISIT_ACTIVITIES.filter((a) => selected.has(a.type)).map((a) => (
+              <ActivityPhotos
+                key={a.type}
+                visitId={visit.id}
+                type={a.type}
+                label={a.label}
+                images={(visit.activities ?? []).find((x) => x.type === a.type)?.images ?? []}
+                onChanged={onChanged}
+              />
+            ))}
+          </div>
+        )}
 
         {/* A lead is a customer captured on this visit, not an activity. */}
         <div className="mt-5 border-t border-line pt-4">
