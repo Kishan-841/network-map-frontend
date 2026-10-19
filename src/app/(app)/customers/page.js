@@ -50,6 +50,14 @@ export default function CustomersPage() {
             a reason — never written twice.
           </li>
           <li>When a name fits more than one building, you pick the right one before importing.</li>
+          <li>
+            Optional columns: <b>Wing</b>, <b>PON NUMBER</b> and <b>OLT</b>.
+          </li>
+          <li>
+            Existing customers are matched by <b>Username</b>, otherwise by mobile. Filled cells update
+            them; blank cells never erase what is stored.
+          </li>
+          <li>Customers missing from the sheet are listed for you, never changed.</li>
         </ul>
       </section>
 

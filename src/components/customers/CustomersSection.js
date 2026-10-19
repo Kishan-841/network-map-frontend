@@ -190,7 +190,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
             ? 'No customers match your search'
             : wingParam === 'none'
               ? 'No customers without a wing'
-              : `No customers in Wing ${wingFilterName ?? ''}`.trim()}
+              : wingFilterName ? `No customers in Wing ${wingFilterName}` : 'No customers in this wing'}
         </p>
       </div>
     ) : (
@@ -299,7 +299,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
               {w.name} ({counts.byWing[w.id] ?? 0})
             </WingChip>
           ))}
-          {counts.none > 0 && (
+          {(counts.none > 0 || wingParam === 'none') && (
             <WingChip active={wingParam === 'none'} onClick={() => selectWing('none')}>
               No wing ({counts.none})
             </WingChip>

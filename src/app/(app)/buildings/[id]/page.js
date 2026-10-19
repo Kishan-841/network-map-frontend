@@ -20,6 +20,7 @@ import { canEditBuilding, canLocateWings, canManageBuildings } from '@/lib/roles
 import { isSociety } from '@/lib/society'
 import { SocietyBadge } from '@/components/societies/SocietyBadge'
 import Link from 'next/link'
+import { CustomersLink } from '@/components/customers/CustomersLink'
 
 /** Card section of label/value rows. Hides rows without values, and itself when empty. */
 function Section({ title, rows }) {
@@ -208,6 +209,8 @@ export default function BuildingDetailPage({ params }) {
       />
 
       <PhotoManager building={building} onChanged={fetchBuilding} />
+
+      <CustomersLink buildingId={building.id} />
 
       {locating && canLocate && (
         <LocateWingsModal

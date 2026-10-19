@@ -48,8 +48,8 @@ function Section({ title, rows }) {
 
 /**
  * One customer in full — every field recorded for it, read-only. The building
- * it belongs to is named in the header and links back; editing and deleting
- * stay on the building page's modal.
+ * it belongs to is named in the header and links back; Edit lives on this
+ * page (the form modal), and deleting stays on the customers list.
  */
 export default function CustomerDetailPage({ params }) {
   const { id, customerId } = use(params)

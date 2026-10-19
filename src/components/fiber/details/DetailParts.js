@@ -5,17 +5,14 @@ import { addedBy, coordText, formatWhen, mapsUrl, NOT_RECORDED, shown } from '@/
 
 export const CHIP = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium'
 
-/** A titled block. `count` sits beside the title for lists, `action` (a button row) on the right. */
-export function Section({ title, count, action, className = '', children }) {
+/** A titled block. `count` sits beside the title for lists. */
+export function Section({ title, count, children }) {
   return (
-    <section className={`flex flex-col gap-2 ${className}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-baseline gap-2 text-xs font-medium uppercase tracking-wide text-faint">
-          {title}
-          {count != null && <span className="font-mono normal-case tracking-normal">{count}</span>}
-        </h3>
-        {action}
-      </div>
+    <section className="flex flex-col gap-2">
+      <h3 className="flex items-baseline gap-2 text-xs font-medium uppercase tracking-wide text-faint">
+        {title}
+        {count != null && <span className="font-mono normal-case tracking-normal">{count}</span>}
+      </h3>
       {children}
     </section>
   )

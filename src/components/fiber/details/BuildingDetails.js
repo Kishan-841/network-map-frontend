@@ -15,6 +15,7 @@ import {
   Skeleton,
 } from './DetailParts'
 import { WingsSection } from '@/components/buildings/WingsSection'
+import { CustomersLink } from '@/components/customers/CustomersLink'
 import { useDetail } from './useDetail'
 import { useAuthStore } from '@/stores/auth-store'
 import { isSociety } from '@/lib/society'
@@ -118,6 +119,8 @@ export default function BuildingDetails({ id, onOpen, onCentre }) {
       </Section>
 
       <WingsSection building={b} canEdit={false} />
+
+      <CustomersLink buildingId={b.id} />
 
       <Section title="Status">
         <FieldList
