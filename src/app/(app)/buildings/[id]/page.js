@@ -210,7 +210,7 @@ export default function BuildingDetailPage({ params }) {
 
       <PhotoManager building={building} onChanged={fetchBuilding} />
 
-      <CustomersLink buildingId={building.id} />
+      <CustomersLink buildingId={building.id} className="mt-5" />
 
       {locating && canLocate && (
         <LocateWingsModal

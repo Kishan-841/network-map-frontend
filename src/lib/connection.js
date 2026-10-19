@@ -74,3 +74,11 @@ export function summaryLine(counts) {
   const parts = SUMMARY_PARTS.filter(([key]) => counts[key] > 0).map(([key, word]) => `${counts[key]} ${word}`)
   return parts.length ? parts.join(' · ') : null
 }
+
+/** Tone for a building's summary dot: offline -> bad, not seen -> warn, else online -> ok, else muted. */
+export function worstTone(counts) {
+  if (counts?.offline > 0) return 'bad'
+  if (counts?.notSeen > 0) return 'warn'
+  if (counts?.online > 0) return 'ok'
+  return 'muted'
+}

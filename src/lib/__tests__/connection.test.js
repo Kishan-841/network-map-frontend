@@ -6,6 +6,7 @@ import {
   formatOnuSignal,
   formatSignal,
   summaryLine,
+  worstTone,
 } from '../connection'
 
 const onu = (o = {}) => ({ rxDbm: -15.8, rxQuality: 'good', baselineRxDbm: -12.1, lastSeen: '2026-10-05T10:00:00Z', ...o })
@@ -98,5 +99,21 @@ describe('summaryLine', () => {
   it('returns null when all zero or missing', () => {
     expect(summaryLine({ online: 0 })).toBeNull()
     expect(summaryLine(null)).toBeNull()
+  })
+})
+
+describe('worstTone', () => {
+  it('is bad when any customer is offline', () => {
+    expect(worstTone({ online: 9, offline: 1 })).toBe('bad')
+  })
+  it('is warn when some are not seen and none offline', () => {
+    expect(worstTone({ online: 9, notSeen: 2 })).toBe('warn')
+  })
+  it('is ok when only online (others are not faults)', () => {
+    expect(worstTone({ online: 3, notLinked: 4, weak: 1 })).toBe('ok')
+  })
+  it('is muted when nothing is online, offline or not seen, or counts are missing', () => {
+    expect(worstTone({ notLinked: 4 })).toBe('muted')
+    expect(worstTone(null)).toBe('muted')
   })
 })
