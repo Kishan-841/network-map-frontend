@@ -8,16 +8,105 @@ import { Button } from '@/components/ui/Button'
 import { IconOkCircle, IconUpload, IconWarn } from '@/components/ui/icons'
 import {
   CUSTOMER_TEMPLATE_CSV,
+  batchByBuilding,
   customerBuildingNames,
   mapCustomerSheet,
+  toImportRow,
 } from '@/lib/customers'
 
-const MAX_ROWS = 1000
 const keyOf = (r) => `${r.sheet}:${r.row}`
+const OUTCOME_LABEL = { create: 'New', update: 'Update', unchanged: 'Unchanged', skip: 'Skipped' }
+
+const emptyTotals = () => ({
+  createdCount: 0,
+  updatedCount: 0,
+  unchangedCount: 0,
+  rows: [],
+  skipped: [],
+  flagged: [],
+  notInSheet: [],
+})
+
+/**
+ * Post the rows batch by batch (one building per batch, sequentially), summing
+ * the counts and joining the lists. On a failed batch it stops and returns what
+ * the earlier batches produced, plus the failure.
+ */
+async function runBatches(importable, dryRun, onProgress) {
+  const batches = batchByBuilding(importable.map(toImportRow))
+  const totals = emptyTotals()
+  let done = 0
+  for (let i = 0; i < batches.length; i++) {
+    onProgress(i + 1, batches.length)
+    try {
+      const body = dryRun ? { rows: batches[i], dryRun: true } : { rows: batches[i] }
+      const d = (await apiClient.post('/customers/import', body)).data.data
+      totals.createdCount += d.createdCount
+      totals.updatedCount += d.updatedCount
+      totals.unchangedCount += d.unchangedCount
+      totals.rows.push(...(d.rows ?? []))
+      totals.skipped.push(...(d.skipped ?? []))
+      totals.flagged.push(...(d.flagged ?? []))
+      totals.notInSheet.push(...(d.notInSheet ?? []))
+      done++
+    } catch (err) {
+      return {
+        totals,
+        done,
+        failure: `Batch ${i + 1} of ${batches.length} failed: ${getApiErrorMessage(err, 'Import failed')}. Batches already imported stay imported.`,
+        failureShort: getApiErrorMessage(err, 'Check failed'),
+      }
+    }
+  }
+  return { totals, done, failure: null }
+}
+
+function flagNote(preview, key) {
+  const [sheet, row] = [key.slice(0, key.lastIndexOf(':')), key.slice(key.lastIndexOf(':') + 1)]
+  return preview.flagged.find((f) => f.sheet === sheet && String(f.row) === row)?.note ?? 'Check this row'
+}
+
+function SkippedList({ items, max = 'max-h-32' }) {
+  if (items.length === 0) return null
+  return (
+    <div className="rounded-btn bg-paper p-3">
+      <p className="mb-1 flex items-center gap-2 text-xs font-medium text-muted">
+        <IconWarn className="h-4 w-4" /> Skipped {items.length}
+      </p>
+      <ul className={`${max} overflow-y-auto text-xs font-normal text-muted`}>
+        {items.map((s, i) => (
+          <li key={`${s.sheet ?? ''}:${s.row}:${i}`}>
+            {s.sheet ? `${s.sheet}·` : 'Row '}
+            {s.row} — {s.name}: {s.reason}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function FlaggedList({ items, max = 'max-h-32' }) {
+  if (items.length === 0) return null
+  return (
+    <div className="rounded-btn bg-paper p-3">
+      <p className="mb-1 flex items-center gap-2 text-xs font-medium text-muted">
+        <IconWarn className="h-4 w-4 text-warn" /> Flagged {items.length}
+      </p>
+      <ul className={`${max} overflow-y-auto text-xs font-normal text-muted`}>
+        {items.map((f, i) => (
+          <li key={`${f.sheet ?? ''}:${f.row}:${i}`}>
+            {f.sheet}·{f.row} — {f.name}: {f.note}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 /**
  * Upload the ISP's billing sheet. Rows are mapped in the browser, building
- * names resolved server-side in one lookup, and only resolved rows are posted.
+ * names resolved server-side in one lookup, then a dry run asks the server what
+ * would be new / updated / unchanged before anything is written.
  *
  * Three stages, like ImportBuildingsModal: pick → review → result. When
  * `forcedBuilding` is given (the per-building entry) every row is pinned to that
@@ -30,16 +119,38 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
   const [picks, setPicks] = useState({})
   const [result, setResult] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(null)
   const [error, setError] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [stale, setStale] = useState(false)
 
   const picked = (r) => picks[keyOf(r)]
-  const pendingPick = mapped ? mapped.needsPick.filter((r) => !picked(r)) : []
-  const importable = [
-    ...(mapped?.ready ?? []),
-    ...(mapped?.needsPick ?? [])
-      .filter((r) => picked(r))
-      .map((r) => ({ ...r, buildingId: picked(r).id, buildingName: picked(r).buildingName })),
+  const withPicks = (m, pk) => [
+    ...m.ready,
+    ...m.needsPick
+      .filter((r) => pk[keyOf(r)])
+      .map((r) => ({ ...r, buildingId: pk[keyOf(r)].id, buildingName: pk[keyOf(r)].buildingName })),
   ]
+  const pendingPick = mapped ? mapped.needsPick.filter((r) => !picked(r)) : []
+  const importable = mapped ? withPicks(mapped, picks) : []
+
+  async function runDry(m, pk) {
+    setBusy(true)
+    setError(null)
+    const run = await runBatches(withPicks(m, pk), true, (i, n) => setProgress(`Checking ${i} of ${n}…`))
+    setProgress(null)
+    if (run.failure) {
+      setPreview(null)
+      setStale(true)
+      setError(`Could not check the file: ${run.failureShort}`)
+    } else {
+      const byKey = {}
+      for (const r of run.totals.rows) byKey[keyOf(r)] = r
+      setPreview({ ...run.totals, byKey })
+      setStale(false)
+    }
+    setBusy(false)
+  }
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
@@ -47,9 +158,9 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
     if (!file) return
     setError(null)
     setBusy(true)
+    let m
     try {
       const sheets = await parseSpreadsheetSheets(file)
-      let m
       if (forcedBuilding) {
         m = mapCustomerSheet(sheets, {}, forcedBuilding)
       } else {
@@ -62,56 +173,48 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
       if (m.ready.length + m.needsPick.length + m.skipped.length === 0) {
         throw new Error('No customer rows found in the file')
       }
-      setMapped(m)
-      setPicks({})
-      setStage('review')
     } catch (err) {
       setError(err.message || 'Could not read the file')
-    } finally {
       setBusy(false)
+      return
     }
+    setMapped(m)
+    setPicks({})
+    setPreview(null)
+    setStale(false)
+    setStage('review')
+    await runDry(m, {})
+  }
+
+  function handlePick(key, found) {
+    setPicks((p) => ({ ...p, [key]: found }))
+    setStale(true)
   }
 
   async function handleImport() {
     setBusy(true)
     setError(null)
-    try {
-      const rows = importable.map((r) => ({
-        row: r.row,
-        buildingId: r.buildingId,
-        name: r.name,
-        mobile: r.mobile,
-        username: r.username,
-        address: r.address,
-        email: r.email,
-        site: r.site,
-        operator: r.operator,
-        networkZone: r.networkZone,
-        planName: r.planName,
-        planAmount: r.planAmount,
-        planValidityDays: r.planValidityDays,
-        autoRenewal: r.autoRenewal,
-        planActivatedAt: r.planActivatedAt,
-        planExpiresAt: r.planExpiresAt,
-        status: r.status,
-        ageingDays: r.ageingDays,
-      }))
-      const res = await apiClient.post('/customers/import', { rows })
-      const clientSkipped = [
-        ...mapped.skipped,
-        ...pendingPick.map((r) => ({ row: r.row, name: r.name, reason: 'Choose a building' })),
-      ]
+    const run = await runBatches(importable, false, (i, n) => setProgress(`Importing ${i} of ${n}…`))
+    setProgress(null)
+    const clientSkipped = [
+      ...mapped.skipped,
+      ...pendingPick.map((r) => ({ sheet: r.sheet, row: r.row, name: r.name, reason: 'Choose a building' })),
+    ]
+    if (run.done > 0) onImported()
+    if (run.failure && run.done === 0) {
+      setError(run.failure)
+    } else {
       setResult({
-        createdCount: res.data.data.createdCount,
-        skipped: [...clientSkipped, ...res.data.data.skipped],
+        createdCount: run.totals.createdCount,
+        updatedCount: run.totals.updatedCount,
+        unchangedCount: run.totals.unchangedCount,
+        skipped: [...clientSkipped, ...run.totals.skipped],
+        flagged: run.totals.flagged,
+        failure: run.failure,
       })
       setStage('result')
-      onImported()
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Import failed — please re-upload'))
-    } finally {
-      setBusy(false)
     }
+    setBusy(false)
   }
 
   function reset() {
@@ -121,18 +224,38 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
     setResult(null)
     setError(null)
     setBusy(false)
+    setProgress(null)
+    setPreview(null)
+    setStale(false)
   }
 
-  const overCap = importable.length > MAX_ROWS
+  const newCount = preview?.createdCount ?? 0
+  const updateCount = preview?.updatedCount ?? 0
+  const canImport = !!preview && !stale && newCount + updateCount > 0
+  const importLabel = newCount + updateCount > 0 ? `Import ${newCount} new, update ${updateCount}` : 'Import'
+  const skippedTotal = mapped ? mapped.skipped.length + pendingPick.length + (preview?.skipped.length ?? 0) : 0
+  const clientSkipped = mapped
+    ? [
+        ...mapped.skipped,
+        ...pendingPick.map((r) => ({ sheet: r.sheet, row: r.row, name: r.name, reason: 'Choose a building' })),
+      ]
+    : []
+
   const footer =
     stage === 'review' ? (
       <div className="flex gap-3">
-        <Button variant="secondary" className="flex-1" onClick={reset}>
+        <Button variant="secondary" className="flex-1" disabled={busy} onClick={reset}>
           Back
         </Button>
-        <Button className="flex-1" disabled={importable.length === 0 || overCap} loading={busy} onClick={handleImport}>
-          Import {importable.length} customer{importable.length === 1 ? '' : 's'}
-        </Button>
+        {stale ? (
+          <Button className="flex-1" loading={busy} onClick={() => runDry(mapped, picks)}>
+            Check again
+          </Button>
+        ) : (
+          <Button className="flex-1" disabled={!canImport} loading={busy} onClick={handleImport}>
+            {importLabel}
+          </Button>
+        )}
       </div>
     ) : stage === 'result' ? (
       <Button fullWidth onClick={onClose}>
@@ -172,14 +295,24 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
 
       {stage === 'review' && mapped && (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-normal text-muted">
-            <b>{importable.length}</b> ready
-            {pendingPick.length > 0 && <> · <span className="text-bad">{pendingPick.length} need a building</span></>}
-            {mapped.skipped.length > 0 && <> · {mapped.skipped.length} skipped</>}
-          </p>
-          {overCap && (
-            <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">
-              Too many rows — up to {MAX_ROWS} per file. Please split the file.
+          {progress ? (
+            <p className="text-sm font-normal text-muted">{progress}</p>
+          ) : (
+            <p className="text-sm font-normal text-muted">
+              {preview ? (
+                <>
+                  <b>{newCount}</b> new · <b>{updateCount}</b> will be updated · {preview.unchangedCount} unchanged ·{' '}
+                  {skippedTotal} skipped · {preview.flagged.length} flagged
+                </>
+              ) : (
+                'No preview yet'
+              )}
+              {pendingPick.length > 0 && <> · <span className="text-bad">{pendingPick.length} need a building</span></>}
+            </p>
+          )}
+          {stale && preview && !busy && (
+            <p className="rounded-btn bg-paper px-4 py-3 text-sm font-normal text-muted">
+              Buildings changed — press Check again to refresh the preview.
             </p>
           )}
           <div className="max-h-72 overflow-auto rounded-btn border border-line">
@@ -190,13 +323,16 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
                   <th className="px-3 py-2">Name</th>
                   <th className="px-3 py-2">Mobile</th>
                   <th className="px-3 py-2">Building</th>
-                  <th className="px-3 py-2">Plan</th>
+                  <th className="px-3 py-2">Wing</th>
+                  <th className="px-3 py-2">Outcome</th>
                 </tr>
               </thead>
               <tbody>
                 {[...mapped.ready, ...mapped.needsPick].map((r) => {
                   const k = keyOf(r)
                   const pick = picked(r)
+                  const server = preview?.byKey[k]
+                  const showServer = server && !stale
                   return (
                     <tr key={k} className="border-t border-line/60">
                       <td className="whitespace-nowrap px-3 py-1.5 text-muted">
@@ -208,10 +344,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
                         {r.candidates ? (
                           <select
                             value={pick ? pick.id : ''}
-                            onChange={(e) => {
-                              const found = r.candidates.find((c) => c.id === e.target.value)
-                              setPicks((p) => ({ ...p, [k]: found }))
-                            }}
+                            onChange={(e) => handlePick(k, r.candidates.find((c) => c.id === e.target.value))}
                             className="h-8 max-w-[16rem] rounded-btn border border-bad/50 bg-card px-2 text-xs"
                           >
                             <option value="">Choose a building…</option>
@@ -227,26 +360,49 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
                           r.buildingName
                         )}
                       </td>
-                      <td className="truncate px-3 py-1.5 text-muted">{r.planName || '—'}</td>
+                      <td className="px-3 py-1.5 text-muted">
+                        {showServer && server.wingName ? (
+                          server.wingName
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            —
+                            {showServer && server.flags?.length > 0 && (
+                              <span title={flagNote(preview, k)}>
+                                <IconWarn className="h-4 w-4 text-warn" />
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-1.5 text-muted">
+                        {showServer
+                          ? OUTCOME_LABEL[server.outcome] ?? '—'
+                          : !pick && r.candidates
+                            ? 'Choose a building'
+                            : '—'}
+                      </td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
-          {mapped.skipped.length > 0 && (
-            <div className="rounded-btn bg-paper p-3">
-              <p className="mb-1 flex items-center gap-2 text-xs font-medium text-muted">
-                <IconWarn className="h-4 w-4" /> Skipped {mapped.skipped.length}
-              </p>
-              <ul className="max-h-32 overflow-y-auto text-xs font-normal text-muted">
-                {mapped.skipped.map((s) => (
-                  <li key={keyOf(s)}>
-                    {s.sheet}·{s.row} — {s.name}: {s.reason}
+          <SkippedList items={[...clientSkipped, ...(preview?.skipped ?? [])]} />
+          {preview && <FlaggedList items={preview.flagged} />}
+          {preview && preview.notInSheet.length > 0 && (
+            <details className="rounded-btn bg-paper p-3">
+              <summary className="cursor-pointer text-xs font-medium text-muted">
+                Not in this sheet ({preview.notInSheet.length})
+              </summary>
+              <p className="mt-1 text-xs font-normal text-muted">Left as they are — nothing is changed or removed.</p>
+              <ul className="mt-1 max-h-32 overflow-y-auto text-xs font-normal text-muted">
+                {preview.notInSheet.map((c) => (
+                  <li key={c.id}>
+                    {c.name} · {c.mobile} · {c.buildingName} · {c.wingName || '—'}
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           )}
           {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
         </div>
@@ -256,24 +412,14 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
         <div className="flex flex-col gap-3">
           <p className="flex items-center gap-2 text-sm font-medium">
             <IconOkCircle className="h-5 w-5 text-fiber" />
-            {result.createdCount} customer{result.createdCount === 1 ? '' : 's'} imported
-            {result.skipped.length > 0 && ` · ${result.skipped.length} skipped`}
+            {result.createdCount} added · {result.updatedCount} updated · {result.unchangedCount} unchanged ·{' '}
+            {result.skipped.length} skipped
           </p>
-          {result.skipped.length > 0 && (
-            <div className="rounded-btn bg-paper p-3">
-              <p className="mb-1 flex items-center gap-2 text-xs font-medium text-muted">
-                <IconWarn className="h-4 w-4" /> Skipped {result.skipped.length}
-              </p>
-              <ul className="max-h-40 overflow-y-auto text-xs font-normal text-muted">
-                {result.skipped.map((s) => (
-                  <li key={`${s.sheet ?? ''}-${s.row}-${s.name}`}>
-                    {s.sheet ? `${s.sheet}·` : 'Row '}
-                    {s.row} — {s.name}: {s.reason}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {result.failure && (
+            <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{result.failure}</p>
           )}
+          <SkippedList items={result.skipped} max="max-h-40" />
+          <FlaggedList items={result.flagged} max="max-h-40" />
         </div>
       )}
     </Modal>
