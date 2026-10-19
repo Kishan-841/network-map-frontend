@@ -1,40 +1,103 @@
 'use client'
 
+import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { IconClose } from '@/components/ui/icons'
 
 /**
- * Centered dialog: dim backdrop, click-outside / ✕ to close.
- * Header stays pinned; only the body scrolls; an optional `footer` is pinned
- * at the bottom so primary actions never scroll out of reach. `wide` gives
- * review screens (an upload preview) room on a desktop; a phone is full width
- * either way. `dismissable={false}` ignores backdrop clicks (only ✕ closes) —
- * for a step where a stray tap would lose the user's work.
+ * Centered modal dialog.
+ *
+ * - Renders into document.body to avoid ancestor stacking contexts.
+ * - Uses a high stacking order to appear above page content.
+ * - Keeps the header and footer fixed within the dialog.
+ * - Scrolls only the modal body when content exceeds viewport height.
+ * - Uses an opaque background to prevent underlying content showing through.
+ * - Supports click-outside dismissal, wide layouts, and non-dismissable steps.
  */
-export function Modal({ open, onClose, title, children, footer, wide = false, dismissable = true }) {
-  if (!open) return null
-  return (
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  wide = false,
+  dismissable = true,
+}) {
+  useEffect(() => {
+    if (!open) return
+
+    const previousOverflow = document.body.style.overflow
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape' && dismissable) {
+        onClose?.()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open, onClose, dismissable])
+
+  if (!open || typeof document === 'undefined') return null
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={dismissable ? onClose : undefined}
+      className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/50 p-3 sm:p-5"
+      onMouseDown={(event) => {
+        if (
+          dismissable &&
+          event.target === event.currentTarget
+        ) {
+          onClose?.()
+        }
+      }}
     >
       <div
-        className={`flex max-h-[90dvh] w-full ${wide ? 'max-w-3xl' : 'max-w-md'} flex-col rounded-card bg-card shadow-lift`}
-        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={[
+          'relative flex w-full flex-col overflow-hidden',
+          'max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-40px)]',
+          wide ? 'max-w-3xl' : 'max-w-md',
+          'rounded-card border border-line/70 bg-white text-ink shadow-lift',
+        ].join(' ')}
+        onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex shrink-0 items-center justify-between p-5 pb-3">
-          <h2 className="text-base font-bold">{title}</h2>
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line/60 bg-white px-5 py-4">
+          <h2 className="min-w-0 break-words text-base font-bold">
+            {title}
+          </h2>
+
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-1 text-faint transition-colors hover:text-ink"
+            className="shrink-0 rounded-lg p-1.5 text-faint transition-colors hover:bg-gray-100 hover:text-ink"
           >
             <IconClose className="h-5 w-5" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-1">{children}</div>
-        {footer && <div className="shrink-0 border-t border-line/60 px-5 py-4">{footer}</div>}
+
+        {/* Scrollable body */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white px-5 py-4">
+          {children}
+        </div>
+
+        {/* Footer */}
+        {footer && (
+          <div className="shrink-0 border-t border-line/60 bg-white px-5 py-4">
+            {footer}
+          </div>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

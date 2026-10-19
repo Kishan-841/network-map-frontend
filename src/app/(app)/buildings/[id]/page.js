@@ -11,6 +11,7 @@ import { PhotoManager } from '@/components/buildings/PhotoManager'
 import { LiveToggle } from '@/components/buildings/LiveToggle'
 import { EditBuildingModal } from '@/components/buildings/EditBuildingModal'
 import { WingsSection } from '@/components/buildings/WingsSection'
+import { CustomersSection } from '@/components/customers/CustomersSection'
 import { wingSummary } from '@/lib/building-wings'
 import { LocateWingsModal } from '@/components/buildings/LocateWingsModal'
 import { Button } from '@/components/ui/Button'
@@ -208,6 +209,14 @@ export default function BuildingDetailPage({ params }) {
       />
 
       <PhotoManager building={building} onChanged={fetchBuilding} />
+
+      <CustomersSection
+        buildingId={building.id}
+        buildingName={building.buildingName}
+        canWrite={isAdmin}
+        className="mt-5"
+        layout="table"
+      />
 
       {locating && canLocate && (
         <LocateWingsModal

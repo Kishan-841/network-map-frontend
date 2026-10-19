@@ -32,6 +32,7 @@ import { isSociety } from '@/lib/society'
 import { SocietyBadge } from '@/components/societies/SocietyBadge'
 import { BulkLiveBar } from '@/components/buildings/BulkLiveBar'
 import { ImportBuildingsModal } from '@/components/buildings/ImportBuildingsModal'
+import { ImportCustomersModal } from '@/components/customers/ImportCustomersModal'
 import BuildingFilterSheet from '@/components/buildings/BuildingFilterSheet'
 import { useZones, invalidateZones } from '@/hooks/useZones'
 import { invalidateOperators } from '@/hooks/useOperators'
@@ -275,6 +276,7 @@ function BuildingsList() {
   }, [search])
 
   const [importOpen, setImportOpen] = useState(false)
+  const [customerImportOpen, setCustomerImportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   // One source of truth for the active filter: the list requests it and the
   // bulk update replays the very same object server-side.
@@ -586,6 +588,15 @@ function BuildingsList() {
                 Bulk upload
               </button>
             )}
+            {role === 'ADMIN' && (
+              <button
+                onClick={() => setCustomerImportOpen(true)}
+                className="inline-flex h-12 items-center gap-2 rounded-btn border border-line bg-card px-4 text-sm font-medium transition-colors hover:border-fiber/50"
+              >
+                <IconUpload className="h-4.5 w-4.5" />
+                Import customers
+              </button>
+            )}
             {!isLead(role) && !zoneless && (
               <Link
                 href="/buildings/add"
@@ -780,6 +791,16 @@ function BuildingsList() {
             invalidateZones()
             invalidateOperators()
             refetch()
+          }}
+        />
+      )}
+
+      {customerImportOpen && (
+        <ImportCustomersModal
+          onClose={() => setCustomerImportOpen(false)}
+          // The modal shows its own result stage; the building list is unchanged.
+          onImported={() => {
+            // Customers live on their own endpoint — nothing on this list to refresh.
           }}
         />
       )}

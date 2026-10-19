@@ -57,6 +57,7 @@ export const NAV_GROUPS = [
   {
     label: 'Manage',
     items: [
+      { href: '/customers', label: 'Customers', icon: IconUsers },
       { href: '/admin/cities', label: 'Cities', icon: IconMap },
       { href: '/admin/operators', label: 'Operators', icon: IconLayers },
       { href: '/admin/zones', label: 'Zones', icon: IconPin },
@@ -79,6 +80,7 @@ export const NAV_GROUPS = [
  * `sub` is the grid's second line; the sidebar shows only the label.
  */
 const SUBTITLES = {
+  '/customers': 'Subscribers per building',
   '/societies': 'Permission visits and history',
   '/partner-dashboard': 'Network at a glance',
   '/partners': 'Referral partners',
