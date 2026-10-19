@@ -3,6 +3,10 @@
 import { use, useCallback, useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { Button } from '@/components/ui/Button'
+import { IconEdit } from '@/components/ui/icons'
+import { useAuthStore } from '@/stores/auth-store'
+import { CustomerFormModal } from '@/components/customers/CustomerFormModal'
 
 const when = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',
@@ -51,6 +55,8 @@ export default function CustomerDetailPage({ params }) {
   const { id, customerId } = use(params)
   const [customer, setCustomer] = useState(null)
   const [error, setError] = useState(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const isAdmin = useAuthStore((s) => s.user?.role) === 'ADMIN'
 
   const load = useCallback(
     () =>
@@ -68,7 +74,7 @@ export default function CustomerDetailPage({ params }) {
   if (error) {
     return (
       <main className="mx-auto max-w-2xl">
-        <PageHeader backHref={`/buildings/${id}`} backLabel="Building" title="Not found" sub={error} />
+        <PageHeader backHref={`/buildings/${id}/customers`} backLabel="Customers" title="Not found" sub={error} />
       </main>
     )
   }
@@ -89,10 +95,18 @@ export default function CustomerDetailPage({ params }) {
   return (
     <main className="mx-auto max-w-2xl">
       <PageHeader
-        backHref={`/buildings/${id}`}
-        backLabel="Building"
+        backHref={`/buildings/${id}/customers`}
+        backLabel="Customers"
         title={customer.name}
         sub={customer.building?.buildingName}
+        action={
+          isAdmin ? (
+            <Button variant="secondary" onClick={() => setEditOpen(true)}>
+              <IconEdit className="h-4 w-4 shrink-0" strokeWidth={1.8} />
+              Edit
+            </Button>
+          ) : null
+        }
       />
 
       <Section
@@ -101,6 +115,15 @@ export default function CustomerDetailPage({ params }) {
           ['Username', customer.username],
           ['Mobile', customer.mobile],
           ['E-Mail', customer.email],
+          ['Wing', customer.wing?.name ?? 'No wing'],
+        ]}
+      />
+
+      <Section
+        title="Connection"
+        rows={[
+          ['PON number', customer.ponNumber],
+          ['OLT', customer.olt],
         ]}
       />
 
@@ -129,6 +152,19 @@ export default function CustomerDetailPage({ params }) {
       />
 
       <Section title="Record" rows={[['Added', fmtWhen(customer.createdAt)]]} />
+
+      {editOpen && (
+        <CustomerFormModal
+          buildingId={customer.building.id}
+          customer={customer}
+          wings={customer.wings ?? []}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false)
+            load()
+          }}
+        />
+      )}
     </main>
   )
 }

@@ -1,78 +1,63 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
-import { CHIP, FieldList, Section } from '@/components/fiber/details/DetailParts'
+import { CHIP } from '@/components/fiber/details/DetailParts'
 import { DataTable } from '@/components/ui/DataTable'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import {
-  IconChevronDown,
-  IconChevronRight,
-  IconEdit,
-  IconPlus,
-  IconTrash,
-  IconUpload,
-} from '@/components/ui/icons'
-import { formatWhen } from '@/lib/fiber/detail-format'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { IconEdit, IconPlus, IconTrash, IconUpload } from '@/components/ui/icons'
 import { CustomerFormModal } from './CustomerFormModal'
 import { ImportCustomersModal } from './ImportCustomersModal'
 
-const rupee = (n) => (n == null ? null : `₹${Number(n).toLocaleString('en-IN')}`)
-const days = (n) => (n == null ? null : `${n} day${n === 1 ? '' : 's'}`)
-const when = (v) => (v ? formatWhen(v) : null)
+const dateOnly = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'Asia/Kolkata',
+})
+const expires = (v) => (v ? dateOnly.format(new Date(v)) : '—')
 const statusChip = (status) =>
   status ? <span className={`${CHIP} bg-paper text-muted`}>{status}</span> : '—'
+const wingText = (c) => c.wing?.name ?? <span className="text-muted">No wing</span>
 
 /** Small square icon button, used in the desktop table's actions column. */
 const ICON_BUTTON =
   'flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-paper hover:text-ink'
 
-/** Every recorded field, in display order — shared by the drawer's expansion. */
-function detailRows(c) {
-  return [
-    ['Username', c.username],
-    ['Mobile', c.mobile],
-    ['E-Mail', c.email],
-    ['Address', c.address],
-    ['Site', c.site],
-    ['Operator', c.operator],
-    ['Network zone', c.networkZone],
-    ['Plan', c.planName],
-    ['Amount', rupee(c.planAmount)],
-    ['Validity', days(c.planValidityDays)],
-    ['Auto renewal', c.autoRenewal == null ? null : c.autoRenewal ? 'Yes' : 'No'],
-    ['Activated', when(c.planActivatedAt)],
-    ['Expires', when(c.planExpiresAt)],
-    ['Status', c.status],
-    ['Ageing', days(c.ageingDays)],
-    ['Added', when(c.createdAt)],
-  ]
+function WingChip({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`min-h-9 shrink-0 rounded-btn border px-3 text-sm font-medium transition-colors ${
+        active
+          ? 'border-fiber bg-fiber text-white'
+          : 'border-line bg-card text-muted hover:bg-paper hover:text-ink'
+      }`}
+    >
+      {children}
+    </button>
+  )
 }
 
 /**
- * The customers of a building. Two layouts:
- *
- * - `table` (the building page): a table, one row per customer; a row opens
- *   that customer's own page. The admin's edit/delete stay in modals here.
- * - `list` (the map drawer, the default): the same cards the drawer always
- *   showed, expanding in place for the full record.
- *
- * Only users with canWrite=true can add, import, edit, or delete customers.
+ * The body of a building's customers page: header, wing chips (filter kept in
+ * the URL as ?wing=<id|none>), search, and the table. Only canWrite users can
+ * add, import, edit, or delete.
  */
-export function CustomersSection({
-  buildingId,
-  buildingName,
-  canWrite = false,
-  className = '',
-  layout = 'list',
-}) {
+export function CustomersSection({ buildingId, canWrite = false }) {
   const router = useRouter()
-  const [rows, setRows] = useState(null)
+  const searchParams = useSearchParams()
+  const wingParam = searchParams.get('wing') // null = All
+  const [data, setData] = useState(null)
   const [missing, setMissing] = useState(false)
   const [error, setError] = useState(null)
-  const [expanded, setExpanded] = useState(null)
+  const [query, setQuery] = useState('')
   const [formFor, setFormFor] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(null)
@@ -86,7 +71,7 @@ export function CustomersSection({
       .get('/customers', { params: { buildingId } })
       .then((res) => {
         if (!alive) return
-        setRows(res.data.data)
+        setData(res.data.data)
         setMissing(false)
         setError(null)
       })
@@ -106,6 +91,39 @@ export function CustomersSection({
 
   useEffect(() => load(), [load])
 
+  const all = data?.customers ?? null
+  const wings = data?.wings ?? []
+  const building = data?.building
+
+  const counts = useMemo(() => {
+    const byWing = {}
+    let none = 0
+    for (const c of all ?? []) {
+      if (c.wing) byWing[c.wing.id] = (byWing[c.wing.id] ?? 0) + 1
+      else none += 1
+    }
+    return { byWing, none }
+  }, [all])
+
+  const rows = useMemo(() => {
+    if (!all) return null
+    const q = query.trim().toLowerCase()
+    return all.filter((c) => {
+      if (wingParam === 'none' && c.wing) return false
+      if (wingParam && wingParam !== 'none' && c.wing?.id !== wingParam) return false
+      if (!q) return true
+      return [c.name, c.mobile, c.username].some((v) => v && String(v).toLowerCase().includes(q))
+    })
+  }, [all, wingParam, query])
+
+  function selectWing(value) {
+    const next = new URLSearchParams(searchParams.toString())
+    if (value) next.set('wing', value)
+    else next.delete('wing')
+    const qs = next.toString()
+    router.replace(qs ? `?${qs}` : `/buildings/${buildingId}/customers`, { scroll: false })
+  }
+
   async function handleDelete() {
     if (!pendingDelete || deleting) return
     setDeleting(true)
@@ -113,7 +131,6 @@ export function CustomersSection({
     try {
       await apiClient.delete(`/customers/${pendingDelete.id}`)
       setPendingDelete(null)
-      setExpanded(null)
       load()
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Could not delete the customer'))
@@ -122,13 +139,18 @@ export function CustomersSection({
     }
   }
 
-  if (missing) return null
+  const backProps = { backHref: `/buildings/${buildingId}`, backLabel: 'Building' }
+
+  if (missing) {
+    return <PageHeader {...backProps} title="Not found" sub="This building could not be found." />
+  }
 
   if (error) {
     return (
-      <Section title="Customers" className={className}>
+      <>
+        <PageHeader {...backProps} title="Customers" />
         <p className="rounded-btn bg-bad-tint px-3 py-3 text-sm text-bad">{error}</p>
-      </Section>
+      </>
     )
   }
 
@@ -137,7 +159,7 @@ export function CustomersSection({
     setPendingDelete(c)
     setActionError(null)
   }
-  const count = rows?.length ?? null
+  const total = all?.length ?? null
 
   const action = canWrite ? (
     <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
@@ -156,28 +178,31 @@ export function CustomersSection({
     </div>
   ) : null
 
-  const emptyState = (
-    <div className="rounded-card border border-dashed border-line px-4 py-8 text-center">
-      <p className="text-sm font-medium text-ink">No customers yet</p>
-      <p className="mt-1 text-sm text-muted">
-        {canWrite
-          ? 'Add a customer or upload an Excel file to get started.'
-          : 'Customers will appear here when they are added.'}
-      </p>
-      {canWrite && (
-        <div className="mt-4 flex flex-col justify-center gap-2 sm:flex-row">
-          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setImportOpen(true)}>
-            <IconUpload className="h-4 w-4" />
-            Upload Excel
-          </Button>
-          <Button className="w-full sm:w-auto" onClick={() => setFormFor('new')}>
-            <IconPlus className="h-4 w-4" />
-            Add customer
-          </Button>
-        </div>
-      )}
-    </div>
-  )
+  const wingFilterName =
+    wingParam === 'none' ? 'No wing' : wings.find((w) => w.id === wingParam)?.name
+  const filtered = Boolean(wingParam) || query.trim() !== ''
+
+  const emptyState =
+    total > 0 && filtered ? (
+      <div className="rounded-card border border-dashed border-line px-4 py-8 text-center">
+        <p className="text-sm font-medium text-ink">
+          {query.trim()
+            ? 'No customers match your search'
+            : wingParam === 'none'
+              ? 'No customers without a wing'
+              : `No customers in Wing ${wingFilterName ?? ''}`.trim()}
+        </p>
+      </div>
+    ) : (
+      <div className="rounded-card border border-dashed border-line px-4 py-8 text-center">
+        <p className="text-sm font-medium text-ink">No customers yet</p>
+        <p className="mt-1 text-sm text-muted">
+          {canWrite
+            ? 'Add a customer or upload an Excel file to get started.'
+            : 'Customers will appear here when they are added.'}
+        </p>
+      </div>
+    )
 
   const columns = [
     {
@@ -186,7 +211,9 @@ export function CustomersSection({
       render: (c) => <span className="font-medium text-ink">{c.name || 'Unnamed customer'}</span>,
     },
     { key: 'mobile', header: 'Mobile', render: (c) => c.mobile || '—' },
+    { key: 'wing', header: 'Wing', render: wingText },
     { key: 'planName', header: 'Plan', render: (c) => c.planName || '—' },
+    { key: 'expires', header: 'Expires', render: (c) => expires(c.planExpiresAt) },
     { key: 'status', header: 'Status', render: (c) => statusChip(c.status) },
     ...(canWrite
       ? [
@@ -232,7 +259,9 @@ export function CustomersSection({
           <p className="mt-1 break-words text-sm text-muted [overflow-wrap:anywhere]">
             {c.mobile || 'No mobile number'}
           </p>
+          <p className="mt-1 text-xs text-muted">Wing: {wingText(c)}</p>
           {c.planName && <p className="mt-1 text-xs text-muted">Plan: {c.planName}</p>}
+          {c.planExpiresAt && <p className="mt-1 text-xs text-muted">Expires: {expires(c.planExpiresAt)}</p>}
         </div>
         {c.status && <span className={`${CHIP} shrink-0 bg-paper text-muted`}>{c.status}</span>}
       </div>
@@ -251,112 +280,54 @@ export function CustomersSection({
     </div>
   )
 
-  const listBody = (
-    <>
-      {rows === null ? (
-        <div className="flex flex-col gap-3">
-          <div className="h-20 animate-pulse rounded-xl bg-paper" />
-          <div className="h-20 animate-pulse rounded-xl bg-paper" />
-        </div>
-      ) : count === 0 ? (
-        emptyState
-      ) : (
-        <ul className="flex min-w-0 flex-col gap-3">
-          {rows.map((c) => {
-            const isOpen = expanded === c.id
-            return (
-              <li
-                key={c.id}
-                className="min-w-0 overflow-hidden rounded-xl border border-line bg-card shadow-sm"
-              >
-                <button
-                  type="button"
-                  onClick={() => setExpanded(isOpen ? null : c.id)}
-                  className="flex w-full min-w-0 items-start gap-3 p-3 text-left transition-colors hover:bg-paper sm:p-4"
-                  aria-expanded={isOpen}
-                >
-                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-paper text-muted">
-                    {isOpen ? (
-                      <IconChevronDown className="h-4 w-4" strokeWidth={1.8} />
-                    ) : (
-                      <IconChevronRight className="h-4 w-4" strokeWidth={1.8} />
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block break-words text-sm font-semibold leading-5 text-ink [overflow-wrap:anywhere]">
-                      {c.name || 'Unnamed customer'}
-                    </span>
-                    <span className="mt-1 block break-words text-sm leading-5 text-muted [overflow-wrap:anywhere]">
-                      {c.mobile || 'No mobile number'}
-                    </span>
-                    {c.planName && (
-                      <span className="mt-1 block break-words text-xs leading-5 text-muted [overflow-wrap:anywhere]">
-                        Plan: {c.planName}
-                      </span>
-                    )}
-                  </span>
-                  {c.status && (
-                    <span className={`${CHIP} shrink-0 bg-paper text-muted [overflow-wrap:anywhere]`}>
-                      {c.status}
-                    </span>
-                  )}
-                </button>
-
-                {isOpen && (
-                  <div className="min-w-0 border-t border-line/60 p-3 sm:p-4">
-                    <div className="min-w-0">
-                      <FieldList rows={detailRows(c)} />
-                    </div>
-                    {canWrite && (
-                      <div className="mt-4 flex flex-col gap-2 border-t border-line/60 pt-3 sm:flex-row sm:justify-end">
-                        <Button
-                          variant="secondary"
-                          className="!h-10 !min-h-10 w-full !text-sm sm:w-auto"
-                          onClick={() => setFormFor(c)}
-                        >
-                          <IconEdit className="h-4 w-4 shrink-0" strokeWidth={1.8} />
-                          Edit customer
-                        </Button>
-                        <Button
-                          variant="dangerGhost"
-                          className="!h-10 !min-h-10 w-full !text-sm sm:w-auto"
-                          onClick={() => askDelete(c)}
-                        >
-                          <IconTrash className="h-4 w-4 shrink-0" strokeWidth={1.8} />
-                          Delete customer
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </>
-  )
-
   return (
-    <Section title="Customers" count={count} action={action} className={className}>
-      {layout === 'table' ? (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          loading={rows === null}
-          onRowClick={openCustomer}
-          renderCard={renderCard}
-          emptyState={emptyState}
-        />
-      ) : (
-        listBody
+    <>
+      <PageHeader
+        {...backProps}
+        title="Customers"
+        sub={building ? `${building.buildingName} · ${total}` : undefined}
+        action={action}
+      />
+
+      {wings.length > 0 && (
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter by wing">
+          <WingChip active={!wingParam} onClick={() => selectWing(null)}>
+            All ({total})
+          </WingChip>
+          {wings.map((w) => (
+            <WingChip key={w.id} active={wingParam === w.id} onClick={() => selectWing(w.id)}>
+              {w.name} ({counts.byWing[w.id] ?? 0})
+            </WingChip>
+          ))}
+          {counts.none > 0 && (
+            <WingChip active={wingParam === 'none'} onClick={() => selectWing('none')}>
+              No wing ({counts.none})
+            </WingChip>
+          )}
+        </div>
       )}
 
-      {/* Add/edit customer modal */}
+      <SearchInput
+        className="mb-4"
+        value={query}
+        onChange={setQuery}
+        placeholder="Search name, mobile or username"
+      />
+
+      <DataTable
+        columns={columns}
+        rows={rows}
+        loading={rows === null}
+        onRowClick={openCustomer}
+        renderCard={renderCard}
+        emptyState={emptyState}
+      />
+
       {formFor && (
         <CustomerFormModal
           buildingId={buildingId}
           customer={formFor === 'new' ? null : formFor}
+          wings={wings}
           onClose={() => setFormFor(null)}
           onSaved={() => {
             setFormFor(null)
@@ -365,10 +336,9 @@ export function CustomersSection({
         />
       )}
 
-      {/* Excel import modal */}
-      {importOpen && (
+      {importOpen && building && (
         <ImportCustomersModal
-          forcedBuilding={buildingName ? { id: buildingId, buildingName } : null}
+          forcedBuilding={{ id: building.id, buildingName: building.buildingName }}
           onClose={() => setImportOpen(false)}
           onImported={load}
         />
@@ -411,6 +381,6 @@ export function CustomersSection({
           <p className="mt-3 rounded-btn bg-bad-tint px-3 py-2 text-sm text-bad">{actionError}</p>
         )}
       </Modal>
-    </Section>
+    </>
   )
 }

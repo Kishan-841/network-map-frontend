@@ -28,7 +28,7 @@ function inputToInstant(value) {
 const numOrNull = (value) => (value === '' || value == null ? null : Number(value))
 
 /** Add or edit one customer. `customer` present = edit. */
-export function CustomerFormModal({ buildingId, customer, onClose, onSaved }) {
+export function CustomerFormModal({ buildingId, customer, wings = [], onClose, onSaved }) {
   const editing = Boolean(customer)
   const [form, setForm] = useState({
     name: customer?.name ?? '',
@@ -47,6 +47,9 @@ export function CustomerFormModal({ buildingId, customer, onClose, onSaved }) {
     planActivatedAt: instantToInput(customer?.planActivatedAt),
     planExpiresAt: instantToInput(customer?.planExpiresAt),
     ageingDays: customer?.ageingDays != null ? String(customer.ageingDays) : '',
+    wingId: customer?.wing?.id ?? '',
+    ponNumber: customer?.ponNumber ?? '',
+    olt: customer?.olt ?? '',
   })
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -74,7 +77,10 @@ export function CustomerFormModal({ buildingId, customer, onClose, onSaved }) {
       planActivatedAt: inputToInstant(form.planActivatedAt),
       planExpiresAt: inputToInstant(form.planExpiresAt),
       ageingDays: numOrNull(form.ageingDays),
+      ponNumber: form.ponNumber.trim() || null,
+      olt: form.olt.trim() || null,
     }
+    if (wings.length > 0) payload.wingId = form.wingId || null
     try {
       if (editing) await apiClient.patch(`/customers/${customer.id}`, payload)
       else await apiClient.post('/customers', { ...payload, buildingId })
@@ -110,6 +116,18 @@ export function CustomerFormModal({ buildingId, customer, onClose, onSaved }) {
           <div className="sm:col-span-2">
             <Textarea label="Address" rows={2} value={form.address} onChange={set('address')} />
           </div>
+          {wings.length > 0 && (
+            <Select label="Wing" value={form.wingId} onChange={set('wingId')}>
+              <option value="">No wing</option>
+              {wings.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </Select>
+          )}
+          <Input label="PON number" value={form.ponNumber} onChange={set('ponNumber')} />
+          <Input label="OLT" value={form.olt} onChange={set('olt')} />
         </div>
 
         <p className="text-xs font-medium uppercase tracking-wide text-faint">Plan</p>
