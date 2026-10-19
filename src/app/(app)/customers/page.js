@@ -37,7 +37,7 @@ export default function CustomersPage() {
         <h2 className="text-sm font-medium text-ink">Bulk upload for every building</h2>
         <p className="mt-1 text-sm text-muted">
           Upload one sheet and each row is added to its own building. To add customers to a single
-          building instead, open that building and use its Customers section.
+          building instead, open that building and use its Customers page.
         </p>
         <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-muted">
           <li>
@@ -46,16 +46,16 @@ export default function CustomersPage() {
           </li>
           <li>Each row is routed by its building name; case and punctuation are ignored.</li>
           <li>
-            An unknown building, a missing name, or a mobile already in that building is skipped with
-            a reason — never written twice.
+            An unknown building or a new row without a name or mobile is skipped with a reason.
           </li>
           <li>When a name fits more than one building, you pick the right one before importing.</li>
           <li>
             Optional columns: <b>Wing</b>, <b>PON NUMBER</b> and <b>OLT</b>.
           </li>
           <li>
-            Existing customers are matched by <b>Username</b>, otherwise by mobile. Filled cells update
-            them; blank cells never erase what is stored.
+            A customer already stored (same <b>Username</b>, else same mobile in that building) is
+            updated instead — only cells that have a value are written. Blank cells never erase what is
+            stored.
           </li>
           <li>Customers missing from the sheet are listed for you, never changed.</li>
         </ul>
