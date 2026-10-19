@@ -67,7 +67,9 @@ export function MapLegend({
    * square, the name and count under it. On = coloured border + tinted label.
    */
   const tile = ({ symbol, label, count, on, onToggle }) => (
+    // The tiles render as an array, so each needs a key; the label is unique.
     <button
+      key={label}
       type="button"
       onClick={onToggle}
       aria-pressed={Boolean(on)}
