@@ -80,6 +80,9 @@ export const CUSTOMER_TEMPLATE_HEADERS = [
   'Name',
   'Address',
   'building',
+  'Wing',
+  'PON NUMBER',
+  'OLT',
   'Mobile No.',
   'E-Mail ID',
   'Site',
@@ -95,7 +98,7 @@ export const CUSTOMER_TEMPLATE_HEADERS = [
   'Customer Ageing',
 ]
 
-export const CUSTOMER_TEMPLATE_CSV = `${CUSTOMER_TEMPLATE_HEADERS.join(',')}\nRAMESH PATIL,Ramesh Patil,Flat 101,Silver Oak Pimple Saudagar,9867412726,ramesh@example.com,PUNE,MORYA INTERNET,MORYA INTERNET,100MBPS_UL_3M_OTT,499,30,YES,01-09-2026 10:00:00,30-09-2026 23:59:59,Active,0\n`
+export const CUSTOMER_TEMPLATE_CSV = `${CUSTOMER_TEMPLATE_HEADERS.join(',')}\nRAMESH PATIL,Ramesh Patil,Flat 101,Silver Oak Pimple Saudagar,A,6,DIAMOND ROCK,9867412726,ramesh@example.com,PUNE,MORYA INTERNET,MORYA INTERNET,100MBPS_UL_3M_OTT,499,30,YES,01-09-2026 10:00:00,30-09-2026 23:59:59,Active,0\n`
 
 /**
  * Header text → field, matched anchored so "Name" and "Plan Name" never
@@ -107,6 +110,9 @@ const HEADERS = {
   name: /^(customer\s*)?name$/i,
   address: /^address$/i,
   building: /^building(\s*name)?$/i,
+  wing: /^wing(\s*name)?$/i,
+  ponNumber: /^pon(\s*(number|no\.?))?$/i,
+  olt: /^olt(\s*name)?$/i,
   mobile: /^mobile(\s*(no|number)\.?)?$/i,
   email: /^e-?mail(\s*id)?$/i,
   site: /^site$/i,
@@ -166,6 +172,9 @@ const yesNo = (v) => {
 function fields(cell) {
   return {
     username: text(cell('username')),
+    wing: text(cell('wing')),
+    ponNumber: text(cell('ponNumber')),
+    olt: text(cell('olt')),
     address: text(cell('address')),
     mobile: normaliseMobile(cell('mobile')),
     email: text(cell('email')),
@@ -279,10 +288,13 @@ export function mapCustomerSheet(sheets, lookup = {}, forcedBuilding = null) {
         }
       }
 
-      // The same person twice in one file (same mobile, same building) — the
-      // second is a duplicate, exactly as the server would call it.
-      const key = `${buildingId ?? `name:${foldBuildingName(buildingName)}`}:${mobile}`
-      if (seen.has(key)) return skip('Duplicate mobile in this file')
+      // The same Username twice is one account; with no Username, the same
+      // mobile in the same building is one person. Two Usernames on one mobile
+      // are two connections — both stay.
+      const key = data.username
+        ? `u:${data.username}`
+        : `${buildingId ?? `name:${foldBuildingName(buildingName)}`}:${mobile}`
+      if (seen.has(key)) return skip('Duplicate in this file')
       seen.add(key)
 
       const entry = { row, sheet: sheet.name, name, ...data, buildingId, buildingName }
@@ -292,6 +304,60 @@ export function mapCustomerSheet(sheets, lookup = {}, forcedBuilding = null) {
   }
 
   return { ready, needsPick, skipped, error: null }
+}
+
+/** The exact object posted per row (the server resolves `wing` itself). */
+export function toImportRow(e) {
+  return {
+    row: e.row,
+    sheet: e.sheet,
+    buildingId: e.buildingId,
+    wing: e.wing ?? null,
+    name: e.name,
+    mobile: e.mobile,
+    username: e.username ?? null,
+    address: e.address ?? null,
+    email: e.email ?? null,
+    site: e.site ?? null,
+    operator: e.operator ?? null,
+    networkZone: e.networkZone ?? null,
+    planName: e.planName ?? null,
+    planAmount: e.planAmount ?? null,
+    planValidityDays: e.planValidityDays ?? null,
+    autoRenewal: e.autoRenewal ?? null,
+    planActivatedAt: e.planActivatedAt ?? null,
+    planExpiresAt: e.planExpiresAt ?? null,
+    status: e.status ?? null,
+    ageingDays: e.ageingDays ?? null,
+    ponNumber: e.ponNumber ?? null,
+    olt: e.olt ?? null,
+  }
+}
+
+/**
+ * Pack rows into requests of at most `max`, keeping each building whole so the
+ * server's per-building work never straddles two requests. A building larger
+ * than `max` is split into `max`-sized chunks on its own. First-fit-decreasing.
+ */
+export function batchByBuilding(rows, max = 1000) {
+  const groups = new Map()
+  for (const r of rows) {
+    const k = r.buildingId ?? null
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k).push(r)
+  }
+  const batches = []
+  const sorted = [...groups.values()].sort((a, b) => b.length - a.length)
+  for (const g of sorted) {
+    if (g.length > max) {
+      for (let i = 0; i < g.length; i += max) batches.push(g.slice(i, i + max))
+      continue
+    }
+    const fit = batches.find((b) => b.length + g.length <= max)
+    if (fit) fit.push(...g)
+    else batches.push([...g])
+  }
+  return batches
 }
 
 /** Why the manual form cannot be saved — plain sentences, mirroring the server. */

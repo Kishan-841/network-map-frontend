@@ -8,6 +8,8 @@ import {
   foldBuildingName,
   parseSheetDate,
   mapCustomerSheet,
+  batchByBuilding,
+  toImportRow,
   customerBuildingNames,
   customerFormErrors,
   CUSTOMER_TEMPLATE_CSV,
@@ -118,7 +120,7 @@ describe('mapCustomerSheet', () => {
     const { ready, skipped } = mapCustomerSheet([{ name: 'S', rows }], { X: { matches: [building({ buildingName: 'X' })] } })
     expect(ready).toHaveLength(1)
     expect(skipped).toHaveLength(1)
-    expect(skipped[0].reason).toMatch(/duplicate/i)
+    expect(skipped[0].reason).toBe('Duplicate in this file')
   })
 
   it('errors when no sheet carries the customer columns', () => {
@@ -174,8 +176,64 @@ describe('customerFormErrors', () => {
 })
 
 describe('template headers', () => {
-  it('are the sheet’s 17 columns', () => {
-    expect(CUSTOMER_TEMPLATE_HEADERS).toHaveLength(17)
+  it('are the sheet’s 20 columns, with Wing, PON NUMBER and OLT', () => {
+    expect(CUSTOMER_TEMPLATE_HEADERS).toHaveLength(20)
     expect(HEADERS).toContain('Mobile No.')
+    expect(HEADERS).toEqual(expect.arrayContaining(['Wing', 'PON NUMBER', 'OLT']))
+    expect(HEADERS.indexOf('Wing')).toBe(HEADERS.indexOf('building') + 1)
+  })
+})
+
+describe('Wing, PON NUMBER, OLT and identity', () => {
+  const lookup = { X: { matches: [building({ buildingName: 'X' })] } }
+
+  it('reads Wing, PON NUMBER and OLT by header', () => {
+    const rows = [['Name', 'Mobile No.', 'building', 'Wing', 'PON NUMBER', 'OLT'], ['A', '9000000001', 'X', ' A ', 6, 'DIAMOND ROCK']]
+    const { ready } = mapCustomerSheet([{ name: 'S', rows }], lookup)
+    expect(ready[0]).toMatchObject({ wing: 'A', ponNumber: '6', olt: 'DIAMOND ROCK' })
+  })
+
+  it('a sheet without the Wing column still maps (wing null)', () => {
+    const rows = [['Name', 'Mobile No.', 'building'], ['A', '9000000001', 'X']]
+    const { ready } = mapCustomerSheet([{ name: 'S', rows }], lookup)
+    expect(ready[0]).toMatchObject({ wing: null, ponNumber: null, olt: null })
+  })
+
+  it('same mobile, two usernames → both ready', () => {
+    const rows = [['Name', 'Mobile No.', 'building', 'Username'], ['A', '9000000001', 'X', 'u1'], ['A', '9000000001', 'X', 'u2']]
+    const { ready, skipped } = mapCustomerSheet([{ name: 'S', rows }], lookup)
+    expect(ready).toHaveLength(2)
+    expect(skipped).toEqual([])
+  })
+
+  it('same username twice → second skipped', () => {
+    const rows = [['Name', 'Mobile No.', 'building', 'Username'], ['A', '9000000001', 'X', 'u1'], ['B', '9000000002', 'X', 'u1']]
+    const { ready, skipped } = mapCustomerSheet([{ name: 'S', rows }], lookup)
+    expect(ready).toHaveLength(1)
+    expect(skipped[0].reason).toBe('Duplicate in this file')
+  })
+
+  it('toImportRow returns exactly the posted keys', () => {
+    const rows = [['Name', 'Mobile No.', 'building', 'Wing'], ['A', '9000000001', 'X', 'B']]
+    const { ready } = mapCustomerSheet([{ name: 'S', rows }], lookup)
+    const out = toImportRow(ready[0])
+    expect(Object.keys(out).sort()).toEqual(['row', 'sheet', 'buildingId', 'wing', 'name', 'mobile', 'username', 'address', 'email', 'site', 'operator', 'networkZone', 'planName', 'planAmount', 'planValidityDays', 'autoRenewal', 'planActivatedAt', 'planExpiresAt', 'status', 'ageingDays', 'ponNumber', 'olt'].sort())
+    expect(out.wing).toBe('B')
+  })
+})
+
+describe('batchByBuilding', () => {
+  const make = (id, n) => Array.from({ length: n }, (_, i) => ({ buildingId: id, i }))
+  it('never splits a building', () => {
+    const batches = batchByBuilding([...make('a', 600), ...make('b', 500), ...make('c', 300)], 1000)
+    expect(batches.every((b) => b.length <= 1000)).toBe(true)
+    const where = {}
+    batches.forEach((b, i) => b.forEach((r) => { where[r.buildingId] ??= new Set(); where[r.buildingId].add(i) }))
+    expect(Object.values(where).every((s) => s.size === 1)).toBe(true)
+    expect(batches.flat()).toHaveLength(1400)
+    expect(batches).toHaveLength(2)
+  })
+  it('splits an oversized building on its own', () => {
+    expect(batchByBuilding(make('a', 2300), 1000).map((b) => b.length)).toEqual([1000, 1000, 300])
   })
 })
