@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { IconEdit } from '@/components/ui/icons'
 import { useAuthStore } from '@/stores/auth-store'
 import { CustomerFormModal } from '@/components/customers/CustomerFormModal'
+import { ConnectionCard } from '@/components/customers/ConnectionCard'
 
 const when = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',
@@ -118,6 +119,8 @@ export default function CustomerDetailPage({ params }) {
           ['Wing', customer.wing?.name ?? 'No wing'],
         ]}
       />
+
+      <ConnectionCard customerId={customerId} isAdmin={isAdmin} />
 
       <Section
         title="Connection"

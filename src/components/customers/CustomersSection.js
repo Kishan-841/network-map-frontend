@@ -12,6 +12,8 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { IconEdit, IconPlus, IconTrash, IconUpload } from '@/components/ui/icons'
 import { CustomerFormModal } from './CustomerFormModal'
 import { ImportCustomersModal } from './ImportCustomersModal'
+import { ConnectionStatus } from './ConnectionCard'
+import { formatSignal, summaryLine } from '@/lib/connection'
 
 const dateOnly = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',
@@ -90,6 +92,25 @@ export function CustomersSection({ buildingId, canWrite = false }) {
   }, [buildingId])
 
   useEffect(() => load(), [load])
+
+  // Live connection status: one request for the whole building, fired after the
+  // customer list has loaded. `forData` ties the answer to the list it was asked for.
+  const [conn, setConn] = useState(null)
+  useEffect(() => {
+    if (!data) return undefined
+    let alive = true
+    apiClient
+      .get('/customers/connections', { params: { buildingId } })
+      .then((res) => {
+        if (alive) setConn({ forData: data, failed: false, ...res.data.data })
+      })
+      .catch(() => {
+        if (alive) setConn({ forData: data, failed: true, enabled: true })
+      })
+    return () => {
+      alive = false
+    }
+  }, [data, buildingId])
 
   const all = data?.customers ?? null
   const wings = data?.wings ?? []
@@ -178,6 +199,13 @@ export function CustomersSection({ buildingId, canWrite = false }) {
     </div>
   ) : null
 
+  const connLoading = Boolean(data) && conn?.forData !== data
+  const connEnabled = Boolean(conn?.enabled)
+  const connFailed = !connLoading && conn?.failed === true
+  const connections = conn?.connections ?? {}
+  const summary = !connLoading && !connFailed ? summaryLine(conn?.counts) : null
+  const showConn = connEnabled
+
   const wingFilterName =
     wingParam === 'none' ? 'No wing' : wings.find((w) => w.id === wingParam)?.name
   const filtered = Boolean(wingParam) || query.trim() !== ''
@@ -215,6 +243,27 @@ export function CustomersSection({ buildingId, canWrite = false }) {
     { key: 'planName', header: 'Plan', render: (c) => c.planName || '—' },
     { key: 'expires', header: 'Expires', render: (c) => expires(c.planExpiresAt) },
     { key: 'status', header: 'Status', render: (c) => statusChip(c.status) },
+    ...(showConn
+      ? [
+          {
+            key: 'connection',
+            header: 'Connection',
+            render: (c) =>
+              connLoading ? (
+                <span className="text-sm text-muted">Checking…</span>
+              ) : connFailed || !connections[c.id] ? (
+                '—'
+              ) : (
+                <ConnectionStatus connection={connections[c.id]} />
+              ),
+          },
+          {
+            key: 'signal',
+            header: 'Signal',
+            render: (c) => (connLoading ? '' : formatSignal(connections[c.id]) || '—'),
+          },
+        ]
+      : []),
     ...(canWrite
       ? [
           {
@@ -262,6 +311,22 @@ export function CustomersSection({ buildingId, canWrite = false }) {
           <p className="mt-1 text-xs text-muted">Wing: {wingText(c)}</p>
           {c.planName && <p className="mt-1 text-xs text-muted">Plan: {c.planName}</p>}
           {c.planExpiresAt && <p className="mt-1 text-xs text-muted">Expires: {expires(c.planExpiresAt)}</p>}
+          {showConn && (
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {connLoading ? (
+                <span className="text-muted">Checking…</span>
+              ) : connFailed || !connections[c.id] ? (
+                <span className="text-muted">—</span>
+              ) : (
+                <>
+                  <ConnectionStatus connection={connections[c.id]} className="!text-xs" />
+                  {formatSignal(connections[c.id]) && (
+                    <span className="text-muted">{formatSignal(connections[c.id])}</span>
+                  )}
+                </>
+              )}
+            </p>
+          )}
         </div>
         {c.status && <span className={`${CHIP} shrink-0 bg-paper text-muted`}>{c.status}</span>}
       </div>
@@ -313,6 +378,10 @@ export function CustomersSection({ buildingId, canWrite = false }) {
         onChange={setQuery}
         placeholder="Search name, mobile or username"
       />
+
+      {showConn && (summary || connFailed) && (
+        <p className="mb-3 text-sm text-muted">{connFailed ? 'Connection status unavailable' : summary}</p>
+      )}
 
       <DataTable
         columns={columns}
