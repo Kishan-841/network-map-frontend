@@ -65,12 +65,13 @@ export function Modal({
           'relative flex w-full flex-col overflow-hidden',
           'max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-40px)]',
           wide ? 'max-w-3xl' : 'max-w-md',
-          'rounded-card border border-line/70 bg-white text-ink shadow-lift',
+          'rounded-card border border-line/70 bg-card text-ink shadow-lift',
         ].join(' ')}
         onMouseDown={(event) => event.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line/60 bg-white px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line/60 bg-card px-5 py-4">
           <h2 className="min-w-0 break-words text-base font-bold">
             {title}
           </h2>
@@ -79,20 +80,20 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="shrink-0 rounded-lg p-1.5 text-faint transition-colors hover:bg-gray-100 hover:text-ink"
+            className="shrink-0 rounded-lg p-1.5 text-faint transition-colors hover:bg-paper hover:text-ink"
           >
             <IconClose className="h-5 w-5" />
           </button>
         </div>
 
         {/* Scrollable body */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-card px-5 py-4">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="shrink-0 border-t border-line/60 bg-white px-5 py-4">
+          <div className="shrink-0 border-t border-line/60 bg-card px-5 py-4">
             {footer}
           </div>
         )}
