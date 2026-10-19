@@ -59,11 +59,28 @@ describe('formatSignal', () => {
 })
 
 describe('droppedText', () => {
-  it('shows only when online and signalDropped', () => {
-    const c = { state: 'online', signalDropped: true, best: onu() }
+  const live = (o = {}) => onu({ status: 'online', stale: false, ...o })
+  const c = { state: 'online', best: live() }
+  it('shows when online and the ONU dropped 3+ dB', () => {
     expect(droppedText(c)).toBe('Signal dropped from -12.1 dBm')
+  })
+  it('hidden when the connection is not online', () => {
     expect(droppedText({ ...c, state: 'offline' })).toBeNull()
-    expect(droppedText({ ...c, signalDropped: false })).toBeNull()
+  })
+  it('decides per ONU: only the dropped one shows', () => {
+    const dropped = live({ rxDbm: -20, baselineRxDbm: -12 })
+    const fine = live({ rxDbm: -13, baselineRxDbm: -12 })
+    const conn = { state: 'online', onus: [dropped, fine], best: fine }
+    expect(droppedText(conn, dropped)).toBe('Signal dropped from -12.0 dBm')
+    expect(droppedText(conn, fine)).toBeNull()
+  })
+  it('exact -3 boundary counts as dropped, just above does not', () => {
+    expect(droppedText(c, live({ rxDbm: -15.1, baselineRxDbm: -12.1 }))).not.toBeNull()
+    expect(droppedText(c, live({ rxDbm: -15.0, baselineRxDbm: -12.1 }))).toBeNull()
+  })
+  it('hidden for an offline or stale ONU', () => {
+    expect(droppedText(c, live({ status: 'offline' }))).toBeNull()
+    expect(droppedText(c, live({ stale: true }))).toBeNull()
   })
 })
 

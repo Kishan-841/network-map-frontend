@@ -46,9 +46,15 @@ export function formatSignal(c) {
   return formatOnuSignal(c?.best)
 }
 
-/** "Signal dropped from -12.1 dBm" — only for an online connection whose signal dropped. */
+/**
+ * "Signal dropped from -12.1 dBm" — decided per ONU: the connection is online, this ONU is
+ * online and not stale, and rx <= baseline - 3 (1e-9 epsilon, like the backend).
+ */
 export function droppedText(c, onu = c?.best) {
-  if (!c || c.state !== 'online' || !c.signalDropped || onu?.baselineRxDbm == null) return null
+  if (!c || c.state !== 'online' || !onu) return null
+  if (onu.status !== 'online' || onu.stale) return null
+  if (onu.rxDbm == null || onu.baselineRxDbm == null) return null
+  if (!(onu.rxDbm <= onu.baselineRxDbm - 3 + 1e-9)) return null
   return `Signal dropped from ${Number(onu.baselineRxDbm).toFixed(1)} dBm`
 }
 

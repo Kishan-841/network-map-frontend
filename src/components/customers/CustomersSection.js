@@ -320,9 +320,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
               ) : (
                 <>
                   <ConnectionStatus connection={connections[c.id]} className="!text-xs" />
-                  {formatSignal(connections[c.id]) && (
-                    <span className="text-muted">{formatSignal(connections[c.id])}</span>
-                  )}
+                  <span className="text-muted">{formatSignal(connections[c.id])}</span>
                 </>
               )}
             </p>

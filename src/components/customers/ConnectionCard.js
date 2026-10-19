@@ -93,18 +93,17 @@ export function ConnectionCard({ customerId, isAdmin = false }) {
     }
   }, [customerId])
 
-  if (!state.loading && !state.enabled) return null
+  // Nothing until the first answer: no flash of a card that then vanishes when the feature is off.
+  if (state.loading || !state.enabled) return null
 
-  const { connection, failed, loading } = state
+  const { connection, failed } = state
   const onus = connection?.onus ?? []
 
   return (
     <section className="mt-5">
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">Connection status</p>
       <div className="rounded-card bg-card px-5 py-3 shadow-soft">
-        {loading ? (
-          <p className="text-sm text-muted">Checking…</p>
-        ) : failed ? (
+        {failed ? (
           <p className="text-sm text-muted">Status unavailable</p>
         ) : (
           <>
