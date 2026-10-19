@@ -66,6 +66,15 @@ function flagNote(preview, key) {
   return preview.flagged.find((f) => f.sheet === sheet && String(f.row) === row)?.note ?? 'Check this row'
 }
 
+function clientSkips(m, pk) {
+  return [
+    ...m.skipped,
+    ...m.needsPick
+      .filter((r) => !pk[keyOf(r)])
+      .map((r) => ({ sheet: r.sheet, row: r.row, name: r.name, reason: 'Choose a building' })),
+  ]
+}
+
 function SkippedList({ items, max = 'max-h-32' }) {
   if (items.length === 0) return null
   return (
@@ -123,6 +132,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
   const [error, setError] = useState(null)
   const [preview, setPreview] = useState(null)
   const [stale, setStale] = useState(false)
+  const picksVersion = useRef(0)
 
   const picked = (r) => picks[keyOf(r)]
   const withPicks = (m, pk) => [
@@ -137,9 +147,13 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
   async function runDry(m, pk) {
     setBusy(true)
     setError(null)
+    const version = picksVersion.current
     const run = await runBatches(withPicks(m, pk), true, (i, n) => setProgress(`Checking ${i} of ${n}…`))
     setProgress(null)
-    if (run.failure) {
+    if (version !== picksVersion.current) {
+      // A pick changed while this check ran: its result is out of date.
+      setStale(true)
+    } else if (run.failure) {
       setPreview(null)
       setStale(true)
       setError(`Could not check the file: ${run.failureShort}`)
@@ -178,6 +192,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
       setBusy(false)
       return
     }
+    picksVersion.current += 1
     setMapped(m)
     setPicks({})
     setPreview(null)
@@ -187,6 +202,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
   }
 
   function handlePick(key, found) {
+    picksVersion.current += 1
     setPicks((p) => ({ ...p, [key]: found }))
     setStale(true)
   }
@@ -196,10 +212,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
     setError(null)
     const run = await runBatches(importable, false, (i, n) => setProgress(`Importing ${i} of ${n}…`))
     setProgress(null)
-    const clientSkipped = [
-      ...mapped.skipped,
-      ...pendingPick.map((r) => ({ sheet: r.sheet, row: r.row, name: r.name, reason: 'Choose a building' })),
-    ]
+    const clientSkipped = clientSkips(mapped, picks)
     if (run.done > 0) onImported()
     if (run.failure && run.done === 0) {
       setError(run.failure)
@@ -234,12 +247,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
   const canImport = !!preview && !stale && newCount + updateCount > 0
   const importLabel = newCount + updateCount > 0 ? `Import ${newCount} new, update ${updateCount}` : 'Import'
   const skippedTotal = mapped ? mapped.skipped.length + pendingPick.length + (preview?.skipped.length ?? 0) : 0
-  const clientSkipped = mapped
-    ? [
-        ...mapped.skipped,
-        ...pendingPick.map((r) => ({ sheet: r.sheet, row: r.row, name: r.name, reason: 'Choose a building' })),
-      ]
-    : []
+  const clientSkipped = mapped ? clientSkips(mapped, picks) : []
 
   const footer =
     stage === 'review' ? (
@@ -345,6 +353,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
                           <select
                             value={pick ? pick.id : ''}
                             onChange={(e) => handlePick(k, r.candidates.find((c) => c.id === e.target.value))}
+                            disabled={busy}
                             className="h-8 max-w-[16rem] rounded-btn border border-bad/50 bg-card px-2 text-xs"
                           >
                             <option value="">Choose a building…</option>
