@@ -156,7 +156,7 @@ const text = (v) => {
 }
 /** A whole number from a cell ('499.0' and 499 both read), else null. */
 const wholeNumber = (v) => {
-  if (typeof v === 'number') return Number.isInteger(v) ? v : null
+  if (typeof v === 'number') return Number.isInteger(v) && v >= 0 ? v : null
   const s = String(v ?? '').trim()
   return /^\d+(\.0+)?$/.test(s) ? Number(s) : null
 }

@@ -43,7 +43,7 @@ export function CustomerFormModal({ buildingId, customer, wings = [], onClose, o
     planName: customer?.planName ?? '',
     planAmount: customer?.planAmount != null ? String(customer.planAmount) : '',
     planValidityDays: customer?.planValidityDays != null ? String(customer.planValidityDays) : '',
-    autoRenewal: Boolean(customer?.autoRenewal),
+    autoRenewal: customer?.autoRenewal == null ? '' : customer.autoRenewal ? 'yes' : 'no',
     planActivatedAt: instantToInput(customer?.planActivatedAt),
     planExpiresAt: instantToInput(customer?.planExpiresAt),
     ageingDays: customer?.ageingDays != null ? String(customer.ageingDays) : '',
@@ -73,7 +73,7 @@ export function CustomerFormModal({ buildingId, customer, wings = [], onClose, o
       planName: form.planName.trim() || null,
       planAmount: numOrNull(form.planAmount),
       planValidityDays: numOrNull(form.planValidityDays),
-      autoRenewal: form.autoRenewal,
+      autoRenewal: form.autoRenewal === 'yes' ? true : form.autoRenewal === 'no' ? false : null,
       planActivatedAt: inputToInstant(form.planActivatedAt),
       planExpiresAt: inputToInstant(form.planExpiresAt),
       ageingDays: numOrNull(form.ageingDays),
@@ -149,17 +149,11 @@ export function CustomerFormModal({ buildingId, customer, wings = [], onClose, o
             ))}
           </Select>
         </div>
-        <Field>
-          <label className="flex items-center gap-2 text-sm font-medium text-ink">
-            <input
-              type="checkbox"
-              checked={form.autoRenewal}
-              onChange={(e) => setForm((f) => ({ ...f, autoRenewal: e.target.checked }))}
-              className="h-4 w-4"
-            />
-            Auto renewal
-          </label>
-        </Field>
+        <Select label="Auto renewal" value={form.autoRenewal} onChange={set('autoRenewal')}>
+          <option value="">Not set</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </Select>
 
         {error && <p className="rounded-btn bg-bad-tint px-4 py-3 text-sm font-normal text-bad">{error}</p>}
       </div>

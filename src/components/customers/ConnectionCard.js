@@ -85,8 +85,11 @@ export function ConnectionCard({ customerId, isAdmin = false }) {
         const d = res.data.data
         setState({ loading: false, enabled: Boolean(d?.enabled), connection: d?.connection ?? null, failed: false })
       })
-      .catch(() => {
-        if (alive) setState({ loading: false, enabled: true, connection: null, failed: true })
+      .catch((err) => {
+        if (!alive) return
+        // 404: the customer is gone or out of scope: show nothing.
+        if (err?.response?.status === 404) setState({ loading: false, enabled: false, connection: null, failed: false })
+        else setState({ loading: false, enabled: true, connection: null, failed: true })
       })
     return () => {
       alive = false

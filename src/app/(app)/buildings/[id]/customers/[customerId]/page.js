@@ -123,7 +123,7 @@ export default function CustomerDetailPage({ params }) {
       <ConnectionCard customerId={customerId} isAdmin={isAdmin} />
 
       <Section
-        title="Connection"
+        title="Network (from sheet)"
         rows={[
           ['PON number', customer.ponNumber],
           ['OLT', customer.olt],

@@ -87,6 +87,13 @@ describe('mapCustomerSheet', () => {
     expect(ready[0]).toMatchObject({ planAmount: 0, autoRenewal: true })
   })
 
+  it('reads a negative cell as blank, numeric or text', () => {
+    const rows = [['Name', 'Mobile No.', 'building', 'Plan Amount', 'Ageing'], ['A', '9000000001', 'X', -5, '-3']]
+    const { ready } = mapCustomerSheet([{ name: 'S', rows }], { X: { matches: [building({ buildingName: 'X' })] } })
+    expect(ready[0].planAmount).toBe(null)
+    expect(ready[0].ageingDays).toBe(null)
+  })
+
   it('splits rows into ready / needsPick / skipped with reasons', () => {
     const rows = [
       ['Name', 'Mobile No.', 'building'],
