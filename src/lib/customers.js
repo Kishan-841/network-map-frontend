@@ -382,17 +382,28 @@ export function effectivePick(row, rowPicks = {}, namePicks = {}) {
 
 /**
  * Rows still to pick, one group per sheet building name, in first-seen order:
- * `{ name, count, candidates }` (candidates of the group's first row).
+ * `{ name, count, total, candidates }` — `count` is the rows a name-level pick
+ * would apply to (those without a pick of their own in `rowPicks`), `total`
+ * every row of the name; candidates are the group's first row's.
  */
-export function ambiguousNameGroups(needsPick) {
+export function ambiguousNameGroups(needsPick, rowPicks = {}) {
   const groups = new Map()
   for (const r of needsPick ?? []) {
     const name = r.sheetBuildingName ?? r.buildingName
-    const g = groups.get(name)
-    if (g) g.count++
-    else groups.set(name, { name, count: 1, candidates: r.candidates ?? [] })
+    let g = groups.get(name)
+    if (!g) {
+      g = { name, count: 0, total: 0, candidates: r.candidates ?? [] }
+      groups.set(name, g)
+    }
+    g.total++
+    if (!rowPicks[importRowKey(r)]) g.count++
   }
   return [...groups.values()]
+}
+
+/** Ready rows matched by zone that nobody has changed — worth a look. */
+export function unreviewedZoneMatches(ready, rowPicks = {}) {
+  return (ready ?? []).filter((r) => r.autoPicked && !rowPicks[importRowKey(r)]).length
 }
 
 /** The exact object posted per row (the server resolves `wing` itself). */

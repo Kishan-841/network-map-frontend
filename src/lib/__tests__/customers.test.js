@@ -16,6 +16,7 @@ import {
   effectivePick,
   importRowKey,
   ambiguousNameGroups,
+  unreviewedZoneMatches,
   CUSTOMER_TEMPLATE_CSV,
   CUSTOMER_TEMPLATE_HEADERS,
 } from '../customers'
@@ -435,8 +436,19 @@ describe('effectivePick and name groups', () => {
   it('groups rows still to pick by their sheet building name', () => {
     const other = { ...pending, row: 9, sheetBuildingName: 'Other', buildingName: 'Other', candidates: [c2] }
     expect(ambiguousNameGroups([pending, pending2, other])).toEqual([
-      { name: 'Anand Park', count: 2, candidates: [c1, c2] },
-      { name: 'Other', count: 1, candidates: [c2] },
+      { name: 'Anand Park', count: 2, total: 2, candidates: [c1, c2] },
+      { name: 'Other', count: 1, total: 1, candidates: [c2] },
     ])
+  })
+
+  it('counts only the rows a name pick would apply to', () => {
+    expect(ambiguousNameGroups([pending, pending2], { 'S:2': c1 })[0]).toMatchObject({ count: 1, total: 2 })
+    expect(ambiguousNameGroups([pending, pending2], { 'S:2': c1, 'S:3': c2 })[0]).toMatchObject({ count: 0, total: 2 })
+  })
+
+  it('counts zone matches nobody has changed', () => {
+    const auto2 = { ...auto, row: 6 }
+    expect(unreviewedZoneMatches([auto, auto2, plain], {})).toBe(2)
+    expect(unreviewedZoneMatches([auto, auto2, plain], { 'S:6': auto.candidates[1] })).toBe(1)
   })
 })

@@ -9,6 +9,7 @@ import { IconOkCircle, IconUpload, IconWarn } from '@/components/ui/icons'
 import {
   CUSTOMER_TEMPLATE_CSV,
   ambiguousNameGroups,
+  unreviewedZoneMatches,
   batchByBuilding,
   customerBuildingNames,
   effectivePick,
@@ -170,7 +171,8 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
   const picked = (r) => effectivePick(r, picks, namePicks)
   const pendingPick = mapped ? mapped.needsPick.filter((r) => !picked(r)) : []
   const importable = mapped ? withPicks(mapped, picks, namePicks) : []
-  const nameGroups = mapped ? ambiguousNameGroups(mapped.needsPick) : []
+  const nameGroups = mapped ? ambiguousNameGroups(mapped.needsPick, picks) : []
+  const zoneMatched = mapped ? unreviewedZoneMatches(mapped.ready, picks) : 0
   const mergedCount = mapped
     ? [...mapped.ready, ...mapped.needsPick].reduce((n, r) => n + (r.mergedFrom?.length ?? 0), 0)
     : 0
@@ -373,7 +375,12 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
                   <li key={g.name} className="flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span>
                       <span className="font-medium">{g.name}</span>
-                      <span className="text-muted"> — {g.count} {g.count === 1 ? 'row' : 'rows'}</span>
+                      <span className="text-muted">
+                        {' '}
+                        — {g.count === g.total ? g.count : `${g.count} of ${g.total}`}{' '}
+                        {g.total === 1 ? 'row' : 'rows'}
+                        {g.count === 0 && ' (each chosen in the table)'}
+                      </span>
                     </span>
                     <CandidateSelect
                       value={namePicks[g.name]?.id ?? ''}
@@ -381,7 +388,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
                       onChange={(found) => handleNamePick(g.name, found)}
                       disabled={busy}
                       placeholder="Choose a building…"
-                      needed={!namePicks[g.name]}
+                      needed={g.count > 0 && !namePicks[g.name]}
                     />
                   </li>
                 ))}
@@ -465,6 +472,11 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
             <p className="text-xs font-normal text-muted">
               {mergedCount} duplicate {mergedCount === 1 ? 'row' : 'rows'} merged into earlier rows of the same
               customer
+            </p>
+          )}
+          {zoneMatched > 0 && (
+            <p className="text-xs font-normal text-muted">
+              {zoneMatched} matched by zone — check them in the table
             </p>
           )}
           {preview && preview.notInSheet.length > 0 && (
