@@ -222,14 +222,45 @@ export function customerBuildingNames(sheets) {
 }
 
 /**
+ * Choose among a name's candidate buildings by the sheet's Zone column (the
+ * ISP network the customer is on). Names are folded like building names.
+ * Tier 1: candidates whose zone IS the sheet zone. Tier 2 (only when tier 1 is
+ * empty): candidates whose zone STARTS WITH it ("MORYA INTERNET" →
+ * "MORYA INTERNET FTTH"). The best non-empty tier with exactly one building is
+ * the pick; with several it only narrows — we never guess between them.
+ */
+export function pickByZone(candidates, sheetZone) {
+  const all = candidates ?? []
+  const zone = foldBuildingName(sheetZone)
+  if (!zone) return { pick: null, narrowed: all }
+  const folded = all.map((c) => [c, foldBuildingName(c.zoneName)])
+  let tier = folded.filter(([, z]) => z === zone).map(([c]) => c)
+  if (tier.length === 0) tier = folded.filter(([, z]) => z.startsWith(zone)).map(([c]) => c)
+  if (tier.length === 1) return { pick: tier[0], narrowed: tier }
+  if (tier.length > 1) return { pick: null, narrowed: tier }
+  return { pick: null, narrowed: all }
+}
+
+const blank = (v) => v === null || v === undefined || v === ''
+
+/**
  * Raw sheets → what the preview shows and what the import posts.
  *
  * `lookup` is the `/customers/building-lookup` answer keyed by the **exact**
  * name strings collected from the sheet (`{ name: { matches: [...] } }`).
  * Every row becomes:
- * - `ready`    — building resolved to one row, fields usable → `buildingId` set
- * - `needsPick` — the name matches 2–3 rows → `candidates` for a dropdown
- * - `skipped`  — no building, no name, no mobile, or a duplicate inside the file
+ * - `ready`    — building resolved → `buildingId` set. A name with several
+ *   matches resolved by the sheet's Zone (`pickByZone`) carries
+ *   `autoPicked: true` and its `candidates`, so the preview can still change it.
+ * - `needsPick` — the name matches several rows and the Zone does not single
+ *   one out → `candidates` (the zone-narrowed ones first) for a dropdown
+ * - `skipped`  — no building, no name or no mobile
+ *
+ * One customer written on several rows (same Username; with no Username, the
+ * same mobile in the same building) is ONE entry: blanks on the first row are
+ * filled from the later ones, the first non-blank value wins, and the later
+ * rows are listed in `mergedFrom`. Workbooks repeat customers across sheets,
+ * one sheet carrying PON/OLT and another not.
  *
  * `forcedBuilding` (per-building upload: `{ id, buildingName }`) pins every row
  * to that building; a row naming a different one is skipped, not imported.
@@ -246,10 +277,9 @@ export function mapCustomerSheet(sheets, lookup = {}, forcedBuilding = null) {
     }
   }
 
-  const ready = []
-  const needsPick = []
   const skipped = []
-  const seen = new Set()
+  // Pass 1: read, check and merge rows into entries (insertion order kept).
+  const entries = new Map()
 
   for (const sheet of found) {
     const cell = (cells, key) => (sheet.col[key] >= 0 ? cells[sheet.col[key]] : undefined)
@@ -267,43 +297,102 @@ export function mapCustomerSheet(sheets, lookup = {}, forcedBuilding = null) {
       if (!name) return skip('Customer name is missing')
       if (!mobile || mobile.length < 10 || mobile.length > 13) return skip('Mobile number is missing or wrong')
 
-      let buildingId = null
-      let buildingName = building
-      let candidates = null
+      let matches
       if (forcedBuilding) {
         if (building && foldBuildingName(building) !== foldBuildingName(forcedBuilding.buildingName)) {
           return skip(`Belongs to "${building}" — not this building`)
         }
-        buildingId = forcedBuilding.id
-        buildingName = forcedBuilding.buildingName
+        matches = [{ id: forcedBuilding.id, buildingName: forcedBuilding.buildingName }]
       } else {
-        const matches = lookup[building]?.matches ?? []
+        matches = lookup[building]?.matches ?? []
         if (matches.length === 0) return skip(building ? `No building named "${building}"` : 'Building name is missing')
-        if (matches.length === 1) {
-          buildingId = matches[0].id
-          buildingName = matches[0].buildingName
-        } else {
-          candidates = matches.map(candidate)
-          buildingName = building
-        }
       }
 
       // The same Username twice is one account; with no Username, the same
       // mobile in the same building is one person. Two Usernames on one mobile
-      // are two connections — both stay.
-      const key = data.username
-        ? `u:${data.username}`
-        : `${buildingId ?? `name:${foldBuildingName(buildingName)}`}:${mobile}`
-      if (seen.has(key)) return skip('Duplicate in this file')
-      seen.add(key)
+      // are two connections — both stay. A building with several matches is
+      // keyed by its sheet name, so the key never depends on a pick.
+      const place = matches.length === 1 ? matches[0].id : `name:${foldBuildingName(building)}`
+      const key = data.username ? `u:${data.username}` : `${place}:${mobile}`
 
-      const entry = { row, sheet: sheet.name, name, ...data, buildingId, buildingName }
-      if (candidates) needsPick.push({ ...entry, candidates })
-      else ready.push(entry)
+      const earlier = entries.get(key)
+      if (earlier) {
+        for (const [field, value] of Object.entries(data)) {
+          if (blank(earlier.entry[field]) && !blank(value)) earlier.entry[field] = value
+        }
+        earlier.entry.mergedFrom = [...(earlier.entry.mergedFrom ?? []), { sheet: sheet.name, row }]
+        return
+      }
+      entries.set(key, { entry: { row, sheet: sheet.name, name, ...data }, building, matches })
     })
   }
 
+  // Pass 2: resolve each entry's building, now that merged rows filled its Zone.
+  const ready = []
+  const needsPick = []
+  for (const { entry, building, matches } of entries.values()) {
+    if (matches.length === 1) {
+      ready.push({ ...entry, buildingId: matches[0].id, buildingName: matches[0].buildingName })
+      continue
+    }
+    const candidates = matches.map(candidate)
+    const { pick, narrowed } = pickByZone(candidates, entry.networkZone)
+    if (pick) {
+      ready.push({
+        ...entry,
+        buildingId: pick.id,
+        buildingName: pick.buildingName,
+        sheetBuildingName: building,
+        autoPicked: true,
+        candidates,
+      })
+    } else {
+      const rest = candidates.filter((c) => !narrowed.includes(c))
+      needsPick.push({
+        ...entry,
+        buildingId: null,
+        buildingName: building,
+        sheetBuildingName: building,
+        candidates: [...narrowed, ...rest],
+      })
+    }
+  }
+
   return { ready, needsPick, skipped, error: null }
+}
+
+/** A sheet row's key in the preview: `<sheet>:<row>`. */
+export const importRowKey = (r) => `${r.sheet}:${r.row}`
+
+/**
+ * The building a preview row will import into, or null while it has none:
+ * the row's own pick first, then (for a row still to pick) the pick made once
+ * for its sheet building name — only if it is one of the row's candidates —
+ * then whatever `mapCustomerSheet` resolved (a unique match or a zone pick).
+ * `rowPicks` is keyed by `importRowKey`, `namePicks` by `sheetBuildingName`.
+ */
+export function effectivePick(row, rowPicks = {}, namePicks = {}) {
+  const own = rowPicks[importRowKey(row)]
+  if (own) return own
+  if (row.buildingId) return { id: row.buildingId, buildingName: row.buildingName }
+  const byName = namePicks[row.sheetBuildingName]
+  if (byName && (row.candidates ?? []).some((c) => c.id === byName.id)) return byName
+  return null
+}
+
+/**
+ * Rows still to pick, one group per sheet building name, in first-seen order:
+ * `{ name, count, candidates }` (candidates of the group's first row).
+ */
+export function ambiguousNameGroups(needsPick) {
+  const groups = new Map()
+  for (const r of needsPick ?? []) {
+    const name = r.sheetBuildingName ?? r.buildingName
+    const g = groups.get(name)
+    if (g) g.count++
+    else groups.set(name, { name, count: 1, candidates: r.candidates ?? [] })
+  }
+  return [...groups.values()]
 }
 
 /** The exact object posted per row (the server resolves `wing` itself). */

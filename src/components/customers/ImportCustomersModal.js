@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/Button'
 import { IconOkCircle, IconUpload, IconWarn } from '@/components/ui/icons'
 import {
   CUSTOMER_TEMPLATE_CSV,
+  ambiguousNameGroups,
   batchByBuilding,
   customerBuildingNames,
+  effectivePick,
+  importRowKey as keyOf,
   mapCustomerSheet,
   toImportRow,
 } from '@/lib/customers'
-
-const keyOf = (r) => `${r.sheet}:${r.row}`
 const OUTCOME_LABEL = { create: 'New', update: 'Update', unchanged: 'Unchanged', skip: 'Skipped' }
 
 const emptyTotals = () => ({
@@ -66,13 +67,44 @@ function flagNote(preview, key) {
   return preview.flagged.find((f) => f.sheet === sheet && String(f.row) === row)?.note ?? 'Check this row'
 }
 
-function clientSkips(m, pk) {
+function clientSkips(m, rp, np) {
   return [
     ...m.skipped,
     ...m.needsPick
-      .filter((r) => !pk[keyOf(r)])
+      .filter((r) => !effectivePick(r, rp, np))
       .map((r) => ({ sheet: r.sheet, row: r.row, name: r.name, reason: 'Choose a building' })),
   ]
+}
+
+/** Every row that has a building (its own, a zone pick, or a pick), with it set. */
+function withPicks(m, rp, np) {
+  const out = []
+  for (const r of [...m.ready, ...m.needsPick]) {
+    const pick = effectivePick(r, rp, np)
+    if (pick) out.push({ ...r, buildingId: pick.id, buildingName: pick.buildingName })
+  }
+  return out
+}
+
+const candidateLabel = (c) =>
+  `${c.buildingName}${c.zoneName ? ` — ${c.zoneName}` : ''}${c.address ? ` (${c.address})` : ''}`
+
+function CandidateSelect({ value, candidates, onChange, disabled, placeholder, needed }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(candidates.find((c) => c.id === e.target.value))}
+      disabled={disabled}
+      className={`h-8 max-w-[16rem] rounded-btn border bg-card px-2 text-xs ${needed ? 'border-bad/50' : 'border-line'}`}
+    >
+      <option value="">{placeholder}</option>
+      {candidates.map((c) => (
+        <option key={c.id} value={c.id}>
+          {candidateLabel(c)}
+        </option>
+      ))}
+    </select>
+  )
 }
 
 function SkippedList({ items, max = 'max-h-32' }) {
@@ -126,6 +158,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
   const [stage, setStage] = useState('pick')
   const [mapped, setMapped] = useState(null)
   const [picks, setPicks] = useState({})
+  const [namePicks, setNamePicks] = useState({})
   const [result, setResult] = useState(null)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(null)
@@ -134,21 +167,19 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
   const [stale, setStale] = useState(false)
   const picksVersion = useRef(0)
 
-  const picked = (r) => picks[keyOf(r)]
-  const withPicks = (m, pk) => [
-    ...m.ready,
-    ...m.needsPick
-      .filter((r) => pk[keyOf(r)])
-      .map((r) => ({ ...r, buildingId: pk[keyOf(r)].id, buildingName: pk[keyOf(r)].buildingName })),
-  ]
+  const picked = (r) => effectivePick(r, picks, namePicks)
   const pendingPick = mapped ? mapped.needsPick.filter((r) => !picked(r)) : []
-  const importable = mapped ? withPicks(mapped, picks) : []
+  const importable = mapped ? withPicks(mapped, picks, namePicks) : []
+  const nameGroups = mapped ? ambiguousNameGroups(mapped.needsPick) : []
+  const mergedCount = mapped
+    ? [...mapped.ready, ...mapped.needsPick].reduce((n, r) => n + (r.mergedFrom?.length ?? 0), 0)
+    : 0
 
-  async function runDry(m, pk) {
+  async function runDry(m, rp, np) {
     setBusy(true)
     setError(null)
     const version = picksVersion.current
-    const run = await runBatches(withPicks(m, pk), true, (i, n) => setProgress(`Checking ${i} of ${n}…`))
+    const run = await runBatches(withPicks(m, rp, np), true, (i, n) => setProgress(`Checking ${i} of ${n}…`))
     setProgress(null)
     if (version !== picksVersion.current) {
       // A pick changed while this check ran: its result is out of date.
@@ -195,10 +226,11 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
     picksVersion.current += 1
     setMapped(m)
     setPicks({})
+    setNamePicks({})
     setPreview(null)
     setStale(false)
     setStage('review')
-    await runDry(m, {})
+    await runDry(m, {}, {})
   }
 
   function handlePick(key, found) {
@@ -207,12 +239,18 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
     setStale(true)
   }
 
+  function handleNamePick(name, found) {
+    picksVersion.current += 1
+    setNamePicks((p) => ({ ...p, [name]: found }))
+    setStale(true)
+  }
+
   async function handleImport() {
     setBusy(true)
     setError(null)
     const run = await runBatches(importable, false, (i, n) => setProgress(`Importing ${i} of ${n}…`))
     setProgress(null)
-    const clientSkipped = clientSkips(mapped, picks)
+    const clientSkipped = clientSkips(mapped, picks, namePicks)
     if (run.done > 0) onImported()
     if (run.failure && run.done === 0) {
       setError(run.failure)
@@ -234,6 +272,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
     setStage('pick')
     setMapped(null)
     setPicks({})
+    setNamePicks({})
     setResult(null)
     setError(null)
     setBusy(false)
@@ -247,7 +286,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
   const canImport = !!preview && !stale && newCount + updateCount > 0
   const importLabel = newCount + updateCount > 0 ? `Import ${newCount} new, update ${updateCount}` : 'Import'
   const skippedTotal = mapped ? mapped.skipped.length + pendingPick.length + (preview?.skipped.length ?? 0) : 0
-  const clientSkipped = mapped ? clientSkips(mapped, picks) : []
+  const clientSkipped = mapped ? clientSkips(mapped, picks, namePicks) : []
 
   const footer =
     stage === 'review' ? (
@@ -256,7 +295,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
           Back
         </Button>
         {stale ? (
-          <Button className="flex-1" loading={busy} onClick={() => runDry(mapped, picks)}>
+          <Button className="flex-1" loading={busy} onClick={() => runDry(mapped, picks, namePicks)}>
             Check again
           </Button>
         ) : (
@@ -323,6 +362,32 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
               Buildings changed — press Check again to refresh the preview.
             </p>
           )}
+          {nameGroups.length > 0 && (
+            <div className="rounded-btn border border-line p-3">
+              <p className="mb-2 text-xs font-medium text-muted">
+                These names match more than one building — choose once for all their rows (a row can still be
+                changed in the table).
+              </p>
+              <ul className="flex flex-col gap-2">
+                {nameGroups.map((g) => (
+                  <li key={g.name} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span>
+                      <span className="font-medium">{g.name}</span>
+                      <span className="text-muted"> — {g.count} {g.count === 1 ? 'row' : 'rows'}</span>
+                    </span>
+                    <CandidateSelect
+                      value={namePicks[g.name]?.id ?? ''}
+                      candidates={g.candidates}
+                      onChange={(found) => handleNamePick(g.name, found)}
+                      disabled={busy}
+                      placeholder="Choose a building…"
+                      needed={!namePicks[g.name]}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="max-h-72 overflow-auto rounded-btn border border-line">
             <table className="w-full text-left text-xs">
               <thead className="sticky top-0 bg-paper text-faint">
@@ -350,21 +415,19 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
                       <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">{r.mobile}</td>
                       <td className="px-3 py-1.5">
                         {r.candidates ? (
-                          <select
-                            value={pick ? pick.id : ''}
-                            onChange={(e) => handlePick(k, r.candidates.find((c) => c.id === e.target.value))}
-                            disabled={busy}
-                            className="h-8 max-w-[16rem] rounded-btn border border-bad/50 bg-card px-2 text-xs"
-                          >
-                            <option value="">Choose a building…</option>
-                            {r.candidates.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.buildingName}
-                                {c.zoneName ? ` — ${c.zoneName}` : ''}
-                                {c.address ? ` (${c.address})` : ''}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="flex flex-col gap-0.5">
+                            <CandidateSelect
+                              value={pick ? pick.id : ''}
+                              candidates={r.candidates}
+                              onChange={(found) => handlePick(k, found)}
+                              disabled={busy}
+                              placeholder={r.autoPicked ? 'Matched by zone' : 'Choose a building…'}
+                              needed={!pick}
+                            />
+                            {r.autoPicked && !picks[k] && (
+                              <span className="text-xs font-normal text-faint">matched by zone</span>
+                            )}
+                          </div>
                         ) : (
                           r.buildingName
                         )}
@@ -398,6 +461,12 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
           </div>
           <SkippedList items={[...clientSkipped, ...(preview?.skipped ?? [])]} />
           {preview && <FlaggedList items={preview.flagged} />}
+          {mergedCount > 0 && (
+            <p className="text-xs font-normal text-muted">
+              {mergedCount} duplicate {mergedCount === 1 ? 'row' : 'rows'} merged into earlier rows of the same
+              customer
+            </p>
+          )}
           {preview && preview.notInSheet.length > 0 && (
             <details className="rounded-btn bg-paper p-3">
               <summary className="cursor-pointer text-xs font-medium text-muted">
