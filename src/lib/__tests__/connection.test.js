@@ -5,6 +5,8 @@ import {
   droppedText,
   formatOnuSignal,
   formatSignal,
+  isOltDown,
+  oltDownTitle,
   summaryLine,
   worstTone,
 } from '../connection'
@@ -132,8 +134,6 @@ describe('pending', () => {
     expect(worstTone({ online: 2, pending: 30 })).toBe('ok')
   })
 })
-
-import { isOltDown, oltDownTitle, connectionLabel as _label, connectionTone as _tone, summaryLine as _summary } from '../connection'
 describe('OLT not reachable', () => {
   it('applies only to not_seen with oltReachable === false', () => {
     expect(isOltDown({ state: 'not_seen', oltReachable: false })).toBe(true)
@@ -143,11 +143,11 @@ describe('OLT not reachable', () => {
     expect(isOltDown(null)).toBe(false)
   })
   it('label, tone and tooltip', () => {
-    expect(_label({ state: 'not_seen', oltReachable: false, best: { lastSeen: '2026-10-05T08:00:00Z' } })).toBe('OLT not reachable')
-    expect(_tone({ state: 'not_seen', oltReachable: false })).toBe('warn')
+    expect(connectionLabel({ state: 'not_seen', oltReachable: false, best: { lastSeen: '2026-10-05T08:00:00Z' } })).toBe('OLT not reachable')
+    expect(connectionTone({ state: 'not_seen', oltReachable: false })).toBe('warn')
     expect(oltDownTitle('OLT-1')).toBe("Our OLT monitoring can't reach OLT-1 — this customer may be fine.")
   })
   it('summary line lists them', () => {
-    expect(_summary({ notSeen: 1, oltDown: 4 })).toBe('1 not seen · 4 OLT not reachable')
+    expect(summaryLine({ notSeen: 1, oltDown: 4 })).toBe('1 not seen · 4 OLT not reachable')
   })
 })

@@ -133,9 +133,9 @@ export function connTitle(row, now = Date.now()) {
   return checkedAgo(row?.connCheckedAt, now) || undefined
 }
 
-/** Tiles to render: those flagged onlyWhenPositive disappear while their count is 0 (or not loaded yet). */
-export function visibleTiles(counts) {
-  return TILES.filter((t) => !t.onlyWhenPositive || (counts?.[t.countKey] ?? 0) > 0)
+/** Tiles to render: onlyWhenPositive ones disappear at count 0 (or not loaded) unless their filter is active. */
+export function visibleTiles(counts, filters) {
+  return TILES.filter((t) => !t.onlyWhenPositive || (counts?.[t.countKey] ?? 0) > 0 || (filters ? tileActive(filters, t) : false))
 }
 
 export const STALE_MS = 5 * 60000

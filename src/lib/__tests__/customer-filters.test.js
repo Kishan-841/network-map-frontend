@@ -15,6 +15,13 @@ import {
   connShort,
   filterChips,
   EMPTY_FILTERS,
+  rowOltDown,
+  connTitle,
+  visibleTiles,
+  staleIds,
+  mergeRows,
+  safeBackHref,
+  customerDetailHref,
 } from '../customer-filters'
 
 const NOW = new Date('2026-10-21T10:00:00Z').getTime()
@@ -147,23 +154,24 @@ describe('filterChips', () => {
   })
 })
 
-import { rowOltDown, connTitle, visibleTiles, staleIds, mergeRows, connShort as _short, connLabel as _cl, filterChips as _chips, parseFilters as _parse } from '../customer-filters'
 describe('OLT down + refresh helpers', () => {
   const NOW = Date.parse('2026-10-21T10:00:00Z')
   it('labels and titles OLT-down rows', () => {
     const row = { connState: 'not_seen', oltReachable: false, connOlt: 'OLT-9' }
     expect(rowOltDown(row)).toBe(true)
-    expect(_cl(row)).toBe('OLT not reachable')
+    expect(connLabel(row)).toBe('OLT not reachable')
     expect(connTitle(row, NOW)).toBe("Our OLT monitoring can't reach OLT-9 — this customer may be fine.")
-    expect(_short({ state: 'not_seen', oltReachable: false }).word).toBe('OLT not reachable')
-    expect(_short({ state: 'not_seen', oltReachable: null }).word).toBe('Not seen')
+    expect(connShort({ state: 'not_seen', oltReachable: false }).word).toBe('OLT not reachable')
+    expect(connShort({ state: 'not_seen', oltReachable: null }).word).toBe('Not seen')
   })
   it('filter value, chip and tile', () => {
-    const f = _parse(new URLSearchParams('conn=olt_down'))
+    const f = parseFilters(new URLSearchParams('conn=olt_down'))
     expect(f.conn).toBe('olt_down')
-    expect(_chips(f)[0].label).toBe('Connection: OLT not reachable')
+    expect(filterChips(f)[0].label).toBe('Connection: OLT not reachable')
     expect(visibleTiles({ oltDown: 0 }).map((t) => t.id)).not.toContain('olt_down')
     expect(visibleTiles({ oltDown: 2 }).map((t) => t.id)).toContain('olt_down')
+    // stays visible while its own filter is active, even at 0
+    expect(visibleTiles({ oltDown: 0 }, f).map((t) => t.id)).toContain('olt_down')
   })
   it('staleIds picks never-checked and older than 5 min', () => {
     const rows = [
@@ -180,7 +188,6 @@ describe('OLT down + refresh helpers', () => {
   })
 })
 
-import { safeBackHref, customerDetailHref } from '../customer-filters'
 describe('back navigation', () => {
   it('trusts only /customers paths', () => {
     expect(safeBackHref('/customers?conn=offline&page=2')).toBe('/customers?conn=offline&page=2')

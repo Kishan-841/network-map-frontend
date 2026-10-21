@@ -37,7 +37,7 @@ import { ImportCustomersModal } from '@/components/customers/ImportCustomersModa
 const PAGE_SIZE = 50
 
 /** One-line connection cell from a list row; the long "checked 18 min ago" is the tooltip. */
-function Connection({ row, now, checking }) {
+function Connection({ row, now, checking, notRefreshed }) {
   return (
     <ConnectionCell
       state={row.connState}
@@ -46,7 +46,7 @@ function Connection({ row, now, checking }) {
       oltReachable={row.oltReachable}
       checking={checking}
       now={now}
-      title={connTitle(row, now)}
+      title={notRefreshed ? `Not refreshed — showing saved status. ${connTitle(row, now) ?? ''}`.trim() : connTitle(row, now)}
     />
   )
 }
@@ -82,12 +82,15 @@ function CustomersList() {
   // The answer is tied to the request it answered, so "loading" is derived, never set in an effect.
   const [result, setResult] = useState(null)
   const requestKey = `${queryString}#${reloads}`
-  // Fresh OLT status for the visible rows. Each piece is tied to the list request it belongs to,
-  // so a slow answer for an old page/filter can never touch the current one.
-  const [fresh, setFresh] = useState({ key: null, byId: {}, counts: null })
-  const [checking, setChecking] = useState({ key: null, ids: [] })
-  const [refreshFailed, setRefreshFailed] = useState(null) // the request key whose refresh failed
-  const keyRef = useRef(requestKey)
+  // Fresh OLT status for the visible rows. Everything below is keyed by the id of the list LOAD it
+  // belongs to (a counter, never reused), so an old refresh can't touch newer rows, counts or flags
+  // even when the user returns to the same page or filter.
+  const [fresh, setFresh] = useState({ id: 0, byId: {}, counts: null, pending: [] })
+  const [checking, setChecking] = useState({ id: 0, ids: [] })
+  const [note, setNote] = useState({ id: 0, kind: null }) // 'failed' | 'limited'
+  const [cooldown, setCooldown] = useState(false) // after a forced refresh the backend ignores force for 30 s
+  const loadSeq = useRef(0)
+  const cooldownTimer = useRef(null)
 
   const navigate = useCallback(
     (next) => {
@@ -108,52 +111,62 @@ function CustomersList() {
   })
   useEffect(() => () => clearTimeout(timer.current), [])
 
-  useEffect(() => {
-    keyRef.current = requestKey
-  })
+  useEffect(() => () => clearTimeout(cooldownTimer.current), [])
 
   // Ask the backend to re-check these customers. Rows come back merged by id; counts are refetched
   // quietly (no loading state) so the tiles catch up without a flicker.
-  const runRefresh = useCallback(async (key, qs, ids, force) => {
+  const runRefresh = useCallback(async (id, qs, ids, force) => {
     if (ids.length === 0) return
-    const stillCurrent = () => keyRef.current === key
-    setChecking({ key, ids })
-    setRefreshFailed((k) => (k === key ? null : k))
+    const stillCurrent = () => loadSeq.current === id
+    setChecking({ id, ids })
+    setNote((n) => (n.id === id ? { id, kind: null } : n))
     try {
       const res = await apiClient.post('/customers/refresh', { ids, force })
       if (!stillCurrent()) return
       const rows = res.data.data?.rows ?? []
+      const pending = res.data.data?.pending ?? []
       setFresh((prev) => {
-        const base = prev.key === key ? prev : { key, byId: {}, counts: null }
-        return { ...base, byId: { ...base.byId, ...Object.fromEntries(rows.map((r) => [r.id, r])) } }
+        const base = prev.id === id ? prev : { id, byId: {}, counts: null, pending: [] }
+        const returned = new Set(rows.map((r) => r.id))
+        return {
+          ...base,
+          byId: { ...base.byId, ...Object.fromEntries(rows.map((r) => [r.id, r])) },
+          pending: [...base.pending.filter((x) => !returned.has(x)), ...pending],
+        }
       })
-      setChecking((c) => (c.key === key ? { key, ids: [] } : c))
+      if (force) {
+        setCooldown(true)
+        clearTimeout(cooldownTimer.current)
+        cooldownTimer.current = setTimeout(() => setCooldown(false), 30000)
+      }
+      if (rows.length === 0) return
       try {
-        const counts = await apiClient.get('/customers/list', {
+        const res2 = await apiClient.get('/customers/list', {
           params: { ...Object.fromEntries(new URLSearchParams(qs)), page: 1, pageSize: 1 },
         })
-        if (stillCurrent()) setFresh((prev) => (prev.key === key ? { ...prev, counts: counts.data.data?.counts ?? null } : prev))
+        if (stillCurrent()) setFresh((prev) => (prev.id === id ? { ...prev, counts: res2.data.data?.counts ?? null } : prev))
       } catch {
         // the tiles simply keep their previous numbers
       }
-    } catch {
-      if (!stillCurrent()) return
-      setChecking((c) => (c.key === key ? { key, ids: [] } : c))
-      setRefreshFailed(key)
+    } catch (err) {
+      if (stillCurrent()) setNote({ id, kind: err?.response?.status === 429 ? 'limited' : 'failed' })
+    } finally {
+      setChecking((c) => (c.id === id ? { id, ids: [] } : c)) // every exit path
     }
   }, [])
 
   useEffect(() => {
     let alive = true
+    const id = ++loadSeq.current
     apiClient
       .get('/customers/list', { params: { ...Object.fromEntries(new URLSearchParams(queryString)), pageSize: PAGE_SIZE } })
       .then((res) => {
         if (!alive) return
         const data = res.data.data
-        setResult({ key: requestKey, data, at: Date.now() })
-        runRefresh(requestKey, queryString, staleIds(data.rows ?? [], Date.now()), false)
+        setResult({ key: requestKey, id, data, at: Date.now() })
+        runRefresh(id, queryString, staleIds(data.rows ?? [], Date.now()), false)
       })
-      .catch((err) => alive && setResult({ key: requestKey, error: getApiErrorMessage(err, 'Could not load customers') }))
+      .catch((err) => alive && setResult({ key: requestKey, id, error: getApiErrorMessage(err, 'Could not load customers') }))
     return () => {
       alive = false
     }
@@ -162,10 +175,12 @@ function CustomersList() {
   const current = result?.key === requestKey ? result : null
   const loading = !current
   const loaded = current?.data ?? result?.data ?? null // keep the last answer's counts/facets while reloading
-  const freshNow = fresh.key === requestKey ? fresh : null
+  const freshNow = current && fresh.id === current.id ? fresh : null
   const data = loaded && freshNow?.counts ? { ...loaded, counts: freshNow.counts } : loaded
   const rows = current?.data ? mergeRows(current.data.rows, Object.values(freshNow?.byId ?? {})) : undefined
-  const checkingIds = checking.key === requestKey ? checking.ids : []
+  const checkingIds = current && checking.id === current.id ? checking.ids : []
+  const pendingIds = freshNow?.pending ?? []
+  const noteKind = current && note.id === current.id ? note.kind : null
   const refreshing = checkingIds.length > 0
   const facets = data?.facets
   const now = result?.at ?? 0 // the moment the answer arrived — keeps render pure
@@ -200,7 +215,8 @@ function CustomersList() {
   }
 
   function refreshStatus() {
-    runRefresh(requestKey, queryString, (rows ?? []).map((r) => r.id).slice(0, 50), true)
+    if (!current) return
+    runRefresh(current.id, queryString, (rows ?? []).map((r) => r.id).slice(0, 50), true)
   }
 
   async function download() {
@@ -243,7 +259,7 @@ function CustomersList() {
     },
     { key: 'plan', header: 'Plan', render: (r) => <PlanCell row={r} /> },
     { key: 'expiry', header: 'Expiry', className: 'whitespace-nowrap', render: (r) => <Expiry row={r} now={now} /> },
-    { key: 'conn', header: 'Connection', render: (r) => <Connection row={r} now={now} checking={checkingIds.includes(r.id)} /> },
+    { key: 'conn', header: 'Connection', render: (r) => <Connection row={r} now={now} checking={checkingIds.includes(r.id)} notRefreshed={pendingIds.includes(r.id)} /> },
     { key: 'signal', header: 'Signal', className: 'whitespace-nowrap', render: (r) => signalOf(r) ?? '—' },
   ]
 
@@ -253,7 +269,7 @@ function CustomersList() {
       {(r.username || r.mobile) && <p className="break-all text-xs text-muted">{r.username || r.mobile}</p>}
       <p className="mt-0.5 text-sm text-muted">{placeOf(r) || 'No building'}</p>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <Connection row={r} now={now} checking={checkingIds.includes(r.id)} />
+        <Connection row={r} now={now} checking={checkingIds.includes(r.id)} notRefreshed={pendingIds.includes(r.id)} />
         <span className="text-sm text-muted">{signalOf(r) ?? ''}</span>
       </div>
       <p className="mt-3 text-sm text-muted">
@@ -284,7 +300,7 @@ function CustomersList() {
         sub={data ? `${total.toLocaleString('en-IN')} customer${total === 1 ? '' : 's'}${activeCount || filters.q ? ' match' : ''}` : 'Every subscriber, filterable'}
         action={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={refreshStatus} loading={refreshing} disabled={loading || refreshing || !rows?.length}>
+            <Button variant="secondary" onClick={refreshStatus} loading={refreshing} disabled={loading || refreshing || cooldown || !rows?.length}>
               {!refreshing && <IconRefresh className="h-4 w-4" strokeWidth={1.8} />}
               <span className="hidden sm:inline">Refresh status</span>
             </Button>
@@ -305,14 +321,16 @@ function CustomersList() {
       {toast && <Toast key={toast} message={toast} onDone={() => setToast(null)} />}
 
       <SummaryTiles
-        tiles={visibleTiles(data?.counts).map((tile) => {
+        tiles={visibleTiles(data?.counts, filters).map((tile) => {
           const n = data?.counts?.[tile.countKey]
           return { id: tile.id, label: tile.label, count: loading && n == null ? null : (n ?? 0), active: tileActive(filters, tile) }
         })}
         onPick={(t) => navigate(applyTile(filters, TILES.find((x) => x.id === t.id)))}
       />
 
-      {refreshFailed === requestKey && <p className="mb-2 text-xs text-muted">Couldn&apos;t refresh status — showing saved status</p>}
+      {noteKind === 'failed' && <p className="mb-2 text-xs text-muted">Couldn&apos;t refresh status — showing saved status</p>}
+      {noteKind === 'limited' && <p className="mb-2 text-xs text-muted">Too many refreshes — try again in a minute</p>}
+      {cooldown && !refreshing && !noteKind && <p className="mb-2 text-xs text-muted">Refreshed just now</p>}
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <SearchInput
