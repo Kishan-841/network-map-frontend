@@ -1,4 +1,4 @@
-import { expiryTone } from '@/lib/customer-filters'
+import { connShort, connTone, expiryTone } from '@/lib/customer-filters'
 
 const EXPIRY_TEXT = { bad: 'text-bad', warn: 'text-warn' }
 
@@ -22,18 +22,33 @@ export function Expiry({ row, now }) {
   )
 }
 
-/** Plan name with its amount underneath. */
+/** Plan name; the amount underneath only when it is above zero (₹0 means "not recorded"). */
 export function PlanCell({ row }) {
-  if (!row.planName && row.planAmount == null) return '—'
+  const amount = Number(row.planAmount) > 0 ? row.planAmount : null
+  if (!row.planName && amount == null) return '—'
   return (
     <span>
       {row.planName ?? '—'}
-      {row.planAmount != null && <span className="block text-xs text-muted">{formatMoney(row.planAmount)}</span>}
+      {amount != null && <span className="block text-xs text-muted">{formatMoney(amount)}</span>}
     </span>
   )
 }
 
-/** Billing status chip. */
-export function BillingChip({ status }) {
-  return status ? <span className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted">{status}</span> : '—'
+const DOT = { ok: 'bg-ok', bad: 'bg-bad', warn: 'bg-warn', muted: 'bg-faint' }
+const TEXT = { ok: 'text-ok', bad: 'text-bad', warn: 'text-warn', muted: 'text-muted' }
+
+/**
+ * One line: dot + word + muted short age ("Online · 18m"). The word is always shown, so colour is
+ * never the only signal. `title` carries the long form. `state` empty = never checked.
+ */
+export function ConnectionCell({ state, lastSeen, checkedAt, now, title }) {
+  const tone = connTone({ connState: state })
+  const { word, note } = connShort({ state, lastSeen, checkedAt }, now)
+  return (
+    <span title={title} className={`inline-flex items-center gap-2 whitespace-nowrap text-sm font-medium ${TEXT[tone]}`}>
+      <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[tone]}`} />
+      {word}
+      {note && <span className="font-normal text-muted">· {note}</span>}
+    </span>
+  )
 }

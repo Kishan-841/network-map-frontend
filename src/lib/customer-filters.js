@@ -160,3 +160,65 @@ export function buildingFilterLabel(buildings = [], id) {
   if (!id) return ''
   return buildings.find((b) => b.id === id)?.buildingName ?? 'Selected building'
 }
+
+/** "18m" / "2h" / "3d" since `date`; '' with no date. Under a minute reads "now". */
+export function shortAge(date, now = Date.now()) {
+  if (!date) return ''
+  const ms = new Date(now).getTime() - new Date(date).getTime()
+  if (!Number.isFinite(ms)) return ''
+  const min = Math.floor(Math.max(0, ms) / 60000)
+  if (min < 1) return 'now'
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h}h`
+  return `${Math.floor(h / 24)}d`
+}
+
+const shortDate = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
+
+const SHORT_WORDS = {
+  online: 'Online',
+  offline: 'Offline',
+  not_seen: 'Not seen',
+  not_linked: 'Not linked',
+  no_username: 'No username',
+  unavailable: 'Unavailable',
+  pending: 'Not checked yet',
+}
+
+/**
+ * The one-line connection cell as { word, note }: "Online" + "18m", "Not seen" + "since 5 Oct",
+ * "Never checked" + ''. `state` empty means no snapshot yet.
+ */
+export function connShort({ state, lastSeen, checkedAt } = {}, now = Date.now()) {
+  if (!state) return { word: 'Never checked', note: '' }
+  const word = SHORT_WORDS[state] ?? 'Unknown'
+  if (state === 'not_seen' && lastSeen) return { word, note: `since ${shortDate.format(new Date(lastSeen))}` }
+  return { word, note: shortAge(checkedAt, now) }
+}
+
+const EXPIRY_CHIP = { expired: 'Expired', '7d': 'within 7 days', '30d': 'within 30 days' }
+
+/**
+ * One chip per narrowing filter, in a stable order: { key, label, patch }. `patch` clears just that
+ * filter. `facets` supplies names for zone and building ids (a stale id reads generically).
+ */
+export function filterChips(filters, facets = {}) {
+  const f = filters ?? {}
+  const chips = []
+  const add = (key, label) => chips.push({ key, label, patch: { [key]: '' } })
+  if (f.zoneId) add('zoneId', `Zone: ${facets?.zones?.find((z) => z.id === f.zoneId)?.name ?? 'Selected zone'}`)
+  if (f.networkZone) add('networkZone', `Network zone: ${f.networkZone}`)
+  if (f.operator) add('operator', `Operator: ${f.operator}`)
+  if (f.billingStatus) add('billingStatus', `Billing: ${f.billingStatus}`)
+  if (f.buildingId) add('buildingId', `Building: ${buildingFilterLabel(facets?.buildings, f.buildingId)}`)
+  if (f.conn) add('conn', `Connection: ${CONN_OPTIONS.find((o) => o.value === f.conn)?.label ?? f.conn}`)
+  if (f.expiry) add('expiry', `Expires: ${EXPIRY_CHIP[f.expiry] ?? f.expiry}`)
+  if (f.planName) add('planName', `Plan: ${f.planName}`)
+  if (f.autoRenewal) {
+    const r = RENEWAL_OPTIONS.find((o) => o.value === f.autoRenewal)?.label ?? f.autoRenewal
+    add('autoRenewal', `Auto renewal: ${r}`)
+  }
+  if (f.weak) add('weak', 'Weak signal')
+  return chips
+}

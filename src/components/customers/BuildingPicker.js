@@ -27,7 +27,7 @@ export function BuildingPicker({ id, value, buildings = [], onChange }) {
   return (
     <div
       ref={root}
-      className="relative flex flex-col gap-1.5 lg:col-span-2"
+      className="relative flex flex-col gap-1.5 sm:col-span-2"
       onBlur={(e) => {
         // close only when focus leaves the whole picker, so Tab can move into the options
         if (!root.current?.contains(e.relatedTarget)) setOpen(false)

@@ -11,6 +11,10 @@ import {
   activeFilterCount,
   filterBuildings,
   buildingFilterLabel,
+  shortAge,
+  connShort,
+  filterChips,
+  EMPTY_FILTERS,
 } from '../customer-filters'
 
 const NOW = new Date('2026-10-21T10:00:00Z').getTime()
@@ -99,5 +103,46 @@ describe('building picker helpers', () => {
     expect(buildingFilterLabel(list, 'b')).toBe('Green Park')
     expect(buildingFilterLabel(list, 'zzz')).toBe('Selected building')
     expect(buildingFilterLabel(list, '')).toBe('')
+  })
+})
+
+describe('shortAge / connShort', () => {
+  it('shortens ages', () => {
+    expect(shortAge(null, NOW)).toBe('')
+    expect(shortAge(new Date(NOW - 20_000), NOW)).toBe('now')
+    expect(shortAge(new Date(NOW - 18 * 60_000), NOW)).toBe('18m')
+    expect(shortAge(new Date(NOW - 2 * 3600_000), NOW)).toBe('2h')
+    expect(shortAge(new Date(NOW - 3 * 86400_000), NOW)).toBe('3d')
+  })
+
+  it('builds the one-line connection cell', () => {
+    expect(connShort({ state: 'online', checkedAt: new Date(NOW - 18 * 60_000) }, NOW)).toEqual({ word: 'Online', note: '18m' })
+    expect(connShort({ state: 'not_seen', lastSeen: '2026-10-05T08:00:00Z', checkedAt: new Date(NOW) }, NOW)).toEqual({ word: 'Not seen', note: 'since 5 Oct' })
+    expect(connShort({ state: 'not_seen' }, NOW)).toEqual({ word: 'Not seen', note: '' })
+    expect(connShort({ state: 'not_linked' }, NOW).word).toBe('Not linked')
+    expect(connShort({}, NOW)).toEqual({ word: 'Never checked', note: '' })
+  })
+})
+
+describe('filterChips', () => {
+  const facets = { zones: [{ id: 'z1', name: 'MORYA INTERNET FTTH' }], buildings: [{ id: 'b1', buildingName: 'Capital Towers' }] }
+  it('has no chips without filters', () => {
+    expect(filterChips(EMPTY_FILTERS, facets)).toEqual([])
+  })
+  it('labels each active filter and clears just that one', () => {
+    const chips = filterChips({ ...EMPTY_FILTERS, zoneId: 'z1', conn: 'offline', expiry: '7d', buildingId: 'b1', weak: 'true', q: 'raj', sort: 'expiry' }, facets)
+    expect(chips.map((c) => c.label)).toEqual([
+      'Zone: MORYA INTERNET FTTH',
+      'Building: Capital Towers',
+      'Connection: Offline',
+      'Expires: within 7 days',
+      'Weak signal',
+    ])
+    expect(chips[2].patch).toEqual({ conn: '' })
+    expect(chips).toHaveLength(activeFilterCount({ ...EMPTY_FILTERS, zoneId: 'z1', conn: 'offline', expiry: '7d', buildingId: 'b1', weak: 'true' }))
+  })
+  it('handles stale ids and other facets', () => {
+    const labels = filterChips({ ...EMPTY_FILTERS, zoneId: 'gone', buildingId: 'gone', planName: 'Gold', autoRenewal: 'unset' }, {}).map((c) => c.label)
+    expect(labels).toEqual(['Zone: Selected zone', 'Building: Selected building', 'Plan: Gold', 'Auto renewal: Not set'])
   })
 })

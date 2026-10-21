@@ -11,11 +11,22 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { IconEdit, IconPlus, IconTrash, IconUpload, IconUsers } from '@/components/ui/icons'
 import { CustomerFormModal } from './CustomerFormModal'
 import { ImportCustomersModal } from './ImportCustomersModal'
-import { ConnectionStatus } from './ConnectionCard'
 import { SummaryTiles } from './SummaryTiles'
-import { BillingChip, Expiry, PlanCell, formatMoney } from './CustomerCells'
+import { ConnectionCell, Expiry, PlanCell, formatMoney } from './CustomerCells'
 import { formatSignal } from '@/lib/connection'
 import { buildTiles, filterByTile } from '@/lib/building-customer-tiles'
+
+/** Live status from the OLT lookup, in the same one-line cell as the Customers tab. */
+function LiveConnection({ connection, now }) {
+  return (
+    <ConnectionCell
+      state={connection.state}
+      lastSeen={connection.best?.lastSeen}
+      checkedAt={connection.checkedAt}
+      now={now}
+    />
+  )
+}
 
 const wingText = (c) => c.wing?.name ?? <span className="text-muted">No wing</span>
 
@@ -244,7 +255,6 @@ export function CustomersSection({ buildingId, canWrite = false }) {
     { key: 'wing', header: 'Wing', render: wingText },
     { key: 'planName', header: 'Plan', render: (c) => <PlanCell row={c} /> },
     { key: 'expires', header: 'Expiry', render: (c) => <Expiry row={c} now={now} /> },
-    { key: 'status', header: 'Billing', render: (c) => <BillingChip status={c.status} /> },
     ...(showConn
       ? [
           {
@@ -256,7 +266,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
               ) : connFailed || !connections?.[c.id] ? (
                 '—'
               ) : (
-                <ConnectionStatus connection={connections[c.id]} />
+                <LiveConnection connection={connections[c.id]} now={now} />
               ),
           },
           {
@@ -330,14 +340,13 @@ export function CustomersSection({ buildingId, canWrite = false }) {
                 <span className="text-muted">—</span>
               ) : (
                 <>
-                  <ConnectionStatus connection={connections[c.id]} className="!text-xs" />
+                  <LiveConnection connection={connections[c.id]} now={now} />
                   <span className="text-muted">{formatSignal(connections[c.id])}</span>
                 </>
               )}
             </p>
           )}
         </div>
-        {c.status && <span className="shrink-0"><BillingChip status={c.status} /></span>}
       </div>
       {canWrite && (
         <div className="mt-3 flex justify-end gap-2 border-t border-line/60 pt-3" onClick={(e) => e.stopPropagation()}>

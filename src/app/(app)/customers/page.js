@@ -12,8 +12,7 @@ import {
   activeFilterCount,
   applyTile,
   checkedAgo,
-  connLabel,
-  connTone,
+  filterChips,
   parseFilters,
   tileActive,
   toQuery,
@@ -25,34 +24,30 @@ import { DataTable } from '@/components/ui/DataTable'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { Select } from '@/components/ui/Input'
 import { Toast } from '@/components/ui/Toast'
-import { IconDownload, IconFilters, IconUpload, IconUsers } from '@/components/ui/icons'
-import BuildingFilterSheet from '@/components/buildings/BuildingFilterSheet'
+import { IconClose, IconDownload, IconFilters, IconUpload, IconUsers } from '@/components/ui/icons'
 import { SummaryTiles } from '@/components/customers/SummaryTiles'
-import { BillingChip, Expiry, PlanCell } from '@/components/customers/CustomerCells'
-import { CustomerFilters } from '@/components/customers/CustomerFilters'
+import { ConnectionCell, Expiry, PlanCell } from '@/components/customers/CustomerCells'
+import { CustomerFilterPanel } from '@/components/customers/CustomerFilterPanel'
 import { ImportCustomersModal } from '@/components/customers/ImportCustomersModal'
 
-const DOT = { ok: 'bg-ok', bad: 'bg-bad', warn: 'bg-warn', muted: 'bg-faint' }
-const TEXT = { ok: 'text-ok', bad: 'text-bad', warn: 'text-warn', muted: 'text-muted' }
 const PAGE_SIZE = 50
 
-/** Dot + word + muted "checked X ago". The word is always shown: colour is never the only signal. */
+/** One-line connection cell from a list row; the long "checked 18 min ago" is the tooltip. */
 function Connection({ row, now }) {
-  const tone = connTone(row)
-  const ago = checkedAgo(row.connCheckedAt, now)
   return (
-    <span className="flex flex-col">
-      <span className={`inline-flex items-center gap-2 text-sm font-medium ${TEXT[tone]}`}>
-        <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[tone]}`} />
-        {connLabel(row)}
-      </span>
-      {ago && <span className="pl-4 text-xs font-normal text-muted">{ago}</span>}
-    </span>
+    <ConnectionCell
+      state={row.connState}
+      lastSeen={row.connLastSeen}
+      checkedAt={row.connCheckedAt}
+      now={now}
+      title={checkedAgo(row.connCheckedAt, now) || undefined}
+    />
   )
 }
 
 const signalOf = (row) => formatSignal(row.connRxDbm == null ? null : { best: { rxDbm: row.connRxDbm, rxQuality: row.connRxQuality } })
 const placeOf = (row) => [row.building?.buildingName, row.wing?.name].filter(Boolean).join(' · ')
+const FILTER_RESET = { zoneId: '', networkZone: '', operator: '', billingStatus: '', conn: '', weak: '', expiry: '', buildingId: '', planName: '', autoRenewal: '' }
 const customerHref = (row) => `/buildings/${row.building?.id}/customers/${row.id}`
 
 function CustomersList() {
@@ -75,7 +70,7 @@ function CustomersList() {
     setSeenQ(filters.q)
     if (!pending) setDraft(filters.q)
   }
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [panelOpen, setPanelOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [toast, setToast] = useState(null)
@@ -120,6 +115,7 @@ function CustomersList() {
   const facets = data?.facets
   const now = result?.at ?? 0 // the moment the answer arrived — keeps render pure
   const activeCount = activeFilterCount(filters)
+  const chips = filterChips(filters, facets)
 
   function onSearch(value) {
     setDraft(value)
@@ -135,7 +131,17 @@ function CustomersList() {
     clearTimeout(timer.current)
     setDraft('')
     setPending(false)
-    navigate({ ...filters, q: '', zoneId: '', networkZone: '', operator: '', billingStatus: '', conn: '', weak: '', expiry: '', buildingId: '', planName: '', autoRenewal: '', page: 1 })
+    navigate({ ...filters, ...FILTER_RESET, q: '', page: 1 })
+  }
+
+  // Chips' "Clear all" drops the filters but keeps what is typed in the search box.
+  function clearFilters() {
+    change(FILTER_RESET)
+  }
+
+  function applyPanel(draft) {
+    setPanelOpen(false)
+    change(draft)
   }
 
   async function download() {
@@ -161,33 +167,32 @@ function CustomersList() {
       render: (r) => (
         <Link href={customerHref(r)} className="block font-medium text-ink hover:text-fiber" onClick={(e) => e.stopPropagation()}>
           {r.name}
-          {r.username && <span className="block text-xs font-normal text-muted">{r.username}</span>}
+          {(r.username || r.mobile) && <span className="block break-all text-xs font-normal text-muted">{r.username || r.mobile}</span>}
         </Link>
       ),
     },
-    { key: 'building', header: 'Building · Wing', render: (r) => placeOf(r) || '—' },
-    { key: 'zone', header: 'Our zone', render: (r) => r.zone?.name ?? '—' },
-    { key: 'operator', header: 'Operator', render: (r) => r.operator ?? '—' },
     {
-      key: 'plan',
-      header: 'Plan',
-      render: (r) => <PlanCell row={r} />,
+      key: 'building',
+      header: 'Building',
+      render: (r) => (
+        <span title={r.building?.buildingName} className="line-clamp-2 max-w-64 break-words">
+          {r.building?.buildingName || '—'}
+        </span>
+      ),
     },
-    { key: 'expiry', header: 'Expiry', render: (r) => <Expiry row={r} now={now} /> },
-    {
-      key: 'status',
-      header: 'Billing',
-      render: (r) => <BillingChip status={r.status} />,
-    },
+    { key: 'wing', header: 'Wing', render: (r) => r.wing?.name || '—' },
+    { key: 'plan', header: 'Plan', render: (r) => <PlanCell row={r} /> },
+    { key: 'expiry', header: 'Expiry', className: 'whitespace-nowrap', render: (r) => <Expiry row={r} now={now} /> },
     { key: 'conn', header: 'Connection', render: (r) => <Connection row={r} now={now} /> },
-    { key: 'signal', header: 'Signal', render: (r) => signalOf(r) ?? '—' },
+    { key: 'signal', header: 'Signal', className: 'whitespace-nowrap', render: (r) => signalOf(r) ?? '—' },
   ]
 
   const renderCard = (r) => (
     <Link href={customerHref(r)} className="block rounded-card border border-line bg-card p-4 shadow-soft">
       <p className="font-medium text-ink">{r.name}</p>
+      {(r.username || r.mobile) && <p className="break-all text-xs text-muted">{r.username || r.mobile}</p>}
       <p className="mt-0.5 text-sm text-muted">{placeOf(r) || 'No building'}</p>
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <Connection row={r} now={now} />
         <span className="text-sm text-muted">{signalOf(r) ?? ''}</span>
       </div>
@@ -243,13 +248,18 @@ function CustomersList() {
         onPick={(t) => navigate(applyTile(filters, TILES.find((x) => x.id === t.id)))}
       />
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         <SearchInput
           value={draft}
           onChange={onSearch}
           placeholder="Search name, mobile or username"
-          className="min-w-0 flex-1 sm:max-w-md"
+          className="min-w-0 basis-full sm:basis-auto sm:flex-1 sm:max-w-md"
         />
+        <Button type="button" variant="secondary" onClick={() => setPanelOpen(true)} aria-haspopup="dialog">
+          <IconFilters className="h-4 w-4" />
+          Filters
+          {activeCount > 0 && <span className="badge badge-primary badge-sm">{activeCount}</span>}
+        </Button>
         <Select
           id="customers-sort-top"
           aria-label="Sort by"
@@ -263,23 +273,34 @@ function CustomersList() {
             </option>
           ))}
         </Select>
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          className="flex h-12 items-center gap-2 rounded-btn border border-line bg-card px-4 text-sm font-medium lg:hidden"
-        >
-          <IconFilters className="h-4 w-4" />
-          Filters{activeCount ? ` (${activeCount})` : ''}
-        </button>
       </div>
 
-      <div className="mb-5 hidden grid-cols-2 gap-3 lg:grid xl:grid-cols-4">
-        <CustomerFilters filters={filters} facets={facets} onChange={change} idSuffix="-inline" />
-      </div>
+      {chips.length > 0 && (
+        <ul className="mb-4 flex flex-wrap items-center gap-2" aria-label="Active filters">
+          {chips.map((c) => (
+            <li key={c.key} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-fiber-tint py-1 pl-3 pr-1.5 text-sm font-medium text-fiber">
+              <span className="truncate">{c.label}</span>
+              <button
+                type="button"
+                aria-label={`Remove filter: ${c.label}`}
+                onClick={() => change(c.patch)}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full hover:bg-fiber/10"
+              >
+                <IconClose className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+          {chips.length >= 2 && (
+            <li>
+              <button type="button" onClick={clearFilters} className="px-2 py-1 text-sm font-medium text-muted underline-offset-2 hover:text-ink hover:underline">
+                Clear all
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
 
-      <BuildingFilterSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onClear={clearAll} activeCount={activeCount}>
-        <CustomerFilters filters={filters} facets={facets} onChange={change} idSuffix="-sheet" />
-      </BuildingFilterSheet>
+      {panelOpen && <CustomerFilterPanel filters={filters} facets={facets} onApply={applyPanel} onClose={() => setPanelOpen(false)} />}
 
       {current?.error ? (
         <div className="flex items-center justify-between gap-3 rounded-btn bg-bad-tint px-4 py-3 text-sm text-bad">

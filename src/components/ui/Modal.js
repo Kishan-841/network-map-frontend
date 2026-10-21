@@ -12,6 +12,7 @@ import { IconClose } from '@/components/ui/icons'
  * - Keeps the header and footer fixed within the dialog.
  * - Scrolls only the modal body when content exceeds viewport height.
  * - Uses an opaque background to prevent underlying content showing through.
+ * - `sheet`: below the sm breakpoint it docks to the bottom as a sheet (desktop unchanged).
  * - Supports click-outside dismissal, wide layouts, and non-dismissable steps.
  */
 export function Modal({
@@ -22,6 +23,7 @@ export function Modal({
   footer,
   wide = false,
   dismissable = true,
+  sheet = false,
 }) {
   useEffect(() => {
     if (!open) return
@@ -47,7 +49,9 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/50 p-3 sm:p-5"
+      className={`fixed inset-0 z-[9999] flex justify-center overflow-y-auto overscroll-contain bg-black/50 sm:items-center sm:p-5 ${
+        sheet ? 'items-end' : 'items-center p-3'
+      }`}
       onMouseDown={(event) => {
         if (
           dismissable &&
@@ -63,9 +67,11 @@ export function Modal({
         aria-label={title}
         className={[
           'relative flex w-full flex-col overflow-hidden',
-          'max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-40px)]',
+          sheet
+            ? 'max-h-[88dvh] rounded-b-none sm:max-h-[calc(100dvh-40px)] sm:rounded-b-card'
+            : 'max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-40px)]',
           wide ? 'max-w-3xl' : 'max-w-md',
-          'rounded-card border border-line/70 bg-card text-ink shadow-lift',
+          'rounded-card border-line/70 bg-card text-ink shadow-lift',
         ].join(' ')}
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
