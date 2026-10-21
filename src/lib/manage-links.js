@@ -79,7 +79,6 @@ export const NAV_GROUPS = [
  * `sub` is the grid's second line; the sidebar shows only the label.
  */
 const SUBTITLES = {
-  '/customers': 'Every subscriber, filterable',
   '/societies': 'Permission visits and history',
   '/partner-dashboard': 'Network at a glance',
   '/partners': 'Referral partners',
