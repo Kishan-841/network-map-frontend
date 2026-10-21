@@ -68,10 +68,11 @@ export function Modal({
         className={[
           'relative flex w-full flex-col overflow-hidden',
           sheet
-            ? 'max-h-[88dvh] rounded-b-none sm:max-h-[calc(100dvh-40px)] sm:rounded-b-card'
+            ? 'max-h-[88dvh] rounded-t-card sm:max-h-[calc(100dvh-40px)] sm:rounded-card'
             : 'max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-40px)]',
           wide ? 'max-w-3xl' : 'max-w-md',
-          'rounded-card border-line/70 bg-card text-ink shadow-lift',
+          sheet ? '' : 'rounded-card',
+          'border border-line/70 bg-card text-ink shadow-lift',
         ].join(' ')}
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
@@ -99,7 +100,7 @@ export function Modal({
 
         {/* Footer */}
         {footer && (
-          <div className="shrink-0 border-t border-line/60 bg-card px-5 py-4">
+          <div className={`shrink-0 border-t border-line/60 bg-card px-5 py-4 ${sheet ? 'pb-[calc(1rem+env(safe-area-inset-bottom))]' : ''}`}>
             {footer}
           </div>
         )}

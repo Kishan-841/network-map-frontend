@@ -17,13 +17,14 @@ import { formatSignal } from '@/lib/connection'
 import { buildTiles, filterByTile } from '@/lib/building-customer-tiles'
 
 /** Live status from the OLT lookup, in the same one-line cell as the Customers tab. */
-function LiveConnection({ connection, now }) {
+function LiveConnection({ connection, now, className }) {
   return (
     <ConnectionCell
       state={connection.state}
       lastSeen={connection.best?.lastSeen}
       checkedAt={connection.checkedAt}
       now={now}
+      className={className}
     />
   )
 }
@@ -340,7 +341,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
                 <span className="text-muted">—</span>
               ) : (
                 <>
-                  <LiveConnection connection={connections[c.id]} now={now} />
+                  <LiveConnection connection={connections[c.id]} now={now} className="!text-xs" />
                   <span className="text-muted">{formatSignal(connections[c.id])}</span>
                 </>
               )}

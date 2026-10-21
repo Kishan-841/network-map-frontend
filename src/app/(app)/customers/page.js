@@ -173,14 +173,13 @@ function CustomersList() {
     },
     {
       key: 'building',
-      header: 'Building',
+      header: 'Building · Wing',
       render: (r) => (
-        <span title={r.building?.buildingName} className="line-clamp-2 max-w-64 break-words">
-          {r.building?.buildingName || '—'}
+        <span title={placeOf(r)} className="line-clamp-2 break-words">
+          {placeOf(r) || '—'}
         </span>
       ),
     },
-    { key: 'wing', header: 'Wing', render: (r) => r.wing?.name || '—' },
     { key: 'plan', header: 'Plan', render: (r) => <PlanCell row={r} /> },
     { key: 'expiry', header: 'Expiry', className: 'whitespace-nowrap', render: (r) => <Expiry row={r} now={now} /> },
     { key: 'conn', header: 'Connection', render: (r) => <Connection row={r} now={now} /> },
@@ -258,7 +257,7 @@ function CustomersList() {
         <Button type="button" variant="secondary" onClick={() => setPanelOpen(true)} aria-haspopup="dialog">
           <IconFilters className="h-4 w-4" />
           Filters
-          {activeCount > 0 && <span className="badge badge-primary badge-sm">{activeCount}</span>}
+          {activeCount > 0 && <span className="rounded-full bg-fiber-tint px-2 py-0.5 text-xs font-semibold text-fiber">{activeCount}</span>}
         </Button>
         <Select
           id="customers-sort-top"
