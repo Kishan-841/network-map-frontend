@@ -41,9 +41,10 @@ const TEXT = { ok: 'text-ok', bad: 'text-bad', warn: 'text-warn', muted: 'text-m
  * One line: dot + word + muted short age ("Online · 18m"). The word is always shown, so colour is
  * never the only signal. `title` carries the long form. `state` empty = never checked.
  */
-export function ConnectionCell({ state, lastSeen, checkedAt, now, title, className = '' }) {
+export function ConnectionCell({ state, lastSeen, checkedAt, oltReachable, checking = false, now, title, className = '' }) {
+  if (checking) return <span className={`text-sm text-muted ${className}`}>Checking…</span>
   const tone = connTone({ connState: state })
-  const { word, note } = connShort({ state, lastSeen, checkedAt }, now)
+  const { word, note } = connShort({ state, lastSeen, checkedAt, oltReachable }, now)
   return (
     <span title={title} className={`inline-flex items-center gap-2 whitespace-nowrap text-sm font-medium ${TEXT[tone]} ${className}`}>
       <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[tone]}`} />

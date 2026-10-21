@@ -13,13 +13,15 @@ import { CustomerFormModal } from './CustomerFormModal'
 import { ImportCustomersModal } from './ImportCustomersModal'
 import { SummaryTiles } from './SummaryTiles'
 import { ConnectionCell, Expiry, PlanCell, formatMoney } from './CustomerCells'
-import { formatSignal } from '@/lib/connection'
+import { formatSignal, isOltDown, oltDownTitle } from '@/lib/connection'
 import { buildTiles, filterByTile } from '@/lib/building-customer-tiles'
 
 /** Live status from the OLT lookup, in the same one-line cell as the Customers tab. */
 function LiveConnection({ connection, now, className }) {
   return (
     <ConnectionCell
+      oltReachable={connection.oltReachable}
+      title={isOltDown(connection) ? oltDownTitle(connection.best?.olt) : undefined}
       state={connection.state}
       lastSeen={connection.best?.lastSeen}
       checkedAt={connection.checkedAt}

@@ -1,11 +1,14 @@
 // Summary tiles of the building customers page: which live-connection tiles exist and which rows
 // each one keeps. Pure (no React) so it can be tested.
 
+import { isOltDown } from './connection'
+
 /** Connection tiles, in display order. `countKey` is the key in the connections `counts` object. */
 export const BUILDING_TILES = [
   { id: 'online', label: 'Online', countKey: 'online' },
   { id: 'offline', label: 'Offline', countKey: 'offline' },
   { id: 'not_seen', label: 'Not seen', countKey: 'notSeen' },
+  { id: 'olt_down', label: 'OLT not reachable', countKey: 'oltDown', onlyWhenPositive: true },
   { id: 'weak', label: 'Weak signal', countKey: 'weak' },
   { id: 'pending', label: 'Not checked yet', countKey: 'pending', onlyWhenPositive: true },
 ]
@@ -15,6 +18,8 @@ export function matchesTile(connection, tileId) {
   if (!tileId) return true
   if (!connection) return false
   if (tileId === 'weak') return connection.weak === true
+  if (tileId === 'olt_down') return isOltDown(connection)
+  if (tileId === 'not_seen') return connection.state === 'not_seen' && !isOltDown(connection)
   return connection.state === tileId
 }
 

@@ -18,9 +18,22 @@ const LABELS = {
 
 const TONES = { online: 'ok', offline: 'bad', not_seen: 'warn' }
 
+export const OLT_DOWN_LABEL = 'OLT not reachable'
+
+/** Not seen, but only because our OLT monitoring cannot reach the customer's OLT (oltReachable === false). */
+export function isOltDown(c) {
+  return c?.state === 'not_seen' && c?.oltReachable === false
+}
+
+/** Tooltip for an OLT-not-reachable status; `olt` may be empty. */
+export function oltDownTitle(olt) {
+  return `Our OLT monitoring can't reach ${olt || 'this OLT'} — this customer may be fine.`
+}
+
 /** The status word shown next to the dot. */
 export function connectionLabel(c) {
   if (!c) return null
+  if (isOltDown(c)) return OLT_DOWN_LABEL
   if (c.state === 'not_seen') {
     const seen = c.best?.lastSeen
     return seen ? `Not seen since ${dateOnly.format(new Date(seen))}` : 'Not seen'
@@ -64,6 +77,7 @@ const SUMMARY_PARTS = [
   ['offline', 'offline'],
   ['weak', 'weak signal'],
   ['notSeen', 'not seen'],
+  ['oltDown', 'OLT not reachable'],
   ['notLinked', 'not linked'],
   ['noUsername', 'no username'],
   ['unavailable', 'unavailable'],
@@ -80,7 +94,7 @@ export function summaryLine(counts) {
 /** Tone for a building's summary dot: offline -> bad, not seen -> warn, else online -> ok, else muted. */
 export function worstTone(counts) {
   if (counts?.offline > 0) return 'bad'
-  if (counts?.notSeen > 0) return 'warn'
+  if (counts?.notSeen > 0 || counts?.oltDown > 0) return 'warn'
   if (counts?.online > 0) return 'ok'
   return 'muted'
 }

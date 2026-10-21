@@ -43,3 +43,20 @@ describe('buildTiles', () => {
     expect(tiles.at(-1)).toMatchObject({ id: 'pending', count: 3 })
   })
 })
+
+describe('OLT not reachable tile', () => {
+  const conns = {
+    a: { state: 'not_seen', oltReachable: false },
+    b: { state: 'not_seen', oltReachable: null },
+  }
+  const list = [{ id: 'a' }, { id: 'b' }]
+  it('splits not seen from OLT not reachable', () => {
+    expect(filterByTile(list, conns, 'olt_down').map((c) => c.id)).toEqual(['a'])
+    expect(filterByTile(list, conns, 'not_seen').map((c) => c.id)).toEqual(['b'])
+  })
+  it('tile appears only when count > 0', () => {
+    const ids = (counts) => buildTiles({ total: 2, counts, connectionsOn: true, tileId: null }).map((t) => t.id)
+    expect(ids({ oltDown: 0 })).not.toContain('olt_down')
+    expect(ids({ oltDown: 3 })).toContain('olt_down')
+  })
+})

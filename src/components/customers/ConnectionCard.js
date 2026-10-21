@@ -6,6 +6,8 @@ import {
   connectionLabel,
   connectionTone,
   droppedText,
+  isOltDown,
+  oltDownTitle,
   formatOnuSignal,
 } from '@/lib/connection'
 
@@ -16,7 +18,10 @@ const TEXT = { ok: 'text-ok', bad: 'text-bad', warn: 'text-warn', muted: 'text-m
 export function ConnectionStatus({ connection, className = '' }) {
   const tone = connectionTone(connection)
   return (
-    <span className={`inline-flex items-center gap-2 text-sm font-medium ${TEXT[tone]} ${className}`}>
+    <span
+      title={isOltDown(connection) ? oltDownTitle(connection.best?.olt ?? connection.onus?.[0]?.olt) : undefined}
+      className={`inline-flex items-center gap-2 text-sm font-medium ${TEXT[tone]} ${className}`}
+    >
       <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[tone]}`} />
       {connectionLabel(connection)}
     </span>

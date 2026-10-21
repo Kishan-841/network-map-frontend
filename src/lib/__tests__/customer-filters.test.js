@@ -48,8 +48,8 @@ describe('parseFilters / toQuery', () => {
 })
 
 describe('tiles', () => {
-  it('has the six tiles in order', () => {
-    expect(TILES.map((t) => t.label)).toEqual(['Total', 'Online', 'Offline', 'Not seen', 'Weak signal', 'Expiring in 7 days'])
+  it('has the tiles in order', () => {
+    expect(TILES.map((t) => t.label)).toEqual(['Total', 'Online', 'Offline', 'Not seen', 'OLT not reachable', 'Weak signal', 'Expiring in 7 days'])
   })
 
   it('applies a tile on top of other filters, replacing the previous tile and resetting the page', () => {
@@ -144,5 +144,57 @@ describe('filterChips', () => {
   it('handles stale ids and other facets', () => {
     const labels = filterChips({ ...EMPTY_FILTERS, zoneId: 'gone', buildingId: 'gone', planName: 'Gold', autoRenewal: 'unset' }, {}).map((c) => c.label)
     expect(labels).toEqual(['Zone: Selected zone', 'Building: Selected building', 'Plan: Gold', 'Auto renewal: Not set'])
+  })
+})
+
+import { rowOltDown, connTitle, visibleTiles, staleIds, mergeRows, connShort as _short, connLabel as _cl, filterChips as _chips, parseFilters as _parse } from '../customer-filters'
+describe('OLT down + refresh helpers', () => {
+  const NOW = Date.parse('2026-10-21T10:00:00Z')
+  it('labels and titles OLT-down rows', () => {
+    const row = { connState: 'not_seen', oltReachable: false, connOlt: 'OLT-9' }
+    expect(rowOltDown(row)).toBe(true)
+    expect(_cl(row)).toBe('OLT not reachable')
+    expect(connTitle(row, NOW)).toBe("Our OLT monitoring can't reach OLT-9 — this customer may be fine.")
+    expect(_short({ state: 'not_seen', oltReachable: false }).word).toBe('OLT not reachable')
+    expect(_short({ state: 'not_seen', oltReachable: null }).word).toBe('Not seen')
+  })
+  it('filter value, chip and tile', () => {
+    const f = _parse(new URLSearchParams('conn=olt_down'))
+    expect(f.conn).toBe('olt_down')
+    expect(_chips(f)[0].label).toBe('Connection: OLT not reachable')
+    expect(visibleTiles({ oltDown: 0 }).map((t) => t.id)).not.toContain('olt_down')
+    expect(visibleTiles({ oltDown: 2 }).map((t) => t.id)).toContain('olt_down')
+  })
+  it('staleIds picks never-checked and older than 5 min', () => {
+    const rows = [
+      { id: 'a', connCheckedAt: null },
+      { id: 'b', connCheckedAt: new Date(NOW - 2 * 60000).toISOString() },
+      { id: 'c', connCheckedAt: new Date(NOW - 6 * 60000).toISOString() },
+    ]
+    expect(staleIds(rows, NOW)).toEqual(['a', 'c'])
+    expect(staleIds(Array.from({ length: 80 }, (_, i) => ({ id: String(i) })), NOW)).toHaveLength(50)
+  })
+  it('mergeRows replaces by id and keeps the rest', () => {
+    const out = mergeRows([{ id: 'a', n: 1 }, { id: 'b', n: 2 }], [{ id: 'b', n: 3 }])
+    expect(out).toEqual([{ id: 'a', n: 1 }, { id: 'b', n: 3 }])
+  })
+})
+
+import { safeBackHref, customerDetailHref } from '../customer-filters'
+describe('back navigation', () => {
+  it('trusts only /customers paths', () => {
+    expect(safeBackHref('/customers?conn=offline&page=2')).toBe('/customers?conn=offline&page=2')
+    expect(safeBackHref('/customers')).toBe('/customers')
+    expect(safeBackHref(undefined)).toBe('/customers')
+    expect(safeBackHref('/buildings/1')).toBe('/customers')
+    expect(safeBackHref('/customersX')).toBe('/customers')
+    expect(safeBackHref('https://evil.example')).toBe('/customers')
+    expect(safeBackHref('//evil.example')).toBe('/customers')
+  })
+  it('builds the detail link with an encoded back', () => {
+    const h = customerDetailHref('c1', '/customers', 'conn=offline&page=2')
+    expect(h).toBe('/customers/c1?back=%2Fcustomers%3Fconn%3Doffline%26page%3D2')
+    expect(safeBackHref(decodeURIComponent(h.split('back=')[1]))).toBe('/customers?conn=offline&page=2')
+    expect(customerDetailHref('c1', '/customers', '')).toBe('/customers/c1?back=%2Fcustomers')
   })
 })

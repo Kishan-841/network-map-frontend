@@ -40,6 +40,7 @@ export {
   ScrollText as IconLogs,
   Upload as IconUpload,
   Download as IconDownload,
+  RefreshCw as IconRefresh,
   Smartphone as IconSmartphone,
   Eye as IconEye,
   ChevronDown as IconChevronDown,

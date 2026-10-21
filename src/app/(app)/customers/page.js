@@ -11,11 +11,15 @@ import {
   SORT_OPTIONS,
   activeFilterCount,
   applyTile,
-  checkedAgo,
+  connTitle,
+  customerDetailHref,
   filterChips,
+  mergeRows,
   parseFilters,
+  staleIds,
   tileActive,
   toQuery,
+  visibleTiles,
 } from '@/lib/customer-filters'
 import { formatSignal } from '@/lib/connection'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -24,7 +28,7 @@ import { DataTable } from '@/components/ui/DataTable'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { Select } from '@/components/ui/Input'
 import { Toast } from '@/components/ui/Toast'
-import { IconClose, IconDownload, IconFilters, IconUpload, IconUsers } from '@/components/ui/icons'
+import { IconClose, IconDownload, IconFilters, IconRefresh, IconUpload, IconUsers } from '@/components/ui/icons'
 import { SummaryTiles } from '@/components/customers/SummaryTiles'
 import { ConnectionCell, Expiry, PlanCell } from '@/components/customers/CustomerCells'
 import { CustomerFilterPanel } from '@/components/customers/CustomerFilterPanel'
@@ -33,14 +37,16 @@ import { ImportCustomersModal } from '@/components/customers/ImportCustomersModa
 const PAGE_SIZE = 50
 
 /** One-line connection cell from a list row; the long "checked 18 min ago" is the tooltip. */
-function Connection({ row, now }) {
+function Connection({ row, now, checking }) {
   return (
     <ConnectionCell
       state={row.connState}
       lastSeen={row.connLastSeen}
       checkedAt={row.connCheckedAt}
+      oltReachable={row.oltReachable}
+      checking={checking}
       now={now}
-      title={checkedAgo(row.connCheckedAt, now) || undefined}
+      title={connTitle(row, now)}
     />
   )
 }
@@ -48,8 +54,6 @@ function Connection({ row, now }) {
 const signalOf = (row) => formatSignal(row.connRxDbm == null ? null : { best: { rxDbm: row.connRxDbm, rxQuality: row.connRxQuality } })
 const placeOf = (row) => [row.building?.buildingName, row.wing?.name].filter(Boolean).join(' · ')
 const FILTER_RESET = { zoneId: '', networkZone: '', operator: '', billingStatus: '', conn: '', weak: '', expiry: '', buildingId: '', planName: '', autoRenewal: '' }
-const customerHref = (row) => `/buildings/${row.building?.id}/customers/${row.id}`
-
 function CustomersList() {
   const router = useRouter()
   const pathname = usePathname()
@@ -78,6 +82,12 @@ function CustomersList() {
   // The answer is tied to the request it answered, so "loading" is derived, never set in an effect.
   const [result, setResult] = useState(null)
   const requestKey = `${queryString}#${reloads}`
+  // Fresh OLT status for the visible rows. Each piece is tied to the list request it belongs to,
+  // so a slow answer for an old page/filter can never touch the current one.
+  const [fresh, setFresh] = useState({ key: null, byId: {}, counts: null })
+  const [checking, setChecking] = useState({ key: null, ids: [] })
+  const [refreshFailed, setRefreshFailed] = useState(null) // the request key whose refresh failed
+  const keyRef = useRef(requestKey)
 
   const navigate = useCallback(
     (next) => {
@@ -99,19 +109,64 @@ function CustomersList() {
   useEffect(() => () => clearTimeout(timer.current), [])
 
   useEffect(() => {
+    keyRef.current = requestKey
+  })
+
+  // Ask the backend to re-check these customers. Rows come back merged by id; counts are refetched
+  // quietly (no loading state) so the tiles catch up without a flicker.
+  const runRefresh = useCallback(async (key, qs, ids, force) => {
+    if (ids.length === 0) return
+    const stillCurrent = () => keyRef.current === key
+    setChecking({ key, ids })
+    setRefreshFailed((k) => (k === key ? null : k))
+    try {
+      const res = await apiClient.post('/customers/refresh', { ids, force })
+      if (!stillCurrent()) return
+      const rows = res.data.data?.rows ?? []
+      setFresh((prev) => {
+        const base = prev.key === key ? prev : { key, byId: {}, counts: null }
+        return { ...base, byId: { ...base.byId, ...Object.fromEntries(rows.map((r) => [r.id, r])) } }
+      })
+      setChecking((c) => (c.key === key ? { key, ids: [] } : c))
+      try {
+        const counts = await apiClient.get('/customers/list', {
+          params: { ...Object.fromEntries(new URLSearchParams(qs)), page: 1, pageSize: 1 },
+        })
+        if (stillCurrent()) setFresh((prev) => (prev.key === key ? { ...prev, counts: counts.data.data?.counts ?? null } : prev))
+      } catch {
+        // the tiles simply keep their previous numbers
+      }
+    } catch {
+      if (!stillCurrent()) return
+      setChecking((c) => (c.key === key ? { key, ids: [] } : c))
+      setRefreshFailed(key)
+    }
+  }, [])
+
+  useEffect(() => {
     let alive = true
     apiClient
       .get('/customers/list', { params: { ...Object.fromEntries(new URLSearchParams(queryString)), pageSize: PAGE_SIZE } })
-      .then((res) => alive && setResult({ key: requestKey, data: res.data.data, at: Date.now() }))
+      .then((res) => {
+        if (!alive) return
+        const data = res.data.data
+        setResult({ key: requestKey, data, at: Date.now() })
+        runRefresh(requestKey, queryString, staleIds(data.rows ?? [], Date.now()), false)
+      })
       .catch((err) => alive && setResult({ key: requestKey, error: getApiErrorMessage(err, 'Could not load customers') }))
     return () => {
       alive = false
     }
-  }, [queryString, requestKey])
+  }, [queryString, requestKey, runRefresh])
 
   const current = result?.key === requestKey ? result : null
   const loading = !current
-  const data = current?.data ?? result?.data ?? null // keep the last answer's counts/facets while reloading
+  const loaded = current?.data ?? result?.data ?? null // keep the last answer's counts/facets while reloading
+  const freshNow = fresh.key === requestKey ? fresh : null
+  const data = loaded && freshNow?.counts ? { ...loaded, counts: freshNow.counts } : loaded
+  const rows = current?.data ? mergeRows(current.data.rows, Object.values(freshNow?.byId ?? {})) : undefined
+  const checkingIds = checking.key === requestKey ? checking.ids : []
+  const refreshing = checkingIds.length > 0
   const facets = data?.facets
   const now = result?.at ?? 0 // the moment the answer arrived — keeps render pure
   const activeCount = activeFilterCount(filters)
@@ -144,6 +199,10 @@ function CustomersList() {
     change(draft)
   }
 
+  function refreshStatus() {
+    runRefresh(requestKey, queryString, (rows ?? []).map((r) => r.id).slice(0, 50), true)
+  }
+
   async function download() {
     setExporting(true)
     try {
@@ -160,12 +219,14 @@ function CustomersList() {
     }
   }
 
+  const detailHref = (row) => customerDetailHref(row.id, pathname, queryString)
+
   const columns = [
     {
       key: 'name',
       header: 'Customer',
       render: (r) => (
-        <Link href={customerHref(r)} className="block font-medium text-ink hover:text-fiber" onClick={(e) => e.stopPropagation()}>
+        <Link href={detailHref(r)} className="block font-medium text-ink hover:text-fiber" onClick={(e) => e.stopPropagation()}>
           {r.name}
           {(r.username || r.mobile) && <span className="block break-all text-xs font-normal text-muted">{r.username || r.mobile}</span>}
         </Link>
@@ -182,17 +243,17 @@ function CustomersList() {
     },
     { key: 'plan', header: 'Plan', render: (r) => <PlanCell row={r} /> },
     { key: 'expiry', header: 'Expiry', className: 'whitespace-nowrap', render: (r) => <Expiry row={r} now={now} /> },
-    { key: 'conn', header: 'Connection', render: (r) => <Connection row={r} now={now} /> },
+    { key: 'conn', header: 'Connection', render: (r) => <Connection row={r} now={now} checking={checkingIds.includes(r.id)} /> },
     { key: 'signal', header: 'Signal', className: 'whitespace-nowrap', render: (r) => signalOf(r) ?? '—' },
   ]
 
   const renderCard = (r) => (
-    <Link href={customerHref(r)} className="block rounded-card border border-line bg-card p-4 shadow-soft">
+    <Link href={detailHref(r)} className="block rounded-card border border-line bg-card p-4 shadow-soft">
       <p className="font-medium text-ink">{r.name}</p>
       {(r.username || r.mobile) && <p className="break-all text-xs text-muted">{r.username || r.mobile}</p>}
       <p className="mt-0.5 text-sm text-muted">{placeOf(r) || 'No building'}</p>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <Connection row={r} now={now} />
+        <Connection row={r} now={now} checking={checkingIds.includes(r.id)} />
         <span className="text-sm text-muted">{signalOf(r) ?? ''}</span>
       </div>
       <p className="mt-3 text-sm text-muted">
@@ -223,6 +284,10 @@ function CustomersList() {
         sub={data ? `${total.toLocaleString('en-IN')} customer${total === 1 ? '' : 's'}${activeCount || filters.q ? ' match' : ''}` : 'Every subscriber, filterable'}
         action={
           <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={refreshStatus} loading={refreshing} disabled={loading || refreshing || !rows?.length}>
+              {!refreshing && <IconRefresh className="h-4 w-4" strokeWidth={1.8} />}
+              <span className="hidden sm:inline">Refresh status</span>
+            </Button>
             <Button variant="secondary" onClick={download} loading={exporting} disabled={loading}>
               <IconDownload className="h-4 w-4" strokeWidth={1.8} />
               <span className="hidden sm:inline">Download CSV</span>
@@ -240,12 +305,14 @@ function CustomersList() {
       {toast && <Toast key={toast} message={toast} onDone={() => setToast(null)} />}
 
       <SummaryTiles
-        tiles={TILES.map((tile) => {
+        tiles={visibleTiles(data?.counts).map((tile) => {
           const n = data?.counts?.[tile.countKey]
           return { id: tile.id, label: tile.label, count: loading && n == null ? null : (n ?? 0), active: tileActive(filters, tile) }
         })}
         onPick={(t) => navigate(applyTile(filters, TILES.find((x) => x.id === t.id)))}
       />
+
+      {refreshFailed === requestKey && <p className="mb-2 text-xs text-muted">Couldn&apos;t refresh status — showing saved status</p>}
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <SearchInput
@@ -311,10 +378,10 @@ function CustomersList() {
       ) : (
         <DataTable
           columns={columns}
-          rows={current?.data?.rows}
+          rows={rows}
           loading={loading}
           renderCard={renderCard}
-          onRowClick={(r) => router.push(customerHref(r))}
+          onRowClick={(r) => router.push(detailHref(r))}
           emptyState={emptyState}
           pagination={pagination}
           onPageChange={(page) => change({ page })}

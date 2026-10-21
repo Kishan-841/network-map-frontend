@@ -1,9 +1,9 @@
 // Filter state of the Customers list <-> URL query, plus the small pure helpers its rows need.
 // No React in here, so it can be tested (spec 2026-10-21-customers-tab).
 
-import { connectionLabel, connectionTone } from './connection'
+import { connectionLabel, connectionTone, isOltDown, oltDownTitle, OLT_DOWN_LABEL } from './connection'
 
-export const CONN_VALUES = ['online', 'offline', 'not_seen', 'not_linked', 'no_username', 'never']
+export const CONN_VALUES = ['online', 'offline', 'not_seen', 'olt_down', 'not_linked', 'no_username', 'never']
 export const EXPIRY_VALUES = ['expired', '7d', '30d']
 export const RENEWAL_VALUES = ['yes', 'no', 'unset']
 export const SORT_VALUES = ['name', 'expiry', 'signal', 'checked']
@@ -12,6 +12,7 @@ export const CONN_OPTIONS = [
   { value: 'online', label: 'Online' },
   { value: 'offline', label: 'Offline' },
   { value: 'not_seen', label: 'Not seen' },
+  { value: 'olt_down', label: OLT_DOWN_LABEL },
   { value: 'not_linked', label: 'Not linked' },
   { value: 'no_username', label: 'No username' },
   { value: 'never', label: 'Never checked' },
@@ -92,6 +93,7 @@ export const TILES = [
   { id: 'online', label: 'Online', countKey: 'online', patch: { conn: 'online' } },
   { id: 'offline', label: 'Offline', countKey: 'offline', patch: { conn: 'offline' } },
   { id: 'not_seen', label: 'Not seen', countKey: 'notSeen', patch: { conn: 'not_seen' } },
+  { id: 'olt_down', label: OLT_DOWN_LABEL, countKey: 'oltDown', patch: { conn: 'olt_down' }, onlyWhenPositive: true },
   { id: 'weak', label: 'Weak signal', countKey: 'weak', patch: { weak: 'true' } },
   { id: 'expiring', label: 'Expiring in 7 days', countKey: 'expiring7d', patch: { expiry: '7d' } },
 ]
@@ -114,12 +116,44 @@ export function tileActive(filters, tile) {
 /** Words for the stored connection state; `never` (no snapshot yet) reads "Never checked". */
 export function connLabel(row) {
   if (!row?.connState) return 'Never checked'
-  return connectionLabel({ state: row.connState, best: { lastSeen: row.connLastSeen } })
+  return connectionLabel({ state: row.connState, oltReachable: row.oltReachable, best: { lastSeen: row.connLastSeen } })
 }
 
 /** 'ok' | 'bad' | 'warn' | 'muted' for a row's stored state. */
 export function connTone(row) {
   return row?.connState ? connectionTone({ state: row.connState }) : 'muted'
+}
+
+/** Is this list row "not seen" only because its OLT is unreachable? */
+export const rowOltDown = (row) => isOltDown({ state: row?.connState, oltReachable: row?.oltReachable })
+
+/** Tooltip of a row's connection cell: the OLT explanation, else "checked 6 min ago". */
+export function connTitle(row, now = Date.now()) {
+  if (rowOltDown(row)) return oltDownTitle(row.connOlt)
+  return checkedAgo(row?.connCheckedAt, now) || undefined
+}
+
+/** Tiles to render: those flagged onlyWhenPositive disappear while their count is 0 (or not loaded yet). */
+export function visibleTiles(counts) {
+  return TILES.filter((t) => !t.onlyWhenPositive || (counts?.[t.countKey] ?? 0) > 0)
+}
+
+export const STALE_MS = 5 * 60000
+export const REFRESH_MAX_IDS = 50
+
+/** Ids of rows whose stored status was never checked or is older than 5 min (at most 50). */
+export function staleIds(rows = [], now = Date.now()) {
+  return rows
+    .filter((r) => !r.connCheckedAt || !(now - new Date(r.connCheckedAt).getTime() < STALE_MS))
+    .map((r) => r.id)
+    .slice(0, REFRESH_MAX_IDS)
+}
+
+/** Replace rows by id with the refreshed ones; everything else is kept as it was. */
+export function mergeRows(rows = [], updates = []) {
+  if (!updates.length) return rows
+  const byId = new Map(updates.map((u) => [u.id, u]))
+  return rows.map((r) => (byId.has(r.id) ? { ...r, ...byId.get(r.id) } : r))
 }
 
 /** `checked 6 min ago` / `checked 2 h ago` / `checked 3 days ago`; '' when never checked. */
@@ -190,9 +224,9 @@ const SHORT_WORDS = {
  * The one-line connection cell as { word, note }: "Online" + "18m", "Not seen" + "since 5 Oct",
  * "Never checked" + ''. `state` empty means no snapshot yet.
  */
-export function connShort({ state, lastSeen, checkedAt } = {}, now = Date.now()) {
+export function connShort({ state, lastSeen, checkedAt, oltReachable } = {}, now = Date.now()) {
   if (!state) return { word: 'Never checked', note: '' }
-  const word = SHORT_WORDS[state] ?? 'Unknown'
+  const word = isOltDown({ state, oltReachable }) ? OLT_DOWN_LABEL : (SHORT_WORDS[state] ?? 'Unknown')
   if (state === 'not_seen' && lastSeen) return { word, note: `since ${shortDate.format(new Date(lastSeen))}` }
   return { word, note: shortAge(checkedAt, now) }
 }
@@ -221,4 +255,17 @@ export function filterChips(filters, facets = {}) {
   }
   if (f.weak) add('weak', 'Weak signal')
   return chips
+}
+
+/** Back link of the Customers-tab detail: only a /customers path (query allowed) is trusted. */
+export function safeBackHref(back) {
+  const v = Array.isArray(back) ? back[0] : back
+  if (typeof v !== 'string') return '/customers'
+  return /^\/customers(?:[/?#]|$)/.test(v) && !v.includes('//') ? v : '/customers'
+}
+
+/** Link from a Customers-tab row to its detail, remembering the list (path + query) to come back to. */
+export function customerDetailHref(id, pathname, search = '') {
+  const here = `${pathname}${search ? (search.startsWith('?') ? search : `?${search}`) : ''}`
+  return `/customers/${id}?back=${encodeURIComponent(here)}`
 }
