@@ -58,6 +58,9 @@ export {
   Settings2 as IconOptions,
   LocateFixed as IconLocate,
   CircleHelp as IconHelp,
+  MessageCircle as IconMessage,
+  Copy as IconCopy,
+  ExternalLink as IconExternal,
 } from 'lucide-react'
 
 /** Brand glyph: three network nodes joined by fiber links. */
