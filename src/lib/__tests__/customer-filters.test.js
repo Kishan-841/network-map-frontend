@@ -9,6 +9,8 @@ import {
   checkedAgo,
   expiryTone,
   activeFilterCount,
+  filterBuildings,
+  buildingFilterLabel,
 } from '../customer-filters'
 
 const NOW = new Date('2026-10-21T10:00:00Z').getTime()
@@ -85,8 +87,6 @@ describe('row labels', () => {
     expect(expiryTone(new Date(NOW + 8 * 86400_000), NOW)).toBe(null)
   })
 })
-
-import { filterBuildings, buildingFilterLabel } from '../customer-filters'
 
 describe('building picker helpers', () => {
   const list = [{ id: 'a', buildingName: 'Sai Heights' }, { id: 'b', buildingName: 'Green Park' }]

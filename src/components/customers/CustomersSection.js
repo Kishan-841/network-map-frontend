@@ -13,7 +13,7 @@ import { CustomerFormModal } from './CustomerFormModal'
 import { ImportCustomersModal } from './ImportCustomersModal'
 import { ConnectionStatus } from './ConnectionCard'
 import { SummaryTiles } from './SummaryTiles'
-import { BillingChip, Expiry, PlanCell } from './CustomerCells'
+import { BillingChip, Expiry, PlanCell, formatMoney } from './CustomerCells'
 import { formatSignal } from '@/lib/connection'
 import { buildTiles, filterByTile } from '@/lib/building-customer-tiles'
 
@@ -50,6 +50,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
   const searchParams = useSearchParams()
   const wingParam = searchParams.get('wing') // null = All
   const [data, setData] = useState(null)
+  const [loadedAt, setLoadedAt] = useState(0) // when the customers arrived; keeps render pure for expiry colours
   const [missing, setMissing] = useState(false)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
@@ -68,6 +69,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
       .then((res) => {
         if (!alive) return
         setData(res.data.data)
+        setLoadedAt(Date.now())
         setMissing(false)
         setError(null)
       })
@@ -121,16 +123,23 @@ export function CustomersSection({ buildingId, canWrite = false }) {
   }, [all])
 
   const connections = conn?.connections
+  const connLoading = Boolean(data) && conn?.forData !== data
+  const connEnabled = Boolean(conn?.enabled)
+  const connFailed = !connLoading && conn?.failed === true
+  const showConn = connEnabled
+  const connTiles = showConn && !connLoading && !connFailed
+  // A tile filter only applies while the connection tiles are shown; otherwise it is ignored.
+  const activeTile = connTiles ? tileId : null
   const rows = useMemo(() => {
     if (!all) return null
     const q = query.trim().toLowerCase()
-    return filterByTile(all, connections, tileId).filter((c) => {
+    return filterByTile(all, connections, activeTile).filter((c) => {
       if (wingParam === 'none' && c.wing) return false
       if (wingParam && wingParam !== 'none' && c.wing?.id !== wingParam) return false
       if (!q) return true
       return [c.name, c.mobile, c.username].some((v) => v && String(v).toLowerCase().includes(q))
     })
-  }, [all, wingParam, query, tileId, connections])
+  }, [all, wingParam, query, activeTile, connections])
 
   function selectWing(value) {
     const next = new URLSearchParams(searchParams.toString())
@@ -194,17 +203,11 @@ export function CustomersSection({ buildingId, canWrite = false }) {
     </div>
   ) : null
 
-  const connLoading = Boolean(data) && conn?.forData !== data
-  const connEnabled = Boolean(conn?.enabled)
-  const connFailed = !connLoading && conn?.failed === true
-  const showConn = connEnabled
-  const connTiles = showConn && !connLoading && !connFailed
-  // `now` is when the customers arrived — keeps render pure for the expiry colours.
-  const now = conn?.forData === data ? (conn?.at ?? 0) : 0
+  const now = loadedAt
 
   const wingFilterName =
     wingParam === 'none' ? 'No wing' : wings.find((w) => w.id === wingParam)?.name
-  const filtered = Boolean(wingParam) || query.trim() !== '' || Boolean(tileId)
+  const filtered = Boolean(wingParam) || query.trim() !== '' || Boolean(activeTile)
   const clearFilters = () => {
     setQuery('')
     setTileId(null)
@@ -308,7 +311,12 @@ export function CustomersSection({ buildingId, canWrite = false }) {
             {c.mobile || 'No mobile number'}
           </p>
           <p className="mt-1 text-xs text-muted">Wing: {wingText(c)}</p>
-          {c.planName && <p className="mt-1 text-xs text-muted">Plan: {c.planName}</p>}
+          {(c.planName || c.planAmount != null) && (
+            <p className="mt-1 text-xs text-muted">
+              Plan: {c.planName ?? '—'}
+              {c.planAmount != null && ` · ${formatMoney(c.planAmount)}`}
+            </p>
+          )}
           {c.planExpiresAt && (
             <p className="mt-1 text-xs text-muted">
               Expires: <Expiry row={c} now={now} />
@@ -374,8 +382,8 @@ export function CustomersSection({ buildingId, canWrite = false }) {
       )}
 
       <SummaryTiles
-        tiles={buildTiles({ total, counts: conn?.counts, connectionsOn: connTiles, tileId })}
-        onPick={(t) => setTileId(t.id === 'total' || t.id === tileId ? null : t.id)}
+        tiles={buildTiles({ total, counts: conn?.counts, connectionsOn: connTiles, tileId: activeTile })}
+        onPick={(t) => setTileId(t.id === 'total' || t.id === activeTile ? null : t.id)}
       />
 
       <SearchInput
