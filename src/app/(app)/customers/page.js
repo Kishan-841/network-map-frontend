@@ -122,6 +122,12 @@ function CustomersList() {
     setNote((n) => (n.id === id ? { id, kind: null } : n))
     try {
       const res = await apiClient.post('/customers/refresh', { ids, force })
+      if (force) {
+        // The server honoured the force whether or not this list is still on screen.
+        setCooldown(true)
+        clearTimeout(cooldownTimer.current)
+        cooldownTimer.current = setTimeout(() => setCooldown(false), 30000)
+      }
       if (!stillCurrent()) return
       const rows = res.data.data?.rows ?? []
       const pending = res.data.data?.pending ?? []
@@ -134,11 +140,7 @@ function CustomersList() {
           pending: [...base.pending.filter((x) => !returned.has(x)), ...pending],
         }
       })
-      if (force) {
-        setCooldown(true)
-        clearTimeout(cooldownTimer.current)
-        cooldownTimer.current = setTimeout(() => setCooldown(false), 30000)
-      }
+      setChecking((c) => (c.id === id ? { id, ids: [] } : c)) // done checking; the counts refetch is quiet
       if (rows.length === 0) return
       try {
         const res2 = await apiClient.get('/customers/list', {
