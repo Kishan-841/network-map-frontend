@@ -1,6 +1,7 @@
 'use client'
 
 import { Select } from '@/components/ui/Input'
+import { BuildingPicker } from './BuildingPicker'
 import {
   CONN_OPTIONS,
   EXPIRY_OPTIONS,
@@ -50,6 +51,12 @@ export function CustomerFilters({ filters, facets, onChange, idSuffix = '' }) {
       {select('networkZone', 'Network zone', fromStrings(facets?.networkZones), 'All network zones')}
       {select('operator', 'Operator', fromStrings(facets?.operators), 'All operators')}
       {select('billingStatus', 'Billing status', fromStrings(facets?.billingStatuses), 'Any status')}
+      <BuildingPicker
+        id={id('buildingId')}
+        value={filters.buildingId}
+        buildings={facets?.buildings}
+        onChange={(buildingId) => onChange({ buildingId })}
+      />
       {select('conn', 'Connection', CONN_OPTIONS, 'Any connection')}
       {select('expiry', 'Plan expiry', EXPIRY_OPTIONS, 'Any expiry')}
       {select('planName', 'Plan', fromStrings(facets?.planNames), 'All plans')}

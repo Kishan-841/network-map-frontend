@@ -85,3 +85,19 @@ describe('row labels', () => {
     expect(expiryTone(new Date(NOW + 8 * 86400_000), NOW)).toBe(null)
   })
 })
+
+import { filterBuildings, buildingFilterLabel } from '../customer-filters'
+
+describe('building picker helpers', () => {
+  const list = [{ id: 'a', buildingName: 'Sai Heights' }, { id: 'b', buildingName: 'Green Park' }]
+  it('filters by name, case-insensitively', () => {
+    expect(filterBuildings(list, ' SAI ')).toEqual([list[0]])
+    expect(filterBuildings(list, '')).toEqual(list)
+    expect(filterBuildings(undefined, 'x')).toEqual([])
+  })
+  it('labels a stale id as Selected building', () => {
+    expect(buildingFilterLabel(list, 'b')).toBe('Green Park')
+    expect(buildingFilterLabel(list, 'zzz')).toBe('Selected building')
+    expect(buildingFilterLabel(list, '')).toBe('')
+  })
+})

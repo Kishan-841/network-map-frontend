@@ -26,7 +26,7 @@ import { DataTable } from '@/components/ui/DataTable'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { Select } from '@/components/ui/Input'
 import { Toast } from '@/components/ui/Toast'
-import { IconDownload, IconFilters, IconUpload, IconUsers, IconClose } from '@/components/ui/icons'
+import { IconDownload, IconFilters, IconUpload, IconUsers } from '@/components/ui/icons'
 import BuildingFilterSheet from '@/components/buildings/BuildingFilterSheet'
 import { CustomerFilters } from '@/components/customers/CustomerFilters'
 import { ImportCustomersModal } from '@/components/customers/ImportCustomersModal'
@@ -321,15 +321,6 @@ function CustomersList() {
       <div className="mb-5 hidden grid-cols-2 gap-3 lg:grid xl:grid-cols-4">
         <CustomerFilters filters={filters} facets={facets} onChange={change} idSuffix="-inline" />
       </div>
-
-      {filters.buildingId && (
-        <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-fiber-tint px-3 py-1.5 text-sm font-medium text-fiber">
-          One building only
-          <button type="button" aria-label="Show every building" onClick={() => change({ buildingId: '' })}>
-            <IconClose className="h-3.5 w-3.5" />
-          </button>
-        </p>
-      )}
 
       <BuildingFilterSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onClear={clearAll} activeCount={activeCount}>
         <CustomerFilters filters={filters} facets={facets} onChange={change} idSuffix="-sheet" />

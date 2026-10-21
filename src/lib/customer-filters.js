@@ -148,3 +148,15 @@ export function expiryTone(date, now = Date.now()) {
   if (ms < 0) return 'bad'
   return ms <= 7 * 86400000 ? 'warn' : null
 }
+
+/** Buildings whose name contains the typed text (case-insensitive); all of them when empty. */
+export function filterBuildings(buildings = [], query = '') {
+  const q = query.trim().toLowerCase()
+  return q ? buildings.filter((b) => b.buildingName?.toLowerCase().includes(q)) : buildings
+}
+
+/** Name for the picked building; a stale link (id not in the facet list) reads "Selected building". */
+export function buildingFilterLabel(buildings = [], id) {
+  if (!id) return ''
+  return buildings.find((b) => b.id === id)?.buildingName ?? 'Selected building'
+}
