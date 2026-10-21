@@ -1,69 +1,361 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
+import { apiClient, getApiErrorMessage } from '@/lib/api-client'
+import { exportCustomers } from '@/lib/export-customers'
+import {
+  TILES,
+  SORT_OPTIONS,
+  activeFilterCount,
+  applyTile,
+  checkedAgo,
+  connLabel,
+  connTone,
+  expiryTone,
+  parseFilters,
+  tileActive,
+  toQuery,
+} from '@/lib/customer-filters'
+import { formatSignal } from '@/lib/connection'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
+import { DataTable } from '@/components/ui/DataTable'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { Select } from '@/components/ui/Input'
+import { Toast } from '@/components/ui/Toast'
+import { IconDownload, IconFilters, IconUpload, IconUsers, IconClose } from '@/components/ui/icons'
+import BuildingFilterSheet from '@/components/buildings/BuildingFilterSheet'
+import { CustomerFilters } from '@/components/customers/CustomerFilters'
 import { ImportCustomersModal } from '@/components/customers/ImportCustomersModal'
-import { IconUpload } from '@/components/ui/icons'
 
-/**
- * The place outside a building to load customers for many buildings at once.
- * One sheet, routed to each building by name — the same modal the per-building
- * upload uses, just without a pinned building.
- */
-export default function CustomersPage() {
-  const role = useAuthStore((s) => s.user?.role)
+const DOT = { ok: 'bg-ok', bad: 'bg-bad', warn: 'bg-warn', muted: 'bg-faint' }
+const TEXT = { ok: 'text-ok', bad: 'text-bad', warn: 'text-warn', muted: 'text-muted' }
+const EXPIRY_TEXT = { bad: 'text-bad', warn: 'text-warn' }
+const PAGE_SIZE = 50
+
+const dateOnly = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'Asia/Kolkata',
+})
+const formatDate = (d) => (d ? dateOnly.format(new Date(d)) : '—')
+const formatMoney = (n) => (n == null ? '' : `₹${Number(n).toLocaleString('en-IN')}`)
+
+/** Dot + word + muted "checked X ago". The word is always shown: colour is never the only signal. */
+function Connection({ row, now }) {
+  const tone = connTone(row)
+  const ago = checkedAgo(row.connCheckedAt, now)
+  return (
+    <span className="flex flex-col">
+      <span className={`inline-flex items-center gap-2 text-sm font-medium ${TEXT[tone]}`}>
+        <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[tone]}`} />
+        {connLabel(row)}
+      </span>
+      {ago && <span className="pl-4 text-xs font-normal text-muted">{ago}</span>}
+    </span>
+  )
+}
+
+function Expiry({ row, now }) {
+  const tone = expiryTone(row.planExpiresAt, now)
+  return (
+    <span className={tone ? `font-medium ${EXPIRY_TEXT[tone]}` : ''}>
+      {formatDate(row.planExpiresAt)}
+      {tone === 'bad' && <span className="ml-1 text-xs">(expired)</span>}
+    </span>
+  )
+}
+
+const signalOf = (row) => formatSignal(row.connRxDbm == null ? null : { best: { rxDbm: row.connRxDbm, rxQuality: row.connRxQuality } })
+const placeOf = (row) => [row.building?.buildingName, row.wing?.name].filter(Boolean).join(' · ')
+const customerHref = (row) => `/buildings/${row.building?.id}/customers/${row.id}`
+
+function Tiles({ counts, filters, loading, onPick }) {
+  return (
+    <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" role="group" aria-label="Summary">
+      {TILES.map((tile) => {
+        const active = tileActive(filters, tile)
+        const n = counts?.[tile.countKey]
+        return (
+          <button
+            key={tile.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onPick(tile)}
+            className={`rounded-card border p-4 text-left transition-colors duration-200 ${
+              active ? 'border-fiber bg-fiber-tint' : 'border-line bg-card hover:border-fiber/50'
+            }`}
+          >
+            <span className="block text-xs font-medium text-muted">{tile.label}</span>
+            <span className="mt-1 block text-2xl font-bold tabular-nums tracking-tight">
+              {loading && n == null ? '…' : (n ?? 0).toLocaleString('en-IN')}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function CustomersList() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const isAdmin = useAuthStore((s) => s.user?.role) === 'ADMIN'
+  const filters = useMemo(() => parseFilters(searchParams), [searchParams])
+  const queryString = toQuery(filters).toString()
+
+  // Search box: typed text shows at once, the URL (and the request) follows ~300 ms later.
+  const [draft, setDraft] = useState(filters.q)
+  const [searchKey, setSearchKey] = useState(0) // bump to remount the box after "Clear filters"
+  const timer = useRef(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [toast, setToast] = useState(null)
+  const [reloads, setReloads] = useState(0)
+  // The answer is tied to the request it answered, so "loading" is derived, never set in an effect.
+  const [result, setResult] = useState(null)
+  const requestKey = `${queryString}#${reloads}`
 
-  if (role && role !== 'ADMIN') {
-    return <p className="text-sm text-muted">Only an admin can import customers.</p>
+  const navigate = useCallback(
+    (next) => {
+      const qs = toQuery(next).toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [router, pathname],
+  )
+
+  // Any filter change goes back to page 1.
+  const change = useCallback(
+    (patch) => navigate({ ...filters, ...patch, page: 'page' in patch ? patch.page : 1 }),
+    [navigate, filters],
+  )
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  useEffect(() => {
+    let alive = true
+    apiClient
+      .get('/customers/list', { params: { ...Object.fromEntries(new URLSearchParams(queryString)), pageSize: PAGE_SIZE } })
+      .then((res) => alive && setResult({ key: requestKey, data: res.data.data, at: Date.now() }))
+      .catch((err) => alive && setResult({ key: requestKey, error: getApiErrorMessage(err, 'Could not load customers') }))
+    return () => {
+      alive = false
+    }
+  }, [queryString, requestKey])
+
+  const current = result?.key === requestKey ? result : null
+  const loading = !current
+  const data = current?.data ?? result?.data ?? null // keep the last answer's counts/facets while reloading
+  const facets = data?.facets
+  const now = result?.at ?? 0 // the moment the answer arrived — keeps render pure
+  const activeCount = activeFilterCount(filters)
+
+  function onSearch(value) {
+    setDraft(value)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => change({ q: value.trim() }), 300)
   }
 
+  function clearAll() {
+    clearTimeout(timer.current)
+    setDraft('')
+    setSearchKey((k) => k + 1)
+    navigate({ ...filters, q: '', zoneId: '', networkZone: '', operator: '', billingStatus: '', conn: '', weak: '', expiry: '', buildingId: '', planName: '', autoRenewal: '', page: 1 })
+  }
+
+  async function download() {
+    setExporting(true)
+    try {
+      const { name } = await exportCustomers(filters)
+      setToast(`Saved ${name}`)
+    } catch (err) {
+      setToast(err.message)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const columns = [
+    {
+      key: 'name',
+      header: 'Customer',
+      render: (r) => (
+        <Link href={customerHref(r)} className="block font-medium text-ink hover:text-fiber" onClick={(e) => e.stopPropagation()}>
+          {r.name}
+          {r.username && <span className="block text-xs font-normal text-muted">{r.username}</span>}
+        </Link>
+      ),
+    },
+    { key: 'building', header: 'Building · Wing', render: (r) => placeOf(r) || '—' },
+    { key: 'zone', header: 'Our zone', render: (r) => r.zone?.name ?? '—' },
+    { key: 'operator', header: 'Operator', render: (r) => r.operator ?? '—' },
+    {
+      key: 'plan',
+      header: 'Plan',
+      render: (r) =>
+        r.planName || r.planAmount != null ? (
+          <span>
+            {r.planName ?? '—'}
+            {r.planAmount != null && <span className="block text-xs text-muted">{formatMoney(r.planAmount)}</span>}
+          </span>
+        ) : (
+          '—'
+        ),
+    },
+    { key: 'expiry', header: 'Expiry', render: (r) => <Expiry row={r} now={now} /> },
+    {
+      key: 'status',
+      header: 'Billing',
+      render: (r) =>
+        r.status ? <span className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted">{r.status}</span> : '—',
+    },
+    { key: 'conn', header: 'Connection', render: (r) => <Connection row={r} now={now} /> },
+    { key: 'signal', header: 'Signal', render: (r) => signalOf(r) ?? '—' },
+  ]
+
+  const renderCard = (r) => (
+    <Link href={customerHref(r)} className="block rounded-card border border-line bg-card p-4 shadow-soft">
+      <p className="font-medium text-ink">{r.name}</p>
+      <p className="mt-0.5 text-sm text-muted">{placeOf(r) || 'No building'}</p>
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <Connection row={r} now={now} />
+        <span className="text-sm text-muted">{signalOf(r) ?? ''}</span>
+      </div>
+      <p className="mt-3 text-sm text-muted">
+        Expires: <Expiry row={r} now={now} />
+      </p>
+    </Link>
+  )
+
+  const total = data?.total ?? 0
+  const pagination = data
+    ? { page: data.page, totalPages: Math.max(1, Math.ceil(total / (data.pageSize || PAGE_SIZE))), total }
+    : null
+
+  const emptyState = (
+    <div className="flex flex-col items-center gap-3 rounded-card border border-line bg-card px-6 py-12 text-center">
+      <IconUsers className="h-8 w-8 text-faint" />
+      <p className="font-medium">No customers match these filters</p>
+      <Button variant="secondary" onClick={clearAll}>
+        Clear filters
+      </Button>
+    </div>
+  )
+
   return (
-    <main className="mx-auto max-w-2xl">
+    <main className="mx-auto max-w-[1400px]">
       <PageHeader
         title="Customers"
-        sub="Import subscribers for every building at once"
+        sub={data ? `${total.toLocaleString('en-IN')} customer${total === 1 ? '' : 's'}${activeCount || filters.q ? ' match' : ''}` : 'Every subscriber, filterable'}
         action={
-          <Button onClick={() => setImportOpen(true)}>
-            <IconUpload className="h-4 w-4" strokeWidth={1.8} />
-            Upload Excel
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={download} loading={exporting} disabled={loading}>
+              <IconDownload className="h-4 w-4" strokeWidth={1.8} />
+              <span className="hidden sm:inline">Download CSV</span>
+            </Button>
+            {isAdmin && (
+              <Button onClick={() => setImportOpen(true)}>
+                <IconUpload className="h-4 w-4" strokeWidth={1.8} />
+                <span className="hidden sm:inline">Upload Excel</span>
+              </Button>
+            )}
+          </div>
         }
       />
 
-      <section className="mt-5 rounded-card bg-card p-5 shadow-soft">
-        <h2 className="text-sm font-medium text-ink">Bulk upload for every building</h2>
-        <p className="mt-1 text-sm text-muted">
-          Upload one sheet and each row is added to its own building. To add customers to a single
-          building instead, open that building and use its Customers page.
+      {toast && <Toast key={toast} message={toast} onDone={() => setToast(null)} />}
+
+      <Tiles counts={data?.counts} filters={filters} loading={loading} onPick={(tile) => navigate(applyTile(filters, tile))} />
+
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <SearchInput
+          key={searchKey}
+          value={draft}
+          onChange={onSearch}
+          placeholder="Search name, mobile or username"
+          className="min-w-0 flex-1 sm:max-w-md"
+        />
+        <Select
+          id="customers-sort-top"
+          aria-label="Sort by"
+          value={filters.sort}
+          onChange={(e) => change({ sort: e.target.value })}
+          className="w-44"
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              Sort: {o.label}
+            </option>
+          ))}
+        </Select>
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          className="flex h-12 items-center gap-2 rounded-btn border border-line bg-card px-4 text-sm font-medium lg:hidden"
+        >
+          <IconFilters className="h-4 w-4" />
+          Filters{activeCount ? ` (${activeCount})` : ''}
+        </button>
+      </div>
+
+      <div className="mb-5 hidden grid-cols-2 gap-3 lg:grid xl:grid-cols-4">
+        <CustomerFilters filters={filters} facets={facets} onChange={change} idSuffix="-inline" />
+      </div>
+
+      {filters.buildingId && (
+        <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-fiber-tint px-3 py-1.5 text-sm font-medium text-fiber">
+          One building only
+          <button type="button" aria-label="Show every building" onClick={() => change({ buildingId: '' })}>
+            <IconClose className="h-3.5 w-3.5" />
+          </button>
         </p>
-        <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-muted">
-          <li>
-            A <b>.xlsx</b> or <b>.csv</b> with the billing columns <b>Name</b>, <b>Mobile No.</b> and{' '}
-            <b>building</b> — matched by header name, any order, extra columns ignored.
-          </li>
-          <li>Each row is routed by its building name; case and punctuation are ignored.</li>
-          <li>
-            An unknown building or a new row without a name or mobile is skipped with a reason.
-          </li>
-          <li>When a name fits more than one building, you pick the right one before importing.</li>
-          <li>
-            Optional columns: <b>Wing</b>, <b>PON NUMBER</b> and <b>OLT</b>.
-          </li>
-          <li>
-            A customer already stored (same <b>Username</b>, else same mobile in that building) is
-            updated instead — only cells that have a value are written. Blank cells never erase what is
-            stored.
-          </li>
-          <li>Customers missing from the sheet are listed for you, never changed.</li>
-        </ul>
-      </section>
+      )}
+
+      <BuildingFilterSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onClear={clearAll} activeCount={activeCount}>
+        <CustomerFilters filters={filters} facets={facets} onChange={change} idSuffix="-sheet" />
+      </BuildingFilterSheet>
+
+      {current?.error ? (
+        <div className="flex items-center justify-between gap-3 rounded-btn bg-bad-tint px-4 py-3 text-sm text-bad">
+          <span>{current.error}</span>
+          <Button variant="secondary" onClick={() => setReloads((n) => n + 1)}>
+            Retry
+          </Button>
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={current?.data?.rows}
+          loading={loading}
+          renderCard={renderCard}
+          onRowClick={(r) => router.push(customerHref(r))}
+          emptyState={emptyState}
+          pagination={pagination}
+          onPageChange={(page) => change({ page })}
+        />
+      )}
 
       {importOpen && (
-        <ImportCustomersModal onClose={() => setImportOpen(false)} onImported={() => {}} />
+        <ImportCustomersModal
+          onClose={() => setImportOpen(false)}
+          onImported={() => setReloads((n) => n + 1)}
+        />
       )}
     </main>
+  )
+}
+
+export default function CustomersPage() {
+  // useSearchParams needs a Suspense boundary (Next 16 docs: use-search-params).
+  return (
+    <Suspense fallback={<div className="h-48 animate-pulse rounded-card bg-line/40" />}>
+      <CustomersList />
+    </Suspense>
   )
 }

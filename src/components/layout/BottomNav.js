@@ -33,6 +33,7 @@ const COVERAGE_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
@@ -58,6 +59,7 @@ const ADMIN_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/partners', label: 'Partners', icon: IconUsers },
   { href: '/leads', label: 'Leads', icon: IconUserPlus },
   { href: '/referrals', label: 'Referrals', icon: IconShare },
@@ -67,6 +69,7 @@ const ADMIN_NAV = [
 const AGENT_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'My buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // Recruits partners; no building or map access at all.
@@ -86,6 +89,7 @@ const ACCOUNTS_NAV = [
 const SUPERVISOR_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const SALES_NAV = [
@@ -126,6 +130,7 @@ const LEAD_NAV = [
   { href: '/acquisition/users', label: 'Users', icon: IconUsers },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 

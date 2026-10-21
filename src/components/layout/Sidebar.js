@@ -52,6 +52,7 @@ const COVERAGE_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
@@ -80,10 +81,12 @@ const ADMIN_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: IconDashboard },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
 ]
 const AGENT_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'My buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // Oversight role: everything the map and registry offer, no administration.
@@ -104,6 +107,7 @@ const ACCOUNTS_NAV = [
 const SUPERVISOR_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'All buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const LEAD_NAV = [
@@ -111,6 +115,7 @@ const LEAD_NAV = [
   { href: '/acquisition', label: 'Acquisition team', icon: IconDashboard, exact: true },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
+  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/acquisition/users', label: 'Users', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
