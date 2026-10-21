@@ -3,27 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
-import { CHIP } from '@/components/fiber/details/DetailParts'
 import { DataTable } from '@/components/ui/DataTable'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SearchInput } from '@/components/ui/SearchInput'
-import { IconEdit, IconPlus, IconTrash, IconUpload } from '@/components/ui/icons'
+import { IconEdit, IconPlus, IconTrash, IconUpload, IconUsers } from '@/components/ui/icons'
 import { CustomerFormModal } from './CustomerFormModal'
 import { ImportCustomersModal } from './ImportCustomersModal'
 import { ConnectionStatus } from './ConnectionCard'
-import { formatSignal, summaryLine } from '@/lib/connection'
+import { SummaryTiles } from './SummaryTiles'
+import { BillingChip, Expiry, PlanCell } from './CustomerCells'
+import { formatSignal } from '@/lib/connection'
+import { buildTiles, filterByTile } from '@/lib/building-customer-tiles'
 
-const dateOnly = new Intl.DateTimeFormat('en-IN', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  timeZone: 'Asia/Kolkata',
-})
-const expires = (v) => (v ? dateOnly.format(new Date(v)) : '—')
-const statusChip = (status) =>
-  status ? <span className={`${CHIP} bg-paper text-muted`}>{status}</span> : '—'
 const wingText = (c) => c.wing?.name ?? <span className="text-muted">No wing</span>
 
 /** Small square icon button, used in the desktop table's actions column. */
@@ -60,6 +53,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
   const [missing, setMissing] = useState(false)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
+  const [tileId, setTileId] = useState(null) // connection tile filter, in place
   const [formFor, setFormFor] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(null)
@@ -102,10 +96,10 @@ export function CustomersSection({ buildingId, canWrite = false }) {
     apiClient
       .get('/customers/connections', { params: { buildingId } })
       .then((res) => {
-        if (alive) setConn({ forData: data, failed: false, ...res.data.data })
+        if (alive) setConn({ forData: data, failed: false, at: Date.now(), ...res.data.data })
       })
       .catch(() => {
-        if (alive) setConn({ forData: data, failed: true, enabled: true })
+        if (alive) setConn({ forData: data, failed: true, enabled: true, at: Date.now() })
       })
     return () => {
       alive = false
@@ -126,16 +120,17 @@ export function CustomersSection({ buildingId, canWrite = false }) {
     return { byWing, none }
   }, [all])
 
+  const connections = conn?.connections
   const rows = useMemo(() => {
     if (!all) return null
     const q = query.trim().toLowerCase()
-    return all.filter((c) => {
+    return filterByTile(all, connections, tileId).filter((c) => {
       if (wingParam === 'none' && c.wing) return false
       if (wingParam && wingParam !== 'none' && c.wing?.id !== wingParam) return false
       if (!q) return true
       return [c.name, c.mobile, c.username].some((v) => v && String(v).toLowerCase().includes(q))
     })
-  }, [all, wingParam, query])
+  }, [all, wingParam, query, tileId, connections])
 
   function selectWing(value) {
     const next = new URLSearchParams(searchParams.toString())
@@ -202,24 +197,28 @@ export function CustomersSection({ buildingId, canWrite = false }) {
   const connLoading = Boolean(data) && conn?.forData !== data
   const connEnabled = Boolean(conn?.enabled)
   const connFailed = !connLoading && conn?.failed === true
-  const connections = conn?.connections ?? {}
-  const summary = !connLoading && !connFailed ? summaryLine(conn?.counts) : null
   const showConn = connEnabled
+  const connTiles = showConn && !connLoading && !connFailed
+  // `now` is when the customers arrived — keeps render pure for the expiry colours.
+  const now = conn?.forData === data ? (conn?.at ?? 0) : 0
 
   const wingFilterName =
     wingParam === 'none' ? 'No wing' : wings.find((w) => w.id === wingParam)?.name
-  const filtered = Boolean(wingParam) || query.trim() !== ''
+  const filtered = Boolean(wingParam) || query.trim() !== '' || Boolean(tileId)
+  const clearFilters = () => {
+    setQuery('')
+    setTileId(null)
+    selectWing(null)
+  }
 
   const emptyState =
     total > 0 && filtered ? (
-      <div className="rounded-card border border-dashed border-line px-4 py-8 text-center">
-        <p className="text-sm font-medium text-ink">
-          {query.trim()
-            ? 'No customers match your search'
-            : wingParam === 'none'
-              ? 'No customers without a wing'
-              : wingFilterName ? `No customers in Wing ${wingFilterName}` : 'No customers in this wing'}
-        </p>
+      <div className="flex flex-col items-center gap-3 rounded-card border border-line bg-card px-6 py-12 text-center">
+        <IconUsers className="h-8 w-8 text-faint" />
+        <p className="font-medium">No customers match these filters</p>
+        <Button variant="secondary" onClick={clearFilters}>
+          Clear filters
+        </Button>
       </div>
     ) : (
       <div className="rounded-card border border-dashed border-line px-4 py-8 text-center">
@@ -240,9 +239,9 @@ export function CustomersSection({ buildingId, canWrite = false }) {
     },
     { key: 'mobile', header: 'Mobile', render: (c) => c.mobile || '—' },
     { key: 'wing', header: 'Wing', render: wingText },
-    { key: 'planName', header: 'Plan', render: (c) => c.planName || '—' },
-    { key: 'expires', header: 'Expires', render: (c) => expires(c.planExpiresAt) },
-    { key: 'status', header: 'Status', render: (c) => statusChip(c.status) },
+    { key: 'planName', header: 'Plan', render: (c) => <PlanCell row={c} /> },
+    { key: 'expires', header: 'Expiry', render: (c) => <Expiry row={c} now={now} /> },
+    { key: 'status', header: 'Billing', render: (c) => <BillingChip status={c.status} /> },
     ...(showConn
       ? [
           {
@@ -251,7 +250,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
             render: (c) =>
               connLoading ? (
                 <span className="text-sm text-muted">Checking…</span>
-              ) : connFailed || !connections[c.id] ? (
+              ) : connFailed || !connections?.[c.id] ? (
                 '—'
               ) : (
                 <ConnectionStatus connection={connections[c.id]} />
@@ -260,7 +259,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
           {
             key: 'signal',
             header: 'Signal',
-            render: (c) => (connLoading ? '' : formatSignal(connections[c.id]) || '—'),
+            render: (c) => (connLoading ? '' : formatSignal(connections?.[c.id]) || '—'),
           },
         ]
       : []),
@@ -310,12 +309,16 @@ export function CustomersSection({ buildingId, canWrite = false }) {
           </p>
           <p className="mt-1 text-xs text-muted">Wing: {wingText(c)}</p>
           {c.planName && <p className="mt-1 text-xs text-muted">Plan: {c.planName}</p>}
-          {c.planExpiresAt && <p className="mt-1 text-xs text-muted">Expires: {expires(c.planExpiresAt)}</p>}
+          {c.planExpiresAt && (
+            <p className="mt-1 text-xs text-muted">
+              Expires: <Expiry row={c} now={now} />
+            </p>
+          )}
           {showConn && (
             <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               {connLoading ? (
                 <span className="text-muted">Checking…</span>
-              ) : connFailed || !connections[c.id] ? (
+              ) : connFailed || !connections?.[c.id] ? (
                 <span className="text-muted">—</span>
               ) : (
                 <>
@@ -326,7 +329,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
             </p>
           )}
         </div>
-        {c.status && <span className={`${CHIP} shrink-0 bg-paper text-muted`}>{c.status}</span>}
+        {c.status && <span className="shrink-0"><BillingChip status={c.status} /></span>}
       </div>
       {canWrite && (
         <div className="mt-3 flex justify-end gap-2 border-t border-line/60 pt-3" onClick={(e) => e.stopPropagation()}>
@@ -370,6 +373,11 @@ export function CustomersSection({ buildingId, canWrite = false }) {
         </div>
       )}
 
+      <SummaryTiles
+        tiles={buildTiles({ total, counts: conn?.counts, connectionsOn: connTiles, tileId })}
+        onPick={(t) => setTileId(t.id === 'total' || t.id === tileId ? null : t.id)}
+      />
+
       <SearchInput
         className="mb-4"
         value={query}
@@ -377,9 +385,7 @@ export function CustomersSection({ buildingId, canWrite = false }) {
         placeholder="Search name, mobile or username"
       />
 
-      {showConn && (summary || connFailed) && (
-        <p className="mb-3 text-sm text-muted">{connFailed ? 'Connection status unavailable' : summary}</p>
-      )}
+      {showConn && connFailed && <p className="mb-3 text-sm text-muted">Connection status unavailable</p>}
 
       <DataTable
         columns={columns}

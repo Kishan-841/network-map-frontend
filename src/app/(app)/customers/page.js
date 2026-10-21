@@ -14,7 +14,6 @@ import {
   checkedAgo,
   connLabel,
   connTone,
-  expiryTone,
   parseFilters,
   tileActive,
   toQuery,
@@ -28,22 +27,14 @@ import { Select } from '@/components/ui/Input'
 import { Toast } from '@/components/ui/Toast'
 import { IconDownload, IconFilters, IconUpload, IconUsers } from '@/components/ui/icons'
 import BuildingFilterSheet from '@/components/buildings/BuildingFilterSheet'
+import { SummaryTiles } from '@/components/customers/SummaryTiles'
+import { BillingChip, Expiry, PlanCell } from '@/components/customers/CustomerCells'
 import { CustomerFilters } from '@/components/customers/CustomerFilters'
 import { ImportCustomersModal } from '@/components/customers/ImportCustomersModal'
 
 const DOT = { ok: 'bg-ok', bad: 'bg-bad', warn: 'bg-warn', muted: 'bg-faint' }
 const TEXT = { ok: 'text-ok', bad: 'text-bad', warn: 'text-warn', muted: 'text-muted' }
-const EXPIRY_TEXT = { bad: 'text-bad', warn: 'text-warn' }
 const PAGE_SIZE = 50
-
-const dateOnly = new Intl.DateTimeFormat('en-IN', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  timeZone: 'Asia/Kolkata',
-})
-const formatDate = (d) => (d ? dateOnly.format(new Date(d)) : '—')
-const formatMoney = (n) => (n == null ? '' : `₹${Number(n).toLocaleString('en-IN')}`)
 
 /** Dot + word + muted "checked X ago". The word is always shown: colour is never the only signal. */
 function Connection({ row, now }) {
@@ -60,46 +51,9 @@ function Connection({ row, now }) {
   )
 }
 
-function Expiry({ row, now }) {
-  const tone = expiryTone(row.planExpiresAt, now)
-  return (
-    <span className={tone ? `font-medium ${EXPIRY_TEXT[tone]}` : ''}>
-      {formatDate(row.planExpiresAt)}
-      {tone === 'bad' && <span className="ml-1 text-xs">(expired)</span>}
-    </span>
-  )
-}
-
 const signalOf = (row) => formatSignal(row.connRxDbm == null ? null : { best: { rxDbm: row.connRxDbm, rxQuality: row.connRxQuality } })
 const placeOf = (row) => [row.building?.buildingName, row.wing?.name].filter(Boolean).join(' · ')
 const customerHref = (row) => `/buildings/${row.building?.id}/customers/${row.id}`
-
-function Tiles({ counts, filters, loading, onPick }) {
-  return (
-    <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" role="group" aria-label="Summary">
-      {TILES.map((tile) => {
-        const active = tileActive(filters, tile)
-        const n = counts?.[tile.countKey]
-        return (
-          <button
-            key={tile.id}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onPick(tile)}
-            className={`rounded-card border p-4 text-left transition-colors duration-200 ${
-              active ? 'border-fiber bg-fiber-tint' : 'border-line bg-card hover:border-fiber/50'
-            }`}
-          >
-            <span className="block text-xs font-medium text-muted">{tile.label}</span>
-            <span className="mt-1 block text-2xl font-bold tabular-nums tracking-tight">
-              {loading && n == null ? '…' : (n ?? 0).toLocaleString('en-IN')}
-            </span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
 
 function CustomersList() {
   const router = useRouter()
@@ -213,22 +167,13 @@ function CustomersList() {
     {
       key: 'plan',
       header: 'Plan',
-      render: (r) =>
-        r.planName || r.planAmount != null ? (
-          <span>
-            {r.planName ?? '—'}
-            {r.planAmount != null && <span className="block text-xs text-muted">{formatMoney(r.planAmount)}</span>}
-          </span>
-        ) : (
-          '—'
-        ),
+      render: (r) => <PlanCell row={r} />,
     },
     { key: 'expiry', header: 'Expiry', render: (r) => <Expiry row={r} now={now} /> },
     {
       key: 'status',
       header: 'Billing',
-      render: (r) =>
-        r.status ? <span className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted">{r.status}</span> : '—',
+      render: (r) => <BillingChip status={r.status} />,
     },
     { key: 'conn', header: 'Connection', render: (r) => <Connection row={r} now={now} /> },
     { key: 'signal', header: 'Signal', render: (r) => signalOf(r) ?? '—' },
@@ -286,7 +231,13 @@ function CustomersList() {
 
       {toast && <Toast key={toast} message={toast} onDone={() => setToast(null)} />}
 
-      <Tiles counts={data?.counts} filters={filters} loading={loading} onPick={(tile) => navigate(applyTile(filters, tile))} />
+      <SummaryTiles
+        tiles={TILES.map((tile) => {
+          const n = data?.counts?.[tile.countKey]
+          return { id: tile.id, label: tile.label, count: loading && n == null ? null : (n ?? 0), active: tileActive(filters, tile) }
+        })}
+        onPick={(t) => navigate(applyTile(filters, TILES.find((x) => x.id === t.id)))}
+      />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <SearchInput
