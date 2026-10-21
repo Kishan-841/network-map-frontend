@@ -141,8 +141,12 @@ function CustomersList() {
   async function download() {
     setExporting(true)
     try {
-      const { name } = await exportCustomers(filters)
-      setToast(`Saved ${name}`)
+      const { name, truncated } = await exportCustomers(filters)
+      setToast(
+        truncated
+          ? 'Downloaded the first 5,000 customers — narrow the filters to export the rest.'
+          : `Saved ${name}`,
+      )
     } catch (err) {
       setToast(err.message)
     } finally {

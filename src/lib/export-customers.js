@@ -1,6 +1,9 @@
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { toQuery } from '@/lib/customer-filters'
 
+/** True when the backend capped the CSV (axios lowercases header names). */
+export const isTruncated = (headers) => String(headers?.['x-truncated'] ?? '').toLowerCase() === 'true'
+
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
 
 /**
@@ -36,5 +39,5 @@ export async function exportCustomers(filters) {
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 0)
-  return { name }
+  return { name, truncated: isTruncated(response.headers) }
 }
