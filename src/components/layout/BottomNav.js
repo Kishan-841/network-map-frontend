@@ -33,7 +33,6 @@ const COVERAGE_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
-  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
@@ -59,7 +58,6 @@ const ADMIN_NAV = [
   { href: '/dashboard', label: 'Home', icon: IconDashboard },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
-  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/partners', label: 'Partners', icon: IconUsers },
   { href: '/leads', label: 'Leads', icon: IconUserPlus },
   { href: '/referrals', label: 'Referrals', icon: IconShare },
@@ -69,7 +67,6 @@ const ADMIN_NAV = [
 const AGENT_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'My buildings', icon: IconBuildings },
-  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 // Recruits partners; no building or map access at all.
@@ -89,7 +86,6 @@ const ACCOUNTS_NAV = [
 const SUPERVISOR_NAV = [
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
-  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 const SALES_NAV = [
@@ -130,7 +126,6 @@ const LEAD_NAV = [
   { href: '/acquisition/users', label: 'Users', icon: IconUsers },
   { href: '/map', label: 'Map', icon: IconMap },
   { href: '/buildings', label: 'Buildings', icon: IconBuildings },
-  { href: '/customers', label: 'Customers', icon: IconUsers },
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
@@ -141,12 +136,14 @@ const PERMISSION_NAV = [
   { href: '/profile', label: 'Profile', icon: IconUser },
 ]
 
+const CUSTOMERS_TAB = { href: '/customers', label: 'Customers', icon: IconUsers }
+
 /** Mobile-only bottom bar (72px, blurred). Hidden at lg — Sidebar takes over. */
 export function BottomNav() {
   const pathname = usePathname()
   const user = useAuthStore((s) => s.user)
   const role = user?.role
-  const ROLE_NAV = isAgent(role)
+  const BASE_NAV = isAgent(role)
     ? AGENT_NAV
     : isLead(role)
       ? LEAD_NAV
@@ -171,6 +168,13 @@ export function BottomNav() {
                     : role === 'MANAGER'
                       ? MANAGER_NAV
                       : COVERAGE_NAV
+
+  // Customers goes AFTER the role's first four tabs, so the bar a thumb knows is unchanged and
+  // Customers lands in More (a role with fewer than four tabs simply gets it last).
+  const seesCustomers = !(isAccounts(role) || isSales(role) || isPartnerManager(role) || isPermissionExecutive(role))
+  const ROLE_NAV = seesCustomers
+    ? [...BASE_NAV.slice(0, 4), CUSTOMERS_TAB, ...BASE_NAV.slice(4)]
+    : BASE_NAV
 
   // The admin pages a phone could not reach at all — every Manage link for an
   // admin, the fiber pages for whoever was ticked. They go after the role's

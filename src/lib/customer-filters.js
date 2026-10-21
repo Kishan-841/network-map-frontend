@@ -136,7 +136,11 @@ export function checkedAgo(date, now = Date.now()) {
   return `checked ${d} ${d === 1 ? 'day' : 'days'} ago`
 }
 
-/** 'bad' once the plan has expired, 'warn' within 7 days, else null (also null with no date). */
+/**
+ * 'bad' once the plan has expired, 'warn' within 7 days, else null (also null with no date).
+ * A rolling window, not calendar days: expired = before now, warn = up to now + 7 x 24 h
+ * (the backend's "expiring in 7 days" filter and tile use the same definition).
+ */
 export function expiryTone(date, now = Date.now()) {
   if (!date) return null
   const ms = new Date(date).getTime() - new Date(now).getTime()

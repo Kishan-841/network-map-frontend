@@ -111,8 +111,16 @@ function CustomersList() {
 
   // Search box: typed text shows at once, the URL (and the request) follows ~300 ms later.
   const [draft, setDraft] = useState(filters.q)
-  const [searchKey, setSearchKey] = useState(0) // bump to remount the box after "Clear filters"
+  const [pending, setPending] = useState(false) // a typed value is waiting for its debounce
+  const [seenQ, setSeenQ] = useState(filters.q)
   const timer = useRef(null)
+  // The timer fires later than the keystroke: it must apply to the filters as they are THEN.
+  const latest = useRef({ filters, change: null })
+  // Back/Forward or a link with ?q= changes the URL: the box follows it, unless the user is mid-typing.
+  if (seenQ !== filters.q) {
+    setSeenQ(filters.q)
+    if (!pending) setDraft(filters.q)
+  }
   const [sheetOpen, setSheetOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -136,6 +144,9 @@ function CustomersList() {
     [navigate, filters],
   )
 
+  useEffect(() => {
+    latest.current = { filters, change }
+  })
   useEffect(() => () => clearTimeout(timer.current), [])
 
   useEffect(() => {
@@ -158,14 +169,18 @@ function CustomersList() {
 
   function onSearch(value) {
     setDraft(value)
+    setPending(true)
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => change({ q: value.trim() }), 300)
+    timer.current = setTimeout(() => {
+      setPending(false)
+      latest.current.change({ q: value.trim() })
+    }, 300)
   }
 
   function clearAll() {
     clearTimeout(timer.current)
     setDraft('')
-    setSearchKey((k) => k + 1)
+    setPending(false)
     navigate({ ...filters, q: '', zoneId: '', networkZone: '', operator: '', billingStatus: '', conn: '', weak: '', expiry: '', buildingId: '', planName: '', autoRenewal: '', page: 1 })
   }
 
@@ -275,7 +290,6 @@ function CustomersList() {
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <SearchInput
-          key={searchKey}
           value={draft}
           onChange={onSearch}
           placeholder="Search name, mobile or username"
