@@ -18,6 +18,7 @@ describe('connectionLabel', () => {
     expect(connectionLabel({ state: 'not_linked' })).toBe('Not linked to any device')
     expect(connectionLabel({ state: 'no_username' })).toBe('No username')
     expect(connectionLabel({ state: 'unavailable' })).toBe('Status unavailable')
+    expect(connectionLabel({ state: 'pending' })).toBe('Not checked yet')
   })
   it('not_seen uses best.lastSeen in IST', () => {
     expect(connectionLabel({ state: 'not_seen', best: onu() })).toBe('Not seen since 5 Oct 2026')
@@ -40,6 +41,7 @@ describe('connectionTone', () => {
     expect(connectionTone({ state: 'offline' })).toBe('bad')
     expect(connectionTone({ state: 'not_seen' })).toBe('warn')
     expect(connectionTone({ state: 'not_linked' })).toBe('muted')
+    expect(connectionTone({ state: 'pending' })).toBe('muted')
   })
 })
 
@@ -115,5 +117,18 @@ describe('worstTone', () => {
   it('is muted when nothing is online, offline or not seen, or counts are missing', () => {
     expect(worstTone({ notLinked: 4 })).toBe('muted')
     expect(worstTone(null)).toBe('muted')
+  })
+})
+
+describe('pending', () => {
+  it('summaryLine puts pending last with the reload hint', () => {
+    expect(summaryLine({ online: 20, offline: 1, notLinked: 2, unavailable: 1, pending: 30 })).toBe(
+      '20 online · 1 offline · 2 not linked · 1 unavailable · 30 not checked yet — reload in a minute',
+    )
+    expect(summaryLine({ online: 1, pending: 0 })).toBe('1 online')
+  })
+  it('pending never makes the dot bad or warn', () => {
+    expect(worstTone({ pending: 30 })).toBe('muted')
+    expect(worstTone({ online: 2, pending: 30 })).toBe('ok')
   })
 })

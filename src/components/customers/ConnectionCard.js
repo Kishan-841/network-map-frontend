@@ -112,6 +112,7 @@ export function ConnectionCard({ customerId, isAdmin = false }) {
           <>
             <div className="py-1">
               <ConnectionStatus connection={connection} />
+              {connection?.state === 'pending' && <p className="mt-1 text-xs text-muted">Reload in a minute</p>}
             </div>
             {onus.map((onu, i) => (
               <OnuBlock

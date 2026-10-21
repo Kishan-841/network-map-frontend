@@ -13,6 +13,7 @@ const LABELS = {
   not_linked: 'Not linked to any device',
   no_username: 'No username',
   unavailable: 'Status unavailable',
+  pending: 'Not checked yet',
 }
 
 const TONES = { online: 'ok', offline: 'bad', not_seen: 'warn' }
@@ -66,6 +67,7 @@ const SUMMARY_PARTS = [
   ['notLinked', 'not linked'],
   ['noUsername', 'no username'],
   ['unavailable', 'unavailable'],
+  ['pending', 'not checked yet — reload in a minute'],
 ]
 
 /** `41 online · 3 offline · 2 weak signal · 5 not linked`; zero parts hidden; null when empty. */
