@@ -123,15 +123,18 @@ export default function BuildingDetailPage({ params }) {
   }
 
   return (
-    <main className="stagger mx-auto max-w-2xl">
+    <main className="stagger mx-auto max-w-2xl xl:grid xl:max-w-6xl xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start xl:gap-8">
+      {/* Left (xl): fixed summary column. Below xl it is just the top of the page. */}
+      <div className="xl:sticky xl:top-9 xl:-m-3 xl:max-h-[calc(100dvh-3rem)] xl:self-start xl:overflow-y-auto xl:p-3">
       <PageHeader
+        stackActionXl
         backHref="/buildings"
         backLabel="Buildings"
         title={building.buildingName}
         sub={building.formattedAddress}
         action={
           canEdit && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={() => setEditOpen(true)}>
                 <IconEdit className="h-4 w-4" strokeWidth={1.8} />
                 Edit
@@ -185,8 +188,13 @@ export default function BuildingDetailPage({ params }) {
         ]}
       />
 
+      </div>
+
+      {/* Right (xl): the rest, scrolls with the page. -mt-5 cancels the first section's top margin. */}
+      <div className="min-w-0 xl:-mt-5 xl:flex xl:flex-col">
       <WingsSection building={building} canEdit={canLocate} onLocate={() => setLocating(true)} />
 
+      <div className="xl:grid xl:grid-cols-2 xl:items-start xl:gap-x-5">
       <Section title="Permission" rows={[['Amount paid', building.permission?.amountPaid]]} />
 
       <Section
@@ -207,10 +215,11 @@ export default function BuildingDetailPage({ params }) {
           ['On POP', building.olt?.pop?.name],
         ]}
       />
+      </div>
 
       <PhotoManager building={building} onChanged={fetchBuilding} />
 
-      <CustomersLink buildingId={building.id} className="mt-5" />
+      <CustomersLink buildingId={building.id} className="mt-5 xl:order-first" />
 
       {locating && canLocate && (
         <LocateWingsModal
@@ -259,6 +268,7 @@ export default function BuildingDetailPage({ params }) {
         </p>
         {deleteError && <p className="mt-3 text-sm text-error">{deleteError}</p>}
       </Modal>
+      </div>
     </main>
   )
 }
