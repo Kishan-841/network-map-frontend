@@ -109,10 +109,10 @@ function Fact({ label, value, sub, tone, dot }) {
 }
 
 /** A quick action: icon over a short label, as a link or a button. */
-function Action({ icon: Icon, label, href, onClick, external, disabled, spinning, className = '' }) {
-  const cls = `flex min-h-[72px] min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-card bg-card px-2 py-3 text-xs font-medium shadow-soft xl:min-h-10 xl:flex-none xl:flex-row xl:justify-start xl:gap-3 xl:px-4 xl:py-2 xl:text-sm transition-colors duration-200 ${
-    disabled ? 'cursor-not-allowed text-faint' : 'text-ink hover:text-fiber'
-  } ${className}`
+function Action({ icon: Icon, label, href, onClick, external, disabled, spinning, primary, className = '' }) {
+  const cls = `flex min-h-[72px] min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-card bg-card px-2 py-3 text-xs font-medium shadow-soft xl:min-h-[68px] xl:rounded-btn xl:border xl:border-line xl:py-2.5 xl:shadow-none transition-colors duration-200 ${
+    disabled ? 'cursor-not-allowed text-faint' : 'text-ink hover:text-fiber xl:hover:bg-paper'
+  } ${primary ? 'xl:border-fiber/30 xl:bg-fiber-tint' : ''} ${className}`
   const inner = (
     <>
       <Icon
@@ -120,7 +120,7 @@ function Action({ icon: Icon, label, href, onClick, external, disabled, spinning
         strokeWidth={1.8}
         aria-hidden="true"
       />
-      <span className="max-w-full text-center leading-tight xl:text-left">{label}</span>
+      <span className="max-w-full text-center leading-tight">{label}</span>
     </>
   )
   if (href) {
@@ -405,8 +405,8 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
       {toast && (
         <Toast key={toast.message} message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />
       )}
-      <div className="flex gap-2 sm:gap-3 xl:order-2 xl:mt-4 xl:flex-col xl:gap-2">
-        {tel && <Action icon={IconPhone} label="Call" href={tel} className="hidden sm:flex" />}
+      <div className="flex gap-2 sm:gap-3 xl:order-2 xl:mt-4 xl:grid xl:grid-cols-2 xl:gap-2">
+        {tel && <Action icon={IconPhone} label="Call" href={tel} primary className="hidden sm:flex" />}
         {wa && <Action icon={IconMessage} label="WhatsApp" href={wa} external className="hidden sm:flex" />}
         {dir && <Action icon={IconNavigate} label="Directions" href={dir} external className="hidden sm:flex" />}
         {hasUsername && <Action icon={IconCopy} label="Copy username" onClick={copyUsername} />}
