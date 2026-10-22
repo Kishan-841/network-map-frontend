@@ -166,7 +166,7 @@ function mobileDigits(raw) {
     if (d.startsWith('+91')) d = d.slice(3)
     else if (/^91\d{10}$/.test(d)) d = d.slice(2)
     else if (/^0\d{10}$/.test(d)) d = d.slice(1)
-    if (/^\d{10}$/.test(d)) return d
+    if (/^[6-9]\d{9}$/.test(d)) return d
   }
   return null
 }
