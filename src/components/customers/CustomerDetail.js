@@ -97,7 +97,7 @@ function Row({ label, children }) {
 /** One of the three facts under the name: small label, a value line, a muted second line. */
 function Fact({ label, value, sub, tone, dot }) {
   return (
-    <div className="min-w-0 px-3 py-3 first:pl-4 last:pr-4 sm:px-5 sm:first:pl-5 sm:last:pr-5">
+    <div className="min-w-0 px-3 py-3 first:pl-4 last:pr-4 sm:px-5 sm:first:pl-5 sm:last:pr-5 xl:px-4 xl:py-2.5 xl:first:pl-4 xl:last:pr-4">
       <p className="text-[11px] font-medium uppercase tracking-wide text-faint">{label}</p>
       <p className={`mt-1 flex items-center gap-1.5 text-sm font-semibold leading-snug ${tone ? TEXT[tone] : ''}`}>
         {dot && <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[dot]}`} />}
@@ -110,7 +110,7 @@ function Fact({ label, value, sub, tone, dot }) {
 
 /** A quick action: icon over a short label, as a link or a button. */
 function Action({ icon: Icon, label, href, onClick, external, disabled, spinning, className = '' }) {
-  const cls = `flex min-h-[72px] min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-card bg-card px-2 py-3 text-xs font-medium shadow-soft lg:min-h-12 lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:px-4 lg:py-2.5 lg:text-sm transition-colors duration-200 ${
+  const cls = `flex min-h-[72px] min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-card bg-card px-2 py-3 text-xs font-medium shadow-soft xl:min-h-10 xl:flex-none xl:flex-row xl:justify-start xl:gap-3 xl:px-4 xl:py-2 xl:text-sm transition-colors duration-200 ${
     disabled ? 'cursor-not-allowed text-faint' : 'text-ink hover:text-fiber'
   } ${className}`
   const inner = (
@@ -120,7 +120,7 @@ function Action({ icon: Icon, label, href, onClick, external, disabled, spinning
         strokeWidth={1.8}
         aria-hidden="true"
       />
-      <span className="max-w-full text-center leading-tight lg:text-left">{label}</span>
+      <span className="max-w-full text-center leading-tight xl:text-left">{label}</span>
     </>
   )
   if (href) {
@@ -318,14 +318,14 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
 
   return (
     <main
-      className={`mx-auto max-w-2xl lg:grid lg:max-w-6xl lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start lg:gap-8 ${
+      className={`mx-auto max-w-2xl xl:grid xl:max-w-6xl xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start xl:gap-8 ${
         hasBar ? 'pb-20 sm:pb-0' : ''
       }`}
     >
       {/* Left (laptop): fixed summary column. Below lg it is just the top of the page. */}
-      <div className="lg:sticky lg:top-6 lg:-m-1 lg:max-h-[calc(100dvh-3rem)] lg:self-start lg:overflow-y-auto lg:p-1">
+      <div className="xl:sticky xl:top-9 xl:-m-3 xl:flex xl:max-h-[calc(100dvh-3rem)] xl:flex-col xl:self-start xl:overflow-y-auto xl:p-3">
       {/* Header */}
-      <header className="mb-5">
+      <header className="mb-5 xl:contents">
         <Link
           href={backHref}
           className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors duration-200 hover:text-fiber"
@@ -364,7 +364,7 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
           )}
         </p>
 
-        <div className="mt-4 grid grid-cols-3 divide-x divide-line/60 rounded-card lg:grid-cols-1 lg:divide-x-0 lg:divide-y bg-card shadow-soft">
+        <div className="mt-4 grid grid-cols-3 divide-x divide-line/60 rounded-card xl:grid-cols-1 xl:divide-x-0 xl:divide-y bg-card shadow-soft">
           <Fact
             label="Connection"
             value={eff ? short.word : '—'}
@@ -387,7 +387,7 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
         </div>
 
         {alerts.length > 0 && (
-          <ul className="mt-3 flex flex-wrap gap-2" aria-label="Alerts">
+          <ul className="mt-3 flex flex-wrap gap-2 xl:order-3" aria-label="Alerts">
             {alerts.map((a) => (
               <li
                 key={a.id}
@@ -405,7 +405,7 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
       {toast && (
         <Toast key={toast.message} message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />
       )}
-      <div className="flex gap-2 sm:gap-3 lg:flex-col lg:gap-2">
+      <div className="flex gap-2 sm:gap-3 xl:order-2 xl:mt-4 xl:flex-col xl:gap-2">
         {tel && <Action icon={IconPhone} label="Call" href={tel} className="hidden sm:flex" />}
         {wa && <Action icon={IconMessage} label="WhatsApp" href={wa} external className="hidden sm:flex" />}
         {dir && <Action icon={IconNavigate} label="Directions" href={dir} external className="hidden sm:flex" />}
@@ -421,11 +421,11 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
         )}
         {isAdmin && <Action icon={IconEdit} label="Edit" onClick={() => setEditOpen(true)} />}
       </div>
-      {refresh.note && <p className="mt-2 text-sm text-muted">{REFRESH_NOTE[refresh.note]}</p>}
+      {refresh.note && <p className="mt-2 text-sm text-muted xl:order-2">{REFRESH_NOTE[refresh.note]}</p>}
       </div>
 
       {/* Right (laptop): the rest, scrolls with the page. -mt-6 cancels the first section's top margin. */}
-      <div className="min-w-0 lg:-mt-6">
+      <div className="min-w-0 xl:-mt-6">
       <ConnectionCard
         state={conn}
         checked={checked ? capitalise(checkedAgo(checked, now)) : null}
