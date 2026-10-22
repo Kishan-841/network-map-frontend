@@ -175,8 +175,9 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
   const alive = useRef(true)
   const isAdmin = useAuthStore((s) => s.user?.role) === 'ADMIN'
 
+  // `quiet` (the re-fetch after a refresh) never turns the page into "Not found".
   const loadCustomer = useCallback(
-    () =>
+    (quiet = false) =>
       apiClient
         .get(`/customers/${customerId}`)
         .then((res) => {
@@ -184,7 +185,7 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
           setCustomer(res.data.data)
           setLoadedAt(Date.now())
         })
-        .catch((err) => alive.current && setError(getApiErrorMessage(err, 'Customer not found'))),
+        .catch((err) => alive.current && !quiet && setError(getApiErrorMessage(err, 'Customer not found'))),
     [customerId],
   )
 
@@ -196,6 +197,7 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
           if (!alive.current) return
           const d = res.data.data
           setConn({
+            checkedAt: Date.now(),
             loading: false,
             enabled: Boolean(d?.enabled),
             connection: d?.connection ?? null,
@@ -222,17 +224,31 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
     }
   }, [loadCustomer, loadConnection])
 
+  const startCooldown = (ms) => {
+    clearTimeout(cooldownTimer.current)
+    cooldownTimer.current = setTimeout(
+      () => alive.current && setRefresh((r) => ({ ...r, cooldown: false, note: null })),
+      ms,
+    )
+  }
+
   const runRefresh = async () => {
     setRefresh((r) => ({ ...r, busy: true, note: null }))
     try {
       const res = await apiClient.post('/customers/refresh', { ids: [customerId], force: true })
-      clearTimeout(cooldownTimer.current)
-      cooldownTimer.current = setTimeout(() => alive.current && setRefresh((r) => ({ ...r, cooldown: false })), COOLDOWN_MS)
       const pending = (res.data.data?.pending ?? []).includes(customerId)
-      await Promise.all([loadConnection(), loadCustomer()])
-      if (alive.current) setRefresh({ busy: false, cooldown: true, note: pending ? 'pending' : null })
+      await Promise.all([loadConnection(), loadCustomer(true)])
+      if (!alive.current) return
+      setRefresh({ busy: false, cooldown: true, note: pending ? 'pending' : null })
+      startCooldown(COOLDOWN_MS)
     } catch (err) {
-      if (alive.current) setRefresh((r) => ({ ...r, busy: false, note: err?.response?.status === 429 ? 'limited' : 'failed' }))
+      if (!alive.current) return
+      const limited = err?.response?.status === 429
+      setRefresh({ busy: false, cooldown: limited, note: limited ? 'limited' : 'failed' })
+      if (limited) {
+        const secs = Number(err.response?.headers?.['retry-after'])
+        startCooldown(Number.isFinite(secs) && secs > 0 ? secs * 1000 : COOLDOWN_MS)
+      }
     }
   }
 
@@ -275,11 +291,12 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
     {
       state: eff?.state,
       lastSeen: eff?.best?.lastSeen,
-      checkedAt: eff?.live ? now : customer.connCheckedAt,
+      checkedAt: eff?.live ? conn.checkedAt : customer.connCheckedAt,
       oltReachable: eff?.oltReachable,
     },
     now,
   )
+  const checked = conn.failed ? null : eff?.live ? conn.checkedAt : customer.connCheckedAt
   const tone = eff ? connTone({ connState: eff.state }) : 'muted'
   const rx = eff?.best?.rxDbm
   const planTime = planTimeText(customer.planExpiresAt, now)
@@ -292,7 +309,7 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
   const dir = directionsUrl(building?.latitude, building?.longitude)
   const canRefresh = hasUsername && conn.enabled
   const hasBar = Boolean(tel || wa || dir)
-  const refreshLabel = refresh.busy ? 'Checking…' : refresh.cooldown ? 'Refreshed' : 'Refresh status'
+  const refreshLabel = refresh.busy ? 'Checking…' : refresh.cooldown ? (refresh.note === 'limited' ? 'Wait a moment' : 'Refreshed') : 'Refresh status'
 
   const buildingCustomersHref = building ? `/buildings/${building.id}/customers` : null
   const place = [building?.buildingName, customer.wing?.name].filter(Boolean).join(' · ')
@@ -402,7 +419,7 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
 
       <ConnectionCard
         state={conn}
-        checked={!conn.failed && customer.connCheckedAt ? capitalise(checkedAgo(customer.connCheckedAt, now)) : null}
+        checked={checked ? capitalise(checkedAgo(checked, now)) : null}
       />
 
       {/* Plan */}
@@ -443,9 +460,7 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
                 <div className="mt-2 flex justify-between gap-4 text-xs text-muted">
                   <span>{customer.planActivatedAt ? `Activated ${fmtDate(customer.planActivatedAt)}` : ''}</span>
                   <span className="text-right">
-                    {progress.label.startsWith('Expires')
-                      ? `${progress.daysLeft} days left`
-                      : `Expires ${fmtDate(customer.planExpiresAt)}`}
+                    {progress.expired ? 'Expired' : 'Expires'} {fmtDate(customer.planExpiresAt)}
                   </span>
                 </div>
               </div>
@@ -531,8 +546,8 @@ function CustomerPage({ customerId, backHref, backLabel = 'Customers' }) {
         <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 border-t border-line/70 bg-card/90 px-4 py-2 backdrop-blur-md sm:hidden">
           <div className="mx-auto flex max-w-lg gap-2">
             {tel && <BarButton icon={IconPhone} label="Call" href={tel} primary />}
-            {wa && <BarButton icon={IconMessage} label="WhatsApp" href={wa} external />}
             {dir && <BarButton icon={IconNavigate} label="Directions" href={dir} external />}
+            {wa && <BarButton icon={IconMessage} label="WhatsApp" href={wa} external />}
           </div>
         </div>
       )}

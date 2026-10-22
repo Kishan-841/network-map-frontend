@@ -95,7 +95,7 @@ export function planTimeText(expiresAt, now) {
 /**
  * The Plan card's bar: { pct, daysLeft, expired, label, tone }. pct is 0–100 of the way from
  * activation to expiry (null when the activation date is missing or not before expiry). label:
- * "4 days left" / "Expired 9 days ago" / "Expires 12 Sept 2027" (> 30 days). null without an expiry.
+ * "4 days left" / "Last day" / "Expired 9 days ago" (the date goes in the card footer). null without an expiry.
  */
 export function planProgress(activatedAt, expiresAt, now) {
   const t = planTime(expiresAt, now)
@@ -108,14 +108,13 @@ export function planProgress(activatedAt, expiresAt, now) {
   else if (Number.isFinite(start) && start < end) pct = Math.min(100, Math.max(0, ((at - start) / (end - start)) * 100))
   let label
   if (t.expired) label = expiredText(t.daysAgo)
-  else if (t.daysLeft > 30) label = `Expires ${fmtDate(expiresAt)}`
   else if (t.daysLeft === 0) label = 'Last day'
   else label = `${plural(t.daysLeft, 'day')} left`
   return { pct, daysLeft: t.daysLeft, expired: t.expired, label, tone: expiryTone(expiresAt, now) }
 }
 
 /**
- * Alert chips under the header, only the true ones: [{ id, tone: 'bad'|'warn'|'muted', text }].
+ * Alert chips under the header, only the true ones that add to the facts row: [{ id, tone: 'bad'|'warn'|'muted', text }].
  * `connection` is the live answer (or null); the customer's stored snapshot stands in until it comes.
  */
 export function customerAlerts(customer, connection, now) {
@@ -123,27 +122,18 @@ export function customerAlerts(customer, connection, now) {
   const alerts = []
   const add = (id, tone, text) => alerts.push({ id, tone, text })
 
-  const plan = planTime(customer.planExpiresAt, now)
-  const planTone = expiryTone(customer.planExpiresAt, now)
-  if (plan?.expired) add('plan-expired', 'bad', `Plan ${expiredText(plan.daysAgo).toLowerCase()}`)
-  else if (plan && planTone === 'warn') {
-    const when = plan.daysLeft === 0 ? 'today' : plan.daysLeft === 1 ? 'tomorrow' : `in ${plan.daysLeft} days`
-    add('plan-expiring', 'warn', `Plan expires ${when}`)
-  }
-
   if (!customer.username || !String(customer.username).trim()) {
     add('no-username', 'muted', "No username (status can't be checked)")
     return alerts
   }
 
+  // The facts row already shows the connection word, its age/date, signal and plan expiry, so only
+  // what it cannot say becomes a chip.
   const c = effectiveConnection(customer, connection)
-  if (c?.state === 'offline') add('offline', 'bad', 'Offline')
-  if (c && isOltDown(c)) add('olt-down', 'muted', 'OLT not reachable')
-  else if (c?.state === 'not_seen') {
-    const seen = c.best?.lastSeen
-    add('not-seen', 'warn', seen ? `Box not seen since ${fmtDate(seen)}` : 'Box not seen')
-  }
   if (c?.weak) add('weak', 'warn', 'Weak signal')
+  // With the OLT down the facts row says "OLT not reachable", not the date the box was last seen.
+  const seen = c?.best?.lastSeen
+  if (c?.state === 'not_seen' && seen && isOltDown(c)) add('not-seen', 'warn', `Box not seen since ${fmtDate(seen)}`)
 
   const sheet = sheetPon(customer.ponNumber)
   const live = c?.best?.pon ?? customer.connPon
@@ -164,17 +154,39 @@ export function signalVsUsual(onu) {
   return { text: `${db} dB above usual`, tone: 'muted' }
 }
 
-/** WhatsApp chat link for a 10-digit Indian mobile (spaces/dashes ignored); null otherwise. */
-export function whatsappUrl(mobile) {
-  if (mobile == null) return null
-  const digits = String(mobile).replace(/[\s-]/g, '')
-  return /^\d{10}$/.test(digits) ? `https://wa.me/91${digits}` : null
+/**
+ * A 10-digit Indian mobile out of a sheet cell: spaces/dashes dropped, "+91", a leading "91" on 12
+ * digits and a leading "0" on 11 digits removed. A cell with two numbers ("a / b", "a, b") gives
+ * the first valid one. null when none is.
+ */
+function mobileDigits(raw) {
+  if (raw == null) return null
+  for (const part of String(raw).split(/[/,;]|\bor\b/i)) {
+    let d = part.replace(/[\s\-().]/g, '')
+    if (d.startsWith('+91')) d = d.slice(3)
+    else if (/^91\d{10}$/.test(d)) d = d.slice(2)
+    else if (/^0\d{10}$/.test(d)) d = d.slice(1)
+    if (/^\d{10}$/.test(d)) return d
+  }
+  return null
 }
 
-/** Phone link; null without a number. */
+/** WhatsApp chat link for an Indian mobile in any common spelling; null otherwise. */
+export function whatsappUrl(mobile) {
+  const d = mobileDigits(mobile)
+  return d ? `https://wa.me/91${d}` : null
+}
+
+/** Phone link: the normalised mobile, else the first plain number (landline); null without one. */
 export function telUrl(mobile) {
-  const v = mobile == null ? '' : String(mobile).replace(/[\s-]/g, '')
-  return /^\+?\d{6,15}$/.test(v) ? `tel:${v}` : null
+  const d = mobileDigits(mobile)
+  if (d) return `tel:${d}`
+  if (mobile == null) return null
+  for (const part of String(mobile).split(/[/,;]/)) {
+    const v = part.replace(/[\s-]/g, '')
+    if (/^\+?\d{6,15}$/.test(v)) return `tel:${v}`
+  }
+  return null
 }
 
 const coord = (v) => (v == null || v === '' ? NaN : Number(v))

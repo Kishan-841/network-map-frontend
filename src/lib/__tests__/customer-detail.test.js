@@ -66,8 +66,8 @@ describe('planProgress', () => {
       tone: 'bad',
     })
   })
-  it('shows the date when more than 30 days remain', () => {
-    expect(planProgress('2026-09-12T00:00:00Z', endOf('2027-09-12'), NOW).label).toBe('Expires 12 Sept 2027')
+  it('keeps counting days when more than 30 remain', () => {
+    expect(planProgress('2026-09-12T00:00:00Z', endOf('2027-09-12'), NOW).label).toBe('326 days left')
   })
   it('clamps and tolerates a missing activation', () => {
     expect(planProgress('2026-11-01T00:00:00Z', endOf('2026-12-01'), NOW).pct).toBe(0)
@@ -80,31 +80,26 @@ describe('customerAlerts', () => {
   it('is empty for a healthy customer', () => {
     expect(customerAlerts({ ...base, planExpiresAt: endOf('2027-01-01') }, live(), NOW)).toEqual([])
   })
-  it('flags an expired or soon-expiring plan', () => {
-    expect(customerAlerts({ ...base, planExpiresAt: endOf('2026-10-12') }, live(), NOW)).toEqual([
-      { id: 'plan-expired', tone: 'bad', text: 'Plan expired 9 days ago' },
-    ])
-    expect(customerAlerts({ ...base, planExpiresAt: endOf('2026-10-25') }, live(), NOW)).toEqual([
-      { id: 'plan-expiring', tone: 'warn', text: 'Plan expires in 4 days' },
-    ])
-    expect(customerAlerts({ ...base, planExpiresAt: endOf('2026-11-05') }, live(), NOW)).toEqual([])
+  it('leaves plan expiry to the facts row', () => {
+    expect(customerAlerts({ ...base, planExpiresAt: endOf('2026-10-12') }, live(), NOW)).toEqual([])
+    expect(customerAlerts({ ...base, planExpiresAt: endOf('2026-10-25') }, live(), NOW)).toEqual([])
   })
   it('flags weak signal from weak or a 3 dB drop while online', () => {
     expect(ids(customerAlerts(base, live({ weak: true }), NOW))).toEqual(['weak'])
     expect(ids(customerAlerts(base, live({ signalDropped: true }), NOW))).toEqual(['weak'])
-    expect(ids(customerAlerts(base, live({ state: 'offline', signalDropped: true }), NOW))).toEqual(['offline'])
+    expect(ids(customerAlerts(base, live({ state: 'offline', signalDropped: true }), NOW))).toEqual([])
   })
-  it('tells OLT-not-reachable apart from a box not seen', () => {
+  it('does not restate offline, OLT not reachable or a dated not-seen', () => {
     const notSeen = live({ state: 'not_seen', best: { lastSeen: '2026-10-05T06:00:00Z', pon: 3 } })
-    expect(customerAlerts(base, { ...notSeen, oltReachable: false }, NOW)).toEqual([
-      { id: 'olt-down', tone: 'muted', text: 'OLT not reachable' },
-    ])
+    expect(customerAlerts(base, live({ state: 'offline' }), NOW)).toEqual([])
+    expect(customerAlerts(base, notSeen, NOW)).toEqual([])
+    expect(customerAlerts(base, live({ state: 'not_seen', best: { pon: 3 } }), NOW)).toEqual([])
+  })
+  it('adds the last-seen date only when OLT-down hides it from the facts row', () => {
+    const notSeen = live({ state: 'not_seen', oltReachable: false, best: { lastSeen: '2026-10-05T06:00:00Z', pon: 3 } })
     expect(customerAlerts(base, notSeen, NOW)).toEqual([
       { id: 'not-seen', tone: 'warn', text: 'Box not seen since 5 Oct 2026' },
     ])
-  })
-  it('flags offline', () => {
-    expect(customerAlerts(base, live({ state: 'offline' }), NOW)).toEqual([{ id: 'offline', tone: 'bad', text: 'Offline' }])
   })
   it('flags a sheet PON that differs from the live one', () => {
     expect(customerAlerts({ ...base, ponNumber: '6' }, live(), NOW)).toEqual([
@@ -115,8 +110,8 @@ describe('customerAlerts', () => {
   })
   it('falls back to the stored snapshot until the live answer comes', () => {
     const stored = { ...base, ponNumber: '6', connState: 'offline', connPon: 3, connWeak: false }
-    expect(ids(customerAlerts(stored, null, NOW))).toEqual(['offline', 'pon-mismatch'])
-    expect(ids(customerAlerts(stored, { state: 'pending', onus: [], best: null }, NOW))).toEqual(['offline', 'pon-mismatch'])
+    expect(ids(customerAlerts(stored, null, NOW))).toEqual(['pon-mismatch'])
+    expect(ids(customerAlerts(stored, { state: 'pending', onus: [], best: null }, NOW))).toEqual(['pon-mismatch'])
     expect(ids(customerAlerts({ ...stored, connState: 'online', connWeak: true }, null, NOW))).toEqual(['weak', 'pon-mismatch'])
   })
   it('flags a missing username and nothing about the connection', () => {
@@ -158,15 +153,21 @@ describe('signalVsUsual', () => {
 })
 
 describe('links', () => {
-  it('whatsappUrl takes a 10-digit mobile only', () => {
+  it('whatsappUrl normalises Indian mobiles', () => {
     expect(whatsappUrl('9821301428')).toBe('https://wa.me/919821301428')
     expect(whatsappUrl('98213 01428')).toBe('https://wa.me/919821301428')
-    expect(whatsappUrl('919821301428')).toBeNull()
+    expect(whatsappUrl('919821301428')).toBe('https://wa.me/919821301428')
+    expect(whatsappUrl('+91 98213-01428')).toBe('https://wa.me/919821301428')
+    expect(whatsappUrl('09821301428')).toBe('https://wa.me/919821301428')
+    expect(whatsappUrl('0224455 / 98213 01428')).toBe('https://wa.me/919821301428')
+    expect(whatsappUrl('9821301428, 9000000000')).toBe('https://wa.me/919821301428')
     expect(whatsappUrl('12345')).toBeNull()
     expect(whatsappUrl(null)).toBeNull()
   })
   it('telUrl', () => {
     expect(telUrl('9821301428')).toBe('tel:9821301428')
+    expect(telUrl('+91 98213 01428')).toBe('tel:9821301428')
+    expect(telUrl('9821301428 / 9000000000')).toBe('tel:9821301428')
     expect(telUrl('')).toBeNull()
     expect(telUrl(null)).toBeNull()
   })

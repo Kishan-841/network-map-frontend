@@ -62,7 +62,7 @@ function OnuBlock({ onu, title, first }) {
       <Row label="Serial" value={onu.serial} />
       <Row label="Session IP" value={onu.sessionIp} />
       <Row label="Customer IPs" value={customerIps} />
-      <Row label="ONU index" value={onu.onuIndex} />
+      <Row label="ONU index" value={String(onu.onuIndex ?? '') === String(onu.serial ?? '') ? null : onu.onuIndex} />
       <Row label="ONU ID" value={onu.onuId} />
       <Row label="OLT ID" value={onu.oltId} />
     </div>
