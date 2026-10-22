@@ -14,12 +14,17 @@ const DOT = { ok: 'bg-ok', bad: 'bg-bad', warn: 'bg-warn', muted: 'bg-faint' }
  * building's customers (404/403). When live OLT status is enabled and the building
  * has customers, a muted health line (dot + words) sits under the label.
  */
-export function CustomersLink({ buildingId, className = '' }) {
+/**
+ * The customer count and live-health counts for a building. Pass a falsy id to skip the
+ * request (a page that hands its own data to CustomersLink, before the building has loaded).
+ */
+export function useCustomerSummary(buildingId) {
   const [count, setCount] = useState(null) // null = loading
   const [hidden, setHidden] = useState(false)
   const [counts, setCounts] = useState(null) // live connection counts; null = none to show
 
   useEffect(() => {
+    if (!buildingId) return undefined
     let live = true
     apiClient
       .get('/customers', { params: { buildingId } })
@@ -47,6 +52,13 @@ export function CustomersLink({ buildingId, className = '' }) {
     }
   }, [buildingId])
 
+  return { count, counts, hidden }
+}
+
+export function CustomersLink({ buildingId, className = '', data }) {
+  // `data` (from the page's own useCustomerSummary) means the page fetched once for all its views.
+  const own = useCustomerSummary(data ? null : buildingId)
+  const { count, counts, hidden } = data ?? own
   if (hidden) return null
   const line = summaryLine(counts)
   return (
@@ -71,6 +83,32 @@ export function CustomersLink({ buildingId, className = '' }) {
       </span>
       <span className="shrink-0 text-sm text-muted">{count == null ? '—' : count}</span>
       <IconChevronRight className="h-4 w-4 text-faint" />
+    </Link>
+  )
+}
+
+/** The same data as a stat tile (laptop strip): big count, health line under it. */
+export function CustomersStat({ buildingId, data }) {
+  if (data.hidden) return null
+  const line = summaryLine(data.counts)
+  return (
+    <Link
+      href={`/buildings/${buildingId}/customers`}
+      className="min-w-0 rounded-card bg-card p-5 shadow-soft transition-colors hover:bg-paper"
+    >
+      <p className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-faint">
+        Customers
+        <IconChevronRight className="h-4 w-4" />
+      </p>
+      <p className="mt-1 text-2xl font-bold tabular-nums">{data.count == null ? '—' : data.count}</p>
+      <p className="mt-0.5 flex min-h-4 items-start gap-1.5 text-xs text-muted">
+        {line && (
+          <>
+            <span aria-hidden="true" className={`mt-1 h-2 w-2 shrink-0 rounded-full ${DOT[worstTone(data.counts)]}`} />
+            <span>{line}</span>
+          </>
+        )}
+      </p>
     </Link>
   )
 }

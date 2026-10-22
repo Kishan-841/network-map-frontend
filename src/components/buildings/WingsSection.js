@@ -5,16 +5,19 @@ import { Button } from '@/components/ui/Button'
 import { IconPin } from '@/components/ui/icons'
 
 /** A building's wings: count located, each wing's name / home pass / live, and the Locate button. */
-export function WingsSection({ building, canEdit, onLocate }) {
+export function WingsSection({ building, canEdit, onLocate, card = false }) {
   const { placed, total } = wingSummary(building)
   // No wing count yet: only shown to someone who can set it (in Locate wings).
   if (!total && !placed && !canEdit) return null
   return (
-    <section className="mt-5 rounded-card bg-card p-4 shadow-soft">
+    <section className={`rounded-card bg-card shadow-soft ${card ? 'p-5' : 'mt-5 p-4'}`}>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold">
+        <h2 className={card ? 'text-xs font-medium uppercase tracking-wide text-faint' : 'text-sm font-bold'}>
           Wings{' '}
-          <span className="font-normal text-muted">{total ? `${placed} of ${total} located` : 'not set yet'}</span>
+          <span className={card ? 'font-medium normal-case tracking-normal text-muted' : 'font-normal text-muted'}>
+            {card ? '· ' : ''}
+            {total ? `${placed} of ${total} located` : 'not set yet'}
+          </span>
         </h2>
         {canEdit && (
           <Button variant="secondary" onClick={onLocate}>

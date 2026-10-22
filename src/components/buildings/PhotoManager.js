@@ -31,7 +31,9 @@ const ADD_OPTIONS = [
 
 /** Documents & photos grid: add (any role), delete (admin/manager, or the
  *  surveyor who created the building — so they can replace a wrong photo). */
-export function PhotoManager({ building, onChanged }) {
+export function PhotoManager({ building, onChanged, cardAtXl = false }) {
+  // cardAtXl: on laptops the block becomes one titled card (grid of tiles + add buttons inside).
+  const x = (cls) => (cardAtXl ? cls : '')
   const user = useAuthStore((s) => s.user)
   const role = user?.role
   const isManager = canManageBuildings(role)
@@ -85,17 +87,20 @@ export function PhotoManager({ building, onChanged }) {
   }
 
   return (
-    <section className="mt-5">
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">Documents</p>
+    <section className={`mt-5 ${x('xl:mt-0 xl:rounded-card xl:bg-card xl:p-5 xl:shadow-soft')}`}>
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">
+        <span className={x('xl:hidden')}>Documents</span>
+        {cardAtXl && <span className="hidden xl:inline">Photos &amp; documents</span>}
+      </p>
 
       <input ref={fileInputRef} type="file" accept={pendingType?.accept} onChange={handleFilePicked} className="hidden" />
 
       {building.photos?.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${x('xl:grid-cols-3 xl:gap-4')}`}>
           {building.photos.map((photo) => (
             <div
               key={photo.id}
-              className="group relative overflow-hidden rounded-card bg-card shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift"
+              className={`group relative overflow-hidden rounded-card bg-card shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift ${x('xl:border xl:border-line xl:shadow-none xl:hover:shadow-none')}`}
             >
               <a href={photo.url} target="_blank" rel="noreferrer" className="block">
                 {isPdf(photo.url) ? (
@@ -144,7 +149,7 @@ export function PhotoManager({ building, onChanged }) {
               key={option.type}
               onClick={() => startAdd(option)}
               disabled={busy || alreadyUploaded}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-card px-4 text-sm font-medium text-muted shadow-soft transition-colors hover:border-doc/40 hover:text-doc disabled:opacity-50"
+              className={`inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-card px-4 text-sm font-medium text-muted shadow-soft transition-colors hover:border-doc/40 hover:text-doc disabled:opacity-50 ${x('xl:shadow-none')}`}
             >
               <IconCamera className="h-4 w-4" strokeWidth={1.8} />
               {alreadyUploaded

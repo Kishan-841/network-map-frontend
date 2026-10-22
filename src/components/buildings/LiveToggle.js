@@ -11,7 +11,7 @@ import { invalidateBuildingMarkers } from '@/hooks/useBuildingMarkers'
  * Shows whether the fiber connection is live and lets an admin/manager flip it
  * — the action that turns the map marker green (live) or red (not live).
  */
-export function LiveToggle({ building, onChanged }) {
+export function LiveToggle({ building, onChanged, inCardAtXl = false }) {
   const role = useAuthStore((s) => s.user?.role)
   const canEdit = canManageBuildings(role)
   const [busy, setBusy] = useState(false)
@@ -33,9 +33,15 @@ export function LiveToggle({ building, onChanged }) {
   }
 
   return (
-    <section className="mt-5">
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">Connection</p>
-      <div className="flex items-center justify-between gap-3 rounded-card bg-card p-4 shadow-soft">
+    <section className={`mt-5 ${inCardAtXl ? 'xl:mt-4 xl:border-t xl:border-line/60 xl:pt-4' : ''}`}>
+      <p className={`mb-2 text-xs font-medium uppercase tracking-wide text-faint ${inCardAtXl ? 'xl:hidden' : ''}`}>
+        Connection
+      </p>
+      <div
+        className={`flex items-center justify-between gap-3 rounded-card bg-card p-4 shadow-soft ${
+          inCardAtXl ? 'xl:rounded-none xl:bg-transparent xl:p-0 xl:shadow-none' : ''
+        }`}
+      >
         <span className="flex items-center gap-2.5">
           <span className={`h-2.5 w-2.5 rounded-full ${building.isLive ? 'bg-ok' : 'bg-bad'}`} />
           <span className="text-sm font-medium">{building.isLive ? 'Live' : 'Not live'}</span>
