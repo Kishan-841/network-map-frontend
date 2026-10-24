@@ -145,9 +145,23 @@ function FlaggedList({ items, max = 'max-h-32' }) {
   )
 }
 
+// The lookup endpoint takes at most 200 names per request (customer.schemas.js
+// lookupSchema), and a big sheet can name more buildings than that.
+const LOOKUP_BATCH = 200
+
+/** Ask about every building name, 200 at a time; answers are keyed by name, so batches merge. */
+async function lookupBuildingNames(names) {
+  const found = {}
+  for (let i = 0; i < names.length; i += LOOKUP_BATCH) {
+    const res = await apiClient.post('/customers/building-lookup', { names: names.slice(i, i + LOOKUP_BATCH) })
+    Object.assign(found, res.data.data)
+  }
+  return found
+}
+
 /**
  * Upload the ISP's billing sheet. Rows are mapped in the browser, building
- * names resolved server-side in one lookup, then a dry run asks the server what
+ * names resolved server-side (200 per request), then a dry run asks the server what
  * would be new / updated / unchanged before anything is written.
  *
  * Three stages, like ImportBuildingsModal: pick → review → result. When
@@ -213,8 +227,7 @@ export function ImportCustomersModal({ forcedBuilding = null, onClose, onImporte
       } else {
         const names = customerBuildingNames(sheets)
         if (names.length === 0) throw new Error('No sheet has the customer columns (Name, Mobile No., building).')
-        const res = await apiClient.post('/customers/building-lookup', { names })
-        m = mapCustomerSheet(sheets, res.data.data)
+        m = mapCustomerSheet(sheets, await lookupBuildingNames(names))
       }
       if (m.error) throw new Error(m.error)
       if (m.ready.length + m.needsPick.length + m.skipped.length === 0) {
