@@ -7,6 +7,8 @@ import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { buildingMarkerShape, buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
+import CoordinateCard from '@/components/map/CoordinateCard'
+import { useCoordinatePick } from './useCoordinatePick'
 import { useFiberOverlays } from '@/components/fiber/useFiberOverlays'
 import { usePopMarkers } from '@/components/fiber/usePopMarkers'
 import { focusPoints } from '@/lib/fiber/focus-target'
@@ -96,6 +98,8 @@ export default function GoogleBuildingsMap({
   // argument, and a ref may not be read during render.
   const [map, setMap] = useState(null)
   const [layer, setLayer] = useMapLayer('tab', 'roadmap')
+  // Right-click / press and hold → that spot's lat/lng with a Copy button.
+  const { pick } = useCoordinatePick({ map: ready ? map : null, containerRef })
 
   useEffect(() => {
     let cancelled = false
@@ -515,6 +519,7 @@ export default function GoogleBuildingsMap({
     <div className="relative isolate z-0 h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       <MapLayerControl value={layer} onChange={setLayer} position="right-3 top-[4.75rem] lg:top-24" />
+      {pick && <CoordinateCard key={`${pick.x},${pick.y}`} pick={pick} />}
 
       {/* Fiber hover card — fixed at the cursor, like a rich tooltip. Hover
           only: a tap opens the detail panel instead. The fibers guard hides a
