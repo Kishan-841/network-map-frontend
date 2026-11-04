@@ -23,6 +23,8 @@ const PREF_KEYS = {
   zones: 'fiber-zones-shown',
   others: 'fiber-others-shown',
   pops: 'fiber-pops-shown',
+  closures: 'fiber-closures-shown',
+  splitters: 'fiber-splitters-shown',
 }
 
 // Overlay choices persist across sessions (same idea as useMapLayer).
@@ -42,7 +44,7 @@ const writePref = (key, value) => {
   }
 }
 
-/** Remembered Buildings / Zones / POPs / Other-fiber toggles. */
+/** Remembered Buildings / Zones / POPs / Other-fiber / Closures / Splitters toggles. */
 export function useOverlayToggles() {
   const [overlays, setOverlays] = useState(() => ({
     buildings: readPref(PREF_KEYS.buildings, false),
@@ -53,6 +55,10 @@ export function useOverlayToggles() {
     // POPs are where the network starts — worth seeing while you draw towards
     // one, so they are on unless the reader turns them off.
     pops: readPref(PREF_KEYS.pops, true),
+    // Other lines' closures / splitters: on by default, but zoomed out they
+    // fill the screen, so each can be hidden. The edited line keeps its own.
+    closures: readPref(PREF_KEYS.closures, true),
+    splitters: readPref(PREF_KEYS.splitters, true),
   }))
   const toggleOverlay = useCallback((key, value) => {
     writePref(PREF_KEYS[key], value)
@@ -113,8 +119,8 @@ function removeNode(entry) {
 }
 
 /**
- * The editor's context overlays: POP/closure snap-target markers (always on —
- * you cannot snap to what you cannot see), lazily clustered building dots, and
+ * The editor's context overlays: POP/closure markers (closures and splitters
+ * can each be hidden — drawing no longer snaps to them), lazily clustered building dots, and
  * lazily fetched zone outlines. Everything lives in refs; `onTargetClick` is
  * mirrored so a fresh arrow from the caller never rebuilds a layer.
  */
@@ -127,6 +133,8 @@ export function useEditorOverlays({
   zonesShown,
   onTargetClick,
   markersClickable = true,
+  closuresShown = true,
+  splittersShown = true,
   // Closures/splitters the DRAFT already draws: the editor would otherwise
   // paint them twice (draft layer + context layer) with two colliding badges.
   excludeIds = NO_IDS,
@@ -152,7 +160,7 @@ export function useEditorOverlays({
     }
   }, [markersClickable])
 
-  // ---- POP + closure markers (always visible) -------------------------------
+  // ---- POP + closure markers (closures / splitters each toggleable) ---------
   // Excluding by a SORTED JOINED KEY, not by the Set's identity: the draft
   // rebuilds that Set on every point move, and the context layer must only
   // change when its membership actually changed.
@@ -160,10 +168,13 @@ export function useEditorOverlays({
   const nodes = useMemo(() => {
     const skip = new Set(excludeKey ? excludeKey.split('|') : [])
     // POPs stay whatever the draft does — they are landmarks, not annotations.
+    // A closure carrying a splitter is drawn (and toggled) as a splitter.
     return nodeTargets.filter(
-      (target) => target.kind === 'POP' || (target.kind === 'CLOSURE' && !skip.has(target.id)),
+      (target) =>
+        target.kind === 'POP' ||
+        (target.kind === 'CLOSURE' && !skip.has(target.id) && (target.splitter ? splittersShown : closuresShown)),
     )
-  }, [nodeTargets, excludeKey])
+  }, [nodeTargets, excludeKey, closuresShown, splittersShown])
 
   // Kept by id and updated in place: every save refetches all closures, and
   // tearing down + recreating every marker (there can be well over a thousand)

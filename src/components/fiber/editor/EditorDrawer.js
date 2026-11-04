@@ -20,6 +20,8 @@ const LAYERS = [
   { key: 'zones', label: 'Zones' },
   { key: 'pops', label: 'POPs' },
   { key: 'others', label: 'Other fiber' },
+  { key: 'closures', label: 'Closures' },
+  { key: 'splitters', label: 'Splitters' },
 ]
 
 const readOpen = () => {

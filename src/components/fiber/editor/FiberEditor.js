@@ -201,6 +201,9 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     // Drawing / dropping a closure: markers must not intercept the tap.
     markersClickable: !frozen,
     excludeIds: draftEntityIds,
+    // Other lines' closures / splitters; the draft always shows its own.
+    closuresShown: overlays.closures,
+    splittersShown: overlays.splitters,
   })
 
   // Saved fibers as dim context behind the draft. Tappable in Pan mode only
@@ -217,6 +220,8 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     cluster: false,
     onFiberClick: handleOtherFiberClick,
     linesClickable: mode === 'pan',
+    // Standalone splitters on other lines follow the Splitters toggle too.
+    showSplitters: overlays.splitters,
   })
 
   // Every saved POP, so a surveyor can see the site they are drawing towards.
@@ -442,7 +447,8 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
           overlays={overlays}
           onToggleOverlay={(key, value) => {
             toggleOverlay(key, value)
-            if (key === 'buildings' && !value) setSelectedTarget(null)
+            // A card for something just hidden would point at nothing.
+            if (!value && ['buildings', 'closures', 'splitters'].includes(key)) setSelectedTarget(null)
           }}
           onClear={() => dispatch({ type: 'clear' })}
           canClear={phase === 'draw' && counts.points > 0}
