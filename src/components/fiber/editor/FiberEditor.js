@@ -22,6 +22,8 @@ import EditorDrawer from './EditorDrawer'
 import MapSearchButton from '@/components/map/MapSearchButton'
 import EditorToast from './EditorToast'
 import EditorCards from './EditorCards'
+import FiberSwitchSheet from './FiberSwitchSheet'
+import FiberSwitchCard from './FiberSwitchCard'
 
 const MAX_POINTS = 200 // matches the API cap (fiber.schemas.js)
 const NO_FIBERS = [] // stable identity — useFiberOverlays rebuilds on a new array
@@ -78,6 +80,11 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   const [selectedTarget, setSelectedTarget] = useState(null) // Pan-mode marker tap
   const [pointsError, setPointsError] = useState(null)
   const [savingPoints, setSavingPoints] = useState(false)
+  // Editing another fibre in place: the search sheet, the faint line tapped
+  // in Pan mode, and the fetch in between.
+  const [switchOpen, setSwitchOpen] = useState(false)
+  const [fiberChoice, setFiberChoice] = useState(null)
+  const [switching, setSwitching] = useState(false)
   const [toast, showToast] = useEditorToast()
 
   // Draw and Add-closure both take over the tap: the map's own gestures go
@@ -87,8 +94,9 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
 
   const { targets, nodeTargets, buildingTargets } = useSnapTargets()
   // Fetched while the "Other fiber" overlay is on — and for a brand new line,
-  // whose opening view falls back to the last fiber anyone drew.
-  const { fibers } = useFibers(overlays.others || !initialFiber)
+  // whose opening view falls back to the last fiber anyone drew — and while
+  // the "Edit another fibre" sheet is open.
+  const { fibers, loading: fibersLoading } = useFibers(overlays.others || !initialFiber || switchOpen)
 
   const draftRef = useRef(draft)
   const { containerRef, map, ready, containerSize, panTo, getCenter, locate, locating } =
@@ -162,7 +170,15 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
   })
 
   const handleTargetClick = useCallback((target) => {
-    if (modeRef.current === 'pan') setSelectedTarget(target)
+    if (modeRef.current !== 'pan') return
+    setFiberChoice(null)
+    setSelectedTarget(target)
+  }, [])
+  // A faint "other" fibre tapped in Pan mode → offer to edit it next.
+  const handleOtherFiberClick = useCallback((other) => {
+    if (modeRef.current !== 'pan' || cardOpenRef.current) return
+    setSelectedTarget(null)
+    setFiberChoice(other)
   }, [])
   // Closures and splitters the DRAFT already draws: the context layer must skip
   // them, or every one is painted twice with two badges fighting over the spot.
@@ -187,11 +203,21 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     excludeIds: draftEntityIds,
   })
 
-  // Saved fibers as dim context behind the draft — never interactive here.
+  // Saved fibers as dim context behind the draft. Tappable in Pan mode only
+  // (tap one to edit it next); every other mode owns the tap.
   // `fibers` is a fresh [] on every render until the fetch lands — map that
   // window onto the stable empty array so the overlay does not rebuild.
   const otherFibers = overlays.others && fibers.length > 0 ? fibers : NO_FIBERS
-  useFiberOverlays({ map, ready, fibers: otherFibers, exclude: fiber?.id, dim: true, cluster: false })
+  useFiberOverlays({
+    map,
+    ready,
+    fibers: otherFibers,
+    exclude: fiber?.id,
+    dim: true,
+    cluster: false,
+    onFiberClick: handleOtherFiberClick,
+    linesClickable: mode === 'pan',
+  })
 
   // Every saved POP, so a surveyor can see the site they are drawing towards.
   // Not clickable here — taps belong to the line being drawn.
@@ -242,6 +268,9 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
 
   const errors = useMemo(() => draftErrors(draft.points), [draft.points])
   const dirty = phase === 'annotate' && signatureOf(draft.points) !== savedSignature
+  // What switching to another fibre would throw away: unsaved line edits, or
+  // a new line not saved yet.
+  const hasUnsaved = dirty || (phase === 'draw' && draft.points.length > 0)
 
   // ---- actions --------------------------------------------------------------
   function handleCreated(saved) {
@@ -285,6 +314,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     const start = continuationStart(draft.points[draft.points.length - 1])
     annotations.resetForMode('draw')
     setSelectedTarget(null)
+    setFiberChoice(null)
     setPointsError(null)
     setSaveOpen(false)
     setFiber(null)
@@ -294,10 +324,66 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     showToast('New fiber from here — set its core count in the panel, then keep drawing')
   }
 
+  // Edit another fibre in place — same map, layer and overlays, no closing.
+  // Loads the full fibre (list rows are slim), then moves the map only when
+  // the fibre is not already on screen, so a neighbour keeps the view.
+  async function switchTo(next) {
+    if (annotations.anyCardOpen) {
+      showToast('Close the open card first')
+      return
+    }
+    const name = next.name?.trim() || 'this fibre'
+    if (hasUnsaved && !window.confirm(`The line has unsaved changes. Discard them and edit “${name}”?`)) return
+    setSwitching(true)
+    try {
+      const res = await apiClient.get(`/fibers/${next.id}`)
+      const loaded = res.data.data
+      const points = fromApiPoints(loaded.points)
+      annotations.resetForMode('pan')
+      setSelectedTarget(null)
+      setFiberChoice(null)
+      setSwitchOpen(false)
+      setSaveOpen(false)
+      setPointsError(null)
+      setFiber(loaded)
+      dispatch({ type: 'load', points })
+      setSavedSignature(signatureOf(points))
+      setCoreCount(loaded.coreCount ?? 2)
+      setMode('pan')
+      frameUnlessVisible(points)
+      showToast(`Editing ${name}`)
+    } catch (err) {
+      showToast(getApiErrorMessage(err, 'Could not open that fibre'))
+    } finally {
+      setSwitching(false)
+    }
+  }
+
+  function frameUnlessVisible(points) {
+    if (!map || points.length === 0) return
+    const view = map.getBounds()
+    if (view && points.every((p) => view.contains({ lat: p.latitude, lng: p.longitude }))) return
+    const bounds = new google.maps.LatLngBounds()
+    points.forEach((p) => bounds.extend({ lat: p.latitude, lng: p.longitude }))
+    map.fitBounds(bounds, 64)
+  }
+
+  function openSwitchSheet() {
+    if (annotations.anyCardOpen) {
+      showToast('Close the open card first')
+      return
+    }
+    setFiberChoice(null)
+    setSwitchOpen(true)
+  }
+
   function handleMode(next) {
     setMode(next)
     annotations.resetForMode(next)
-    if (next !== 'pan') setSelectedTarget(null) // stale cards are noise while drawing
+    if (next !== 'pan') {
+      setSelectedTarget(null) // stale cards are noise while drawing
+      setFiberChoice(null)
+    }
     showToast(hintFor(phase, next))
   }
 
@@ -319,6 +405,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
         onLeave={handleLeave}
         onSave={phase === 'draw' ? () => setSaveOpen(true) : handleSaveChanges}
         onAddFiber={phase === 'annotate' ? handleAddFiber : null}
+        onSwitchFiber={openSwitchSheet}
       />
 
       <div className="relative min-h-0 flex-1">
@@ -386,6 +473,25 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
           onSaved={fiber ? handleDetailsSaved : handleCreated}
           onSaveBack={() => setSaveOpen(false)}
         />
+
+        {fiberChoice && !selectedTarget && (
+          <FiberSwitchCard
+            fiber={fiberChoice}
+            switching={switching}
+            onEdit={() => switchTo(fiberChoice)}
+            onClose={() => setFiberChoice(null)}
+          />
+        )}
+
+        {switchOpen && (
+          <FiberSwitchSheet
+            fibers={fibers}
+            loading={fibersLoading}
+            currentId={fiber?.id}
+            onPick={switchTo}
+            onClose={() => setSwitchOpen(false)}
+          />
+        )}
 
         <EditorBottomBar phase={phase} mode={mode} onMode={handleMode} coreCount={coreCount} />
       </div>

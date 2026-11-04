@@ -45,6 +45,9 @@ export function useFiberOverlays({
   onFiberClick,
   onPointClick,
   onFiberHover,
+  // Lines can take taps only while this is true — the editor turns it off
+  // while a mode (Draw, Add closure…) owns the tap. Flipping it never rebuilds.
+  linesClickable = true,
 }) {
   const polylinesRef = useRef([])
   const markersRef = useRef([]) // [{ marker, badge, isWaypoint }]
@@ -58,6 +61,7 @@ export function useFiberOverlays({
   // Read by the view pass, so flipping a filter re-attaches markers without
   // rebuilding the layer.
   const kindsRef = useRef({ CLOSURE: showClosures, SPLITTER: showSplitters })
+  const linesClickableRef = useRef(linesClickable)
   const applyViewRef = useRef(null)
 
   useEffect(() => {
@@ -74,6 +78,7 @@ export function useFiberOverlays({
     // Interactivity is a question of whether the caller wants events, nothing
     // else: a dim context line is still hoverable if a hover handler was given.
     const interactive = Boolean(onFiberClickRef.current || onFiberHoverRef.current)
+    const clickable = interactive && linesClickableRef.current
     // The refs take the arrays BEFORE they are filled — they are mutated in
     // place, so a throw mid-build still leaves the cleanup a complete list.
     const polylines = []
@@ -87,7 +92,7 @@ export function useFiberOverlays({
           strokeOpacity: dim ? 0.55 : 0.9,
           strokeWeight: dim ? 2.5 : 4,
           zIndex: 5,
-          clickable: interactive,
+          clickable,
         })
         if (onFiberClickRef.current) {
           line.addListener('click', (event) => onFiberClickRef.current?.(fiber, event.domEvent))
@@ -274,6 +279,13 @@ export function useFiberOverlays({
       applyViewRef.current = null
     }
   }, [map, ready, fibers, exclude, dim, cluster])
+
+  // Tap-ability changed (an editor mode switch): flip the built lines in place.
+  useEffect(() => {
+    linesClickableRef.current = linesClickable
+    const interactive = Boolean(onFiberClickRef.current || onFiberHoverRef.current)
+    polylinesRef.current.forEach((line) => line.setOptions({ clickable: interactive && linesClickable }))
+  }, [linesClickable])
 
   // A legend filter changed: re-run the view pass, no rebuild.
   useEffect(() => {

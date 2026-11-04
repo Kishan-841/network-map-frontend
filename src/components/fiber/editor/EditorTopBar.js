@@ -1,6 +1,6 @@
 'use client'
 
-import { IconArrowLeft, IconClose, IconPlus, IconUndo } from '@/components/ui/icons'
+import { IconArrowLeft, IconClose, IconPlus, IconSwitch, IconUndo } from '@/components/ui/icons'
 
 const ICON_BUTTON =
   'flex min-h-11 w-11 shrink-0 items-center justify-center rounded-btn text-muted transition-colors hover:bg-paper hover:text-ink disabled:opacity-35 disabled:hover:bg-transparent'
@@ -24,6 +24,7 @@ export default function EditorTopBar({
   onLeave,
   onSave,
   onAddFiber,
+  onSwitchFiber,
 }) {
   const drawing = phase === 'draw'
   const saveDisabled = drawing ? !canSave : !dirty || !canSave || savingPoints
@@ -61,6 +62,18 @@ export default function EditorTopBar({
           className={ICON_BUTTON}
         >
           <IconUndo className="h-5 w-5" aria-hidden="true" />
+        </button>
+      )}
+
+      {onSwitchFiber && (
+        <button
+          type="button"
+          onClick={onSwitchFiber}
+          aria-label="Edit another fibre"
+          className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-btn border border-line px-3 text-sm font-medium text-muted transition-colors hover:border-faint hover:text-ink"
+        >
+          <IconSwitch className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Edit another</span>
         </button>
       )}
 

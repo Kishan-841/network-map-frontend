@@ -61,6 +61,7 @@ export {
   MessageCircle as IconMessage,
   Copy as IconCopy,
   ExternalLink as IconExternal,
+  ArrowLeftRight as IconSwitch,
 } from 'lucide-react'
 
 /** Brand glyph: three network nodes joined by fiber links. */
