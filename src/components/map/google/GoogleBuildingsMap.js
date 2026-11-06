@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { buildingColor, LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
 import { zoneLabel, zoneLook, zoneShapeOverlays } from '@/lib/map-zone-style'
-import { MarkerClusterer } from '@googlemaps/markerclusterer'
+import { buildIndex, clusterBounds, padBounds, reconcile, visibleItems } from '@/lib/visible-pins'
 import { buildingMarkerShape, buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
@@ -77,12 +77,17 @@ export default function GoogleBuildingsMap({
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
+  // Only what is DRAWN: building pins in view (buildingId → Marker) and the
+  // bubbles in view (key → Marker). Everything else exists only as data in
+  // the clustering index (lib/visible-pins) — no Google object per building.
   const markersRef = useRef(new Map())
+  const bubblesRef = useRef(new Map())
+  const indexRef = useRef(null)
+  const drawVisibleRef = useRef(() => {})
   const zoneOverlaysRef = useRef([])
   // Hovered fiber → floating details card at the cursor. Hover only: on touch
   // the same tap opens the detail panel, which says more than a card could.
   const [hover, setHover] = useState(null)
-  const clustererRef = useRef(null)
   // "Frame this" — one handle used by every click on the map, and published
   // to the parent through centreRef for the detail panels.
   const focusRef = useRef(null)
@@ -155,20 +160,22 @@ export default function GoogleBuildingsMap({
           return centre ? { latitude: centre.lat(), longitude: centre.lng() } : {}
         }
       }
-      clustererRef.current = new MarkerClusterer({
-        map: mapRef.current,
-        markers: [],
-        renderer: clusterRenderer,
-      })
       setMap(pooledMap)
       setReady(true)
     })
     return () => {
       cancelled = true
-      clustererRef.current?.clearMarkers()
-      clustererRef.current = null
-      markersRef.current.forEach((marker) => marker.setMap(null))
+      markersRef.current.forEach((marker) => {
+        google.maps.event.clearInstanceListeners(marker)
+        marker.setMap(null)
+      })
       markersRef.current.clear()
+      bubblesRef.current.forEach((bubble) => {
+        google.maps.event.clearInstanceListeners(bubble)
+        bubble.setMap(null)
+      })
+      bubblesRef.current.clear()
+      indexRef.current = null
       focusRef.current = null
       if (centreRef) centreRef.current = null
       if (viewRef) viewRef.current = null
@@ -383,70 +390,117 @@ export default function GoogleBuildingsMap({
     return () => marker.setMap(null)
   }, [map, ready, searchLat, searchLng, searchLabel])
 
-  // Diff markers against the buildings prop — never tear down the world.
-  // Selection is handled in its own effect so a tap only re-icons two pins.
-  useEffect(() => {
+  // Draw only the bubbles and pins in view (spec 2026-11-06-map-visible-pins).
+  // The index knows every building; Google objects exist only for what the
+  // padded visible area holds right now, and only the difference is touched.
+  const drawVisible = useCallback(() => {
     const map = mapRef.current
-    const clusterer = clustererRef.current
-    if (!map || !clusterer || !ready) return
-
+    const index = indexRef.current
+    const view = map?.getBounds()
+    if (!map || !index || !view) return
+    const ne = view.getNorthEast()
+    const sw = view.getSouthWest()
+    const items = visibleItems(
+      index,
+      padBounds({ west: sw.lng(), south: sw.lat(), east: ne.lng(), north: ne.lat() }),
+      map.getZoom() ?? 0,
+    )
     const markers = markersRef.current
-    const seen = new Set()
-    let changed = false
+    const bubbles = bubblesRef.current
+    const drawn = [...[...markers.keys()].map((id) => `b:${id}`), ...bubbles.keys()]
+    const { add, keep, remove } = reconcile(drawn, items)
 
-    buildings.forEach((building) => {
-      seen.add(building.id)
+    for (const key of remove) {
+      const pinId = key.startsWith('b:') ? key.slice(2) : null
+      const marker = pinId ? markers.get(pinId) : bubbles.get(key)
+      if (!marker) continue
+      google.maps.event.clearInstanceListeners(marker)
+      marker.setMap(null)
+      if (pinId) markers.delete(pinId)
+      else bubbles.delete(key)
+    }
+
+    // A pin already drawn takes the building's latest data — the same updates
+    // the old per-building diff made.
+    const kept = new Set(keep)
+    for (const item of items) {
+      if (item.kind !== 'pin' || !kept.has(item.key)) continue
+      const building = item.building
+      const marker = markers.get(building.id)
       const selected = building.id === selectedIdRef.current
       const key = pinKeyOf(building, selected)
-      let marker = markers.get(building.id)
-
-      if (!marker) {
-        marker = new google.maps.Marker({
-          position: { lat: building.latitude, lng: building.longitude },
-          icon: pinIcon(building, selected),
-          title: building.buildingName, // native hover tooltip (like the POP pins)
-          zIndex: selected ? 1000 : 1, // selected pin sits on top
-        })
-        marker.addListener('click', () => {
-          const b = marker.buildingData
-          if (b.wings?.length) {
-            expandRef.current?.(b) // zoom to the wings and show wing pins; no drawer yet
-            return
-          }
-          onSelectRef.current(b)
-          focusRef.current?.(b)
-        })
-        marker.pinKey = key
-        marker.buildingData = building
-        markers.set(building.id, marker)
-        clusterer.addMarker(marker, true)
-        changed = true
-        return
-      }
-
       marker.buildingData = building
       if (marker.getTitle() !== building.buildingName) marker.setTitle(building.buildingName)
       const pos = marker.getPosition()
       if (pos.lat() !== building.latitude || pos.lng() !== building.longitude) {
         marker.setPosition({ lat: building.latitude, lng: building.longitude })
-        changed = true
       }
       if (marker.pinKey !== key) {
         marker.setIcon(pinIcon(building, selected))
         marker.setZIndex(selected ? 1000 : 1)
         marker.pinKey = key
       }
-    })
+    }
 
-    markers.forEach((marker, id) => {
-      if (seen.has(id)) return
-      clusterer.removeMarker(marker, true)
-      marker.setMap(null)
-      markers.delete(id)
-      changed = true
-    })
+    for (const item of add) {
+      if (item.kind === 'cluster') {
+        const bubble = clusterRenderer.render({
+          count: item.count,
+          position: { lat: item.latitude, lng: item.longitude },
+        })
+        const { clusterId } = item
+        bubble.addListener('click', () => {
+          const b = clusterBounds(index, clusterId)
+          map.fitBounds(new google.maps.LatLngBounds({ lat: b.south, lng: b.west }, { lat: b.north, lng: b.east }))
+        })
+        bubble.setMap(map)
+        bubbles.set(item.key, bubble)
+        continue
+      }
+      const building = item.building
+      const selected = building.id === selectedIdRef.current
+      const marker = new google.maps.Marker({
+        map,
+        position: { lat: building.latitude, lng: building.longitude },
+        icon: pinIcon(building, selected),
+        title: building.buildingName, // native hover tooltip (like the POP pins)
+        zIndex: selected ? 1000 : 1, // selected pin sits on top
+      })
+      marker.addListener('click', () => {
+        const b = marker.buildingData
+        if (b.wings?.length) {
+          expandRef.current?.(b) // zoom to the wings and show wing pins; no drawer yet
+          return
+        }
+        onSelectRef.current(b)
+        focusRef.current?.(b)
+      })
+      marker.pinKey = pinKeyOf(building, selected)
+      marker.buildingData = building
+      // A building whose wings are open keeps its own pin hidden.
+      if (building.id === expandedIdRef.current) marker.setVisible(false)
+      markers.set(building.id, marker)
+    }
+  }, [])
 
-    if (changed) clusterer.render()
+  useEffect(() => {
+    drawVisibleRef.current = drawVisible
+  }, [drawVisible])
+
+  // Pan / zoom: redraw what is in view once the map settles.
+  useEffect(() => {
+    if (!map || !ready) return
+    const idle = map.addListener('idle', () => drawVisibleRef.current())
+    return () => idle.remove()
+  }, [map, ready])
+
+  // New buildings (first load, a filter, the sales map's quiet refresh):
+  // rebuild the index and redraw what is in view.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    indexRef.current = buildIndex(buildings)
+    drawVisibleRef.current()
 
     // A refresh (sales map quiet reload, markers invalidate) keeps the open
     // building open and redraws its wing pins from the new data.
@@ -455,7 +509,7 @@ export default function GoogleBuildingsMap({
       const fresh = buildings.find((b) => b.id === openId)
       if (!fresh || !fresh.wings?.length) collapse()
       else {
-        markers.get(openId)?.setVisible(false)
+        markersRef.current.get(openId)?.setVisible(false)
         if (wingsKeyOf(fresh) !== wingsKeyRef.current) drawWings(fresh)
       }
     }
