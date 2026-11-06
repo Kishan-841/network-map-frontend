@@ -15,6 +15,20 @@ const GoogleLocationPicker = dynamic(
   { ssr: false },
 )
 
+/** A saved closure as the form's string fields (used by the Closures page and the drawer). */
+export const closureToForm = (closure) => ({
+  latitude: String(closure.latitude),
+  longitude: String(closure.longitude),
+  kind: closure.kind ?? '',
+  buildingId: closure.building?.id ?? '',
+  notes: closure.notes ?? '',
+  fiberType: closure.fiberType ?? '',
+  tubeCount: closure.tubeCount == null ? '' : String(closure.tubeCount),
+  inCoreCount: closure.inCoreCount == null ? '' : String(closure.inCoreCount),
+  outCoreCount: closure.outCoreCount == null ? '' : String(closure.outCoreCount),
+  images: closure.images ?? [],
+})
+
 /**
  * Create/edit form for a closure: position (typed or picked on the map),
  * kind, an optional building, and notes. `initial` is only ever read once —

@@ -128,6 +128,17 @@ export const FIBER_ACCESS_ROLES = ['MANAGER', 'SURVEYOR', 'SUPERVISOR']
 export const canManageFiber = (user) =>
   user?.role === 'ADMIN' ||
   (user?.canManageFiber === true && FIBER_ACCESS_ROLES.includes(user?.role))
+/**
+ * Editing one closure / splitter: the fibre tick (ADMIN always), or being the
+ * person who created it — they may fix their own work even after the tick is
+ * removed. Mirrors backend requireFiberWriteOrCreator. `record` carries
+ * `createdBy: { id }` (detail reads) or `createdById`.
+ */
+export const canEditFiberItem = (user, record) => {
+  if (canManageFiber(user)) return true
+  const makerId = record?.createdBy?.id ?? record?.createdById
+  return Boolean(user?.id && makerId && makerId === user.id)
+}
 /** Which per-user ticks a role can hold at all — drives Assign accesses. */
 export const ACCESS_ROLES = {
   canManageFiber: FIBER_ACCESS_ROLES,

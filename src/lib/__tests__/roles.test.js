@@ -7,6 +7,7 @@ import {
   canEditBuilding,
   canLocateWings,
   canManageFiber,
+  canEditFiberItem,
   fiberNavFor,
   homePathFor,
   isForbiddenPath,
@@ -304,5 +305,26 @@ describe('canLocateWings', () => {
     for (const role of ['PERMISSION_EXECUTIVE', 'ACQUISITION_AGENT', 'SALES_EXECUTIVE']) {
       expect(canLocateWings({ id: 'me', role }, building('me'))).toBe(false)
     }
+  })
+})
+
+describe('canEditFiberItem (closure / splitter edit, mirrors the backend)', () => {
+  const me = { id: 'u1', role: 'SURVEYOR', canManageFiber: false }
+
+  it('lets ADMIN and fibre-tick holders edit anything', () => {
+    expect(canEditFiberItem({ id: 'a', role: 'ADMIN' }, { createdBy: { id: 'x' } })).toBe(true)
+    expect(canEditFiberItem({ id: 't', role: 'MANAGER', canManageFiber: true }, { createdBy: null })).toBe(true)
+  })
+
+  it('lets the creator edit their own, even without the tick', () => {
+    expect(canEditFiberItem(me, { createdBy: { id: 'u1', name: 'Me' } })).toBe(true)
+    expect(canEditFiberItem(me, { createdById: 'u1' })).toBe(true)
+  })
+
+  it('refuses an unticked user on someone else\'s, or an unknown maker', () => {
+    expect(canEditFiberItem(me, { createdBy: { id: 'u2' } })).toBe(false)
+    expect(canEditFiberItem(me, { createdBy: null })).toBe(false)
+    expect(canEditFiberItem(null, { createdBy: { id: 'u1' } })).toBe(false)
+    expect(canEditFiberItem({ role: 'SURVEYOR' }, { createdBy: {} })).toBe(false)
   })
 })

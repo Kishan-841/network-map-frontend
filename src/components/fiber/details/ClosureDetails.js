@@ -13,8 +13,9 @@ import {
   RATIO_LABELS,
 } from '@/lib/fiber/constants'
 import { Button } from '@/components/ui/Button'
-import { IconCircleDot, IconTrash } from '@/components/ui/icons'
+import { IconCircleDot, IconEdit, IconTrash } from '@/components/ui/icons'
 import SplitterForm from '@/components/fiber/SplitterForm'
+import ClosureForm, { closureToForm } from '@/components/fiber/ClosureForm'
 import {
   CHIP,
   EmptyLine,
@@ -92,7 +93,7 @@ function SplitterCard({ splitter, fiberById, canManage, busy, onOpen, onDelete }
 }
 
 /** One closure in full: the closure sheet, the fibers through it, and its splitters. */
-export default function ClosureDetails({ id, canManage, onOpen, onCentre }) {
+export default function ClosureDetails({ id, canManage, canEditItem, onOpen, onCentre }) {
   const { data: closure, loading, error, retry, refresh } = useDetail(
     `/closures/${id}`,
     'Could not load this closure',
@@ -100,6 +101,8 @@ export default function ClosureDetails({ id, canManage, onOpen, onCentre }) {
   const [busyId, setBusyId] = useState(null)
   const [actionError, setActionError] = useState(null)
   const [showForm, setShowForm] = useState(false)
+  // Editing the closure itself, inside the drawer (the map stays put).
+  const [editing, setEditing] = useState(false)
 
   if (loading) return <Skeleton />
   if (error) return <LoadError error={error} onRetry={retry} />
@@ -150,6 +153,27 @@ export default function ClosureDetails({ id, canManage, onOpen, onCentre }) {
         </div>
       </div>
 
+      {canEditItem?.(closure) && !editing && (
+        <Button type="button" variant="secondary" className="h-11 min-h-11" onClick={() => setEditing(true)}>
+          <IconEdit className="h-4 w-4" strokeWidth={1.8} />
+          Edit closure
+        </Button>
+      )}
+
+      {editing ? (
+        <ClosureForm
+          key={`edit-${closure.id}`}
+          initial={closureToForm(closure)}
+          saveLabel="Save changes"
+          onCancel={() => setEditing(false)}
+          onSave={async (values) => {
+            await apiClient.patch(`/closures/${closure.id}`, values)
+            setEditing(false)
+            changed()
+          }}
+        />
+      ) : (
+        <>
       <Section title="Closure sheet">
         <FieldList
           rows={[
@@ -216,6 +240,8 @@ export default function ClosureDetails({ id, canManage, onOpen, onCentre }) {
       </Section>
 
       <RecordBlock record={closure} />
+        </>
+      )}
     </>
   )
 }

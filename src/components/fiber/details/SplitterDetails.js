@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
 import { FIBER_TYPE_LABELS, POINT_COLORS, RATIO_LABELS } from '@/lib/fiber/constants'
 import { Button } from '@/components/ui/Button'
-import { IconDiamond } from '@/components/ui/icons'
+import { IconDiamond, IconEdit } from '@/components/ui/icons'
+import SplitterForm from '@/components/fiber/SplitterForm'
+import { invalidateSplitters } from '@/hooks/useSplitters'
 import {
   CHIP,
   EmptyLine,
@@ -41,10 +43,39 @@ function OutputRow({ output, onOpen }) {
  * a fiber line), and every output port. The Splitters page, the map and a
  * closure's splitter cards all open it.
  */
-export default function SplitterDetails({ id, canManage, onOpen, onCentre, onDeleted }) {
-  const { data: splitter, loading, error, retry } = useDetail(`/splitters/${id}`, 'Could not load this splitter')
+/**
+ * The fibers that may feed a splitter: its current input, the line it sits
+ * on, and (for one inside a closure) the fibers ending at that closure.
+ */
+function useFeedOptions(splitter, active) {
+  const closureId = splitter?.closure?.id
+  const [closureFibers, setClosureFibers] = useState({ id: null, list: [] })
+  useEffect(() => {
+    if (!active || !closureId) return
+    let alive = true
+    apiClient
+      .get(`/closures/${closureId}`)
+      .then((res) => alive && setClosureFibers({ id: closureId, list: res.data.data.fibers ?? [] }))
+      .catch(() => alive && setClosureFibers({ id: closureId, list: [] }))
+    return () => {
+      alive = false
+    }
+  }, [active, closureId])
+  const ending = closureFibers.id === closureId ? closureFibers.list.filter((f) => f.role === 'in') : []
+  const byId = new Map()
+  for (const f of [splitter?.inputFiber, splitter?.onFiber, ...ending]) {
+    if (f?.id) byId.set(f.id, { id: f.id, name: f.name })
+  }
+  return [...byId.values()]
+}
+
+export default function SplitterDetails({ id, canManage, canEditItem, onOpen, onCentre, onDeleted }) {
+  const { data: splitter, loading, error, retry, refresh } = useDetail(`/splitters/${id}`, 'Could not load this splitter')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState(null)
+  // Editing ratio / type / feed inside the drawer.
+  const [editing, setEditing] = useState(false)
+  const feedOptions = useFeedOptions(splitter, editing)
 
   if (loading) return <Skeleton />
   if (error) return <LoadError error={error} onRetry={retry} />
@@ -87,6 +118,28 @@ export default function SplitterDetails({ id, canManage, onOpen, onCentre, onDel
           </div>
         </div>
       </div>
+
+      {canEditItem?.(splitter) && !editing && (
+        <Button type="button" variant="secondary" className="h-11 min-h-11" onClick={() => setEditing(true)}>
+          <IconEdit className="h-4 w-4" strokeWidth={1.8} />
+          Edit splitter
+        </Button>
+      )}
+
+      {editing && (
+        <SplitterForm
+          splitter={splitter}
+          endingFibers={feedOptions}
+          onCancel={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false)
+            invalidateClosures()
+            invalidateSplitters()
+            invalidateFibers()
+            refresh()
+          }}
+        />
+      )}
 
       <Section title="Splitter">
         <FieldList

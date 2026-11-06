@@ -36,14 +36,17 @@ function PillGroup({ options, value, onChange, label: labelFor }) {
  * Inline "add a splitter" form shown under a closure's splitter list. One
  * shot at picking ratio + fiber type + location + which ending fiber feeds
  * it — the outputs themselves are wired up later, output by output.
+ * Pass `splitter` to EDIT that splitter instead (PATCH /splitters/:id); then
+ * `endingFibers` are the fibers that may feed it.
  */
-export default function SplitterForm({ closureId, endingFibers, onSaved, onCancel }) {
-  const [ratio, setRatio] = useState('R1_2')
-  const [fiberType, setFiberType] = useState('MAIN')
-  const [location, setLocation] = useState('S1')
-  const [inputFiberId, setInputFiberId] = useState(() =>
-    endingFibers.length === 1 ? endingFibers[0].id : '',
-  )
+export default function SplitterForm({ closureId, splitter, endingFibers, onSaved, onCancel }) {
+  const [ratio, setRatio] = useState(splitter?.ratio ?? 'R1_2')
+  const [fiberType, setFiberType] = useState(splitter ? (splitter.fiberType ?? '') : 'MAIN')
+  const [location, setLocation] = useState(splitter?.location ?? 'S1')
+  const [inputFiberId, setInputFiberId] = useState(() => {
+    if (splitter) return splitter.inputFiberId ?? splitter.inputFiber?.id ?? ''
+    return endingFibers.length === 1 ? endingFibers[0].id : ''
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -51,15 +54,13 @@ export default function SplitterForm({ closureId, endingFibers, onSaved, onCance
     setSaving(true)
     setError(null)
     try {
-      const res = await apiClient.post(`/closures/${closureId}/splitters`, {
-        ratio,
-        fiberType,
-        location,
-        inputFiberId: inputFiberId || null,
-      })
+      const body = { ratio, fiberType: fiberType || null, location, inputFiberId: inputFiberId || null }
+      const res = splitter
+        ? await apiClient.patch(`/splitters/${splitter.id}`, body)
+        : await apiClient.post(`/closures/${closureId}/splitters`, body)
       onSaved?.(res.data.data)
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not add this splitter'))
+      setError(getApiErrorMessage(err, splitter ? 'Could not save this splitter' : 'Could not add this splitter'))
       setSaving(false)
     }
   }

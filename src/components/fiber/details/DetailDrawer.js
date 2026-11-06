@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { canManageFiber } from '@/lib/roles'
+import { canEditFiberItem, canManageFiber } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import { IconArrowLeft, IconClose } from '@/components/ui/icons'
 import PopDetails from './PopDetails'
@@ -37,7 +37,13 @@ const BODIES = {
  */
 export default function DetailDrawer({ stack, onOpen, onBack, onClose, onCentre, onEditFiber, onEditPop, readOnly = false }) {
   const entry = stack.at(-1)
-  const canManage = canManageFiber(useAuthStore((s) => s.user)) && !readOnly
+  const user = useAuthStore((s) => s.user)
+  const canManage = canManageFiber(user) && !readOnly
+  // Edit on a closure / splitter: the tick, or its creator (lib/roles). The
+  // map passes readOnly to people without the tick — their own work stays
+  // editable even there.
+  const isMaker = (record) => Boolean(user?.id) && (record?.createdBy?.id ?? record?.createdById) === user.id
+  const canEditItem = (record) => isMaker(record) || (!readOnly && canEditFiberItem(user, record))
   const panelRef = useRef(null)
   // The outside-press listeners must ignore the tail of the very gesture that
   // opened the drawer. On touch, a map marker opens the drawer on `touchend`
@@ -124,6 +130,7 @@ export default function DetailDrawer({ stack, onOpen, onBack, onClose, onCentre,
           <Body
             id={entry.id}
             canManage={canManage}
+            canEditItem={canEditItem}
             onOpen={onOpen}
             onCentre={onCentre}
             onEdit={entry.kind === 'fiber' ? onEditFiber : entry.kind === 'pop' ? onEditPop : undefined}
