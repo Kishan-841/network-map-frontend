@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { clusterRenderer } from '@/lib/map-markers'
 import { typedMarkerIcon, labelBadgeIcon } from '@/lib/fiber/markers'
-import { coreColor } from '@/lib/fiber/constants'
+import { coreColor, splitterColor } from '@/lib/fiber/constants'
 import { polylineRanges, collectMarkers, markerText } from '@/lib/fiber/overlays'
 
 const WAYPOINT_MIN_ZOOM = 15 // plain waypoints are noise when zoomed out
@@ -150,7 +150,13 @@ export function useFiberOverlays({
       const entry = {
         marker: new google.maps.Marker({
           position: { lat: point.latitude, lng: point.longitude },
-          icon: mapsIcon(typedMarkerIcon(kind, { size: dim ? 16 : 18 })),
+          // A splitter's colour says its type (S1 / S2 / S3).
+          icon: mapsIcon(
+            typedMarkerIcon(kind, {
+              size: dim ? 16 : 18,
+              color: kind === 'SPLITTER' ? splitterColor(point.splitterLocation) : null,
+            }),
+          ),
           clickable: clickablePoints,
           zIndex: 8,
         }),

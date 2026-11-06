@@ -6,7 +6,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { invalidateFibers } from '@/hooks/useFibers'
 import { useZones } from '@/hooks/useZones'
 import { useOperators } from '@/hooks/useOperators'
-import { closureKindLabel, coreColor, fiberTypeLabel, POINT_COLORS, RATIO_LABELS } from '@/lib/fiber/constants'
+import { closureKindLabel, coreColor, fiberTypeLabel, POINT_COLORS, RATIO_LABELS, splitterColor } from '@/lib/fiber/constants'
 import { IconEdit, IconRoute } from '@/components/ui/icons'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Input'
@@ -69,7 +69,7 @@ function FeedRows({ fiber, onOpen }) {
     return (
       <>
         <LinkRow
-          color={POINT_COLORS.SPLITTER}
+          color={splitterColor(splitter.location)}
           title={`${where} · output ${portNo}`}
           sub={`Splitter ${splitter.code ?? ''} · ${RATIO_LABELS[splitter.ratio] ?? splitter.ratio} · ${splitter.location}`}
           onClick={splitter.closure ? () => onOpen({ kind: 'closure', id: splitter.closure.id }) : undefined}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { LIVE_COLOR, NOT_LIVE_COLOR, PARTIAL_COLOR } from '@/lib/constants'
-import { POINT_COLORS } from '@/lib/fiber/constants'
+import { POINT_COLORS, SPLITTER_TYPE_COLORS } from '@/lib/fiber/constants'
 import { hiddenLayerCount } from '@/lib/map-layers'
 import { IconLayers, IconClose, IconTriangle, IconShield, IconBuildings } from '@/components/ui/icons'
 
@@ -231,17 +231,33 @@ export function MapLegend({
             })}
             {chip({
               symbol: (on) => (
-                <span
-                  className="h-2 w-2 shrink-0 rotate-45 border-2"
-                  style={{ borderColor: POINT_COLORS.SPLITTER, backgroundColor: on ? POINT_COLORS.SPLITTER : 'transparent' }}
-                  aria-hidden="true"
-                />
+                // One diamond per type — the map colours splitters by S1 / S2 / S3.
+                <span className="flex shrink-0 items-center gap-1" aria-hidden="true">
+                  {Object.values(SPLITTER_TYPE_COLORS).map((color) => (
+                    <span
+                      key={color}
+                      className="h-2 w-2 rotate-45 border-2"
+                      style={{ borderColor: color, backgroundColor: on ? color : 'transparent' }}
+                    />
+                  ))}
+                </span>
               ),
               label: 'Splitters',
               on: splittersShown,
               onToggle: onToggleSplitters,
             })}
           </div>
+          {/* A key, not a filter: which colour is which splitter type. */}
+          {splittersShown && (
+            <p className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted">
+              {Object.entries(SPLITTER_TYPE_COLORS).map(([type, color]) => (
+                <span key={type} className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 shrink-0 rotate-45" style={{ backgroundColor: color }} aria-hidden="true" />
+                  {type}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
       )}
     </div>

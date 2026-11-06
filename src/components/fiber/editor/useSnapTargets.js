@@ -34,6 +34,7 @@ export function useSnapTargets() {
         latitude: c.latitude,
         longitude: c.longitude,
         splitter: RATIO_LABELS[c.splitters?.[0]?.ratio] ?? null,
+        splitterLocation: c.splitters?.[0]?.location ?? null,
       })),
     ],
     [pops, closures],

@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api-client'
 import { zoneLabel, zoneLook, zoneShapeOverlays } from '@/lib/map-zone-style'
 import { buildingDotIcon, clusterRenderer } from '@/lib/map-markers'
 import { typedMarkerIcon, markerLabel, labelBadgeIcon } from '@/lib/fiber/markers'
+import { splitterColor } from '@/lib/fiber/constants'
 
 // Badges carry their own background, so a POP / closure name reads earlier than
 // a bare label did; below this, hovering a (clickable) symbol still shows one.
@@ -214,16 +215,19 @@ export function useEditorOverlays({
     }
     for (const target of nodes) {
       const kind = target.kind === 'CLOSURE' && target.splitter ? 'SPLITTER' : target.kind
+      // A splitter's colour says its type (S1 / S2 / S3).
+      const color = kind === 'SPLITTER' ? splitterColor(target.splitterLocation) : null
       const position = { lat: target.latitude, lng: target.longitude }
       const entry = entries.get(target.id)
       if (!entry) {
         const created = {
           target,
           kind,
+          color,
           marker: new google.maps.Marker({
             map,
             position,
-            icon: mapsIcon(typedMarkerIcon(kind)),
+            icon: mapsIcon(typedMarkerIcon(kind, { color })),
             clickable: clickableRef.current,
             zIndex: 8,
           }),
@@ -250,7 +254,10 @@ export function useEditorOverlays({
         entry.marker.setPosition(position)
         entry.badge?.setPosition(position)
       }
-      if (entry.kind !== kind) entry.marker.setIcon(mapsIcon(typedMarkerIcon(kind)))
+      if (entry.kind !== kind || entry.color !== color) {
+        entry.marker.setIcon(mapsIcon(typedMarkerIcon(kind, { color })))
+        entry.color = color
+      }
       if (badgeText(entry.target) !== badgeText(target) && entry.badge !== undefined) {
         // The name changed: drop the old badge; it is rebuilt on next need.
         entry.badge?.setMap(null)

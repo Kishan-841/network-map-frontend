@@ -41,3 +41,11 @@ export const closureKindLabel = (kind) =>
 export const FIBER_TYPE_LABELS = { MAIN: 'Main', SUB: 'Sub' }
 /** Marker colours are fixed per point type — never by core count. */
 export const POINT_COLORS = { POP: '#7c3aed', CLOSURE: '#0e7569', SPLITTER: '#f97316', WAYPOINT: '#64748b', BUILDING: '#22c55e' }
+
+/**
+ * A splitter's colour says its type (S1 / S2 / S3) at a glance — on the map,
+ * in the editor, the drawer and the lists. Fixed, so field teams learn them.
+ * S1 keeps the original splitter orange.
+ */
+export const SPLITTER_TYPE_COLORS = { S1: '#f97316', S2: '#db2777', S3: '#0ea5e9' }
+export const splitterColor = (location) => SPLITTER_TYPE_COLORS[location] ?? POINT_COLORS.SPLITTER

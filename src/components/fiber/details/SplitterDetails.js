@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
-import { FIBER_TYPE_LABELS, POINT_COLORS, RATIO_LABELS } from '@/lib/fiber/constants'
+import { FIBER_TYPE_LABELS, POINT_COLORS, RATIO_LABELS, splitterColor } from '@/lib/fiber/constants'
 import { Button } from '@/components/ui/Button'
 import { IconDiamond, IconEdit } from '@/components/ui/icons'
 import SplitterForm from '@/components/fiber/SplitterForm'
@@ -104,7 +104,7 @@ export default function SplitterDetails({ id, canManage, canEditItem, onOpen, on
       <div className="flex items-start gap-3">
         <span
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white"
-          style={{ backgroundColor: POINT_COLORS.SPLITTER }}
+          style={{ backgroundColor: splitterColor(splitter.location) }}
         >
           <IconDiamond className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
         </span>

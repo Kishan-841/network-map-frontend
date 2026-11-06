@@ -1,87 +1,60 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { DataTable } from "@/components/ui/DataTable";
-import { SearchInput } from "@/components/ui/SearchInput";
-import { Pagination } from "@/components/ui/Pagination";
-import { useClientTable } from "@/hooks/useClientTable";
-import { useSplitters, invalidateSplitters } from "@/hooks/useSplitters";
-import { invalidateClosures } from "@/hooks/useClosures";
-import { Button } from "@/components/ui/Button";
-import { IconPlus } from "@/components/ui/icons";
-import { canManageFiber } from "@/lib/roles";
-import NewSplitterPanel from "@/components/fiber/NewSplitterPanel";
-import { POINT_COLORS, RATIO_LABELS } from "@/lib/fiber/constants";
-import { useAuthStore } from "@/stores/auth-store";
-import DetailDrawer from "@/components/fiber/details/DetailDrawer";
-import { useDetailStack } from "@/components/fiber/details/useDetailStack";
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { DataTable } from '@/components/ui/DataTable'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { Pagination } from '@/components/ui/Pagination'
+import { useClientTable } from '@/hooks/useClientTable'
+import { useSplitters, invalidateSplitters } from '@/hooks/useSplitters'
+import { invalidateClosures } from '@/hooks/useClosures'
+import { Button } from '@/components/ui/Button'
+import { IconPlus } from '@/components/ui/icons'
+import { canManageFiber } from '@/lib/roles'
+import NewSplitterPanel from '@/components/fiber/NewSplitterPanel'
+import { RATIO_LABELS, splitterColor } from '@/lib/fiber/constants'
+import { useAuthStore } from '@/stores/auth-store'
+import DetailDrawer from '@/components/fiber/details/DetailDrawer'
+import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 
-const ratioLabel = (s) => RATIO_LABELS[s.ratio] ?? s.ratio;
+const ratioLabel = (s) => RATIO_LABELS[s.ratio] ?? s.ratio
 
 // Where a splitter sits: inside a closure, or straight on a fiber line.
-const whereLabel = (s) =>
-  s.closure
-    ? `Closure ${s.closure.code}`
-    : s.onFiber
-      ? `On ${s.onFiber.name}`
-      : "—";
+const whereLabel = (s) => (s.closure ? `Closure ${s.closure.code}` : s.onFiber ? `On ${s.onFiber.name}` : '—')
 
 // A splitter has no zone of its own — search what a person would type: its
 // code, the ratio, the closure it is in, or the fibers it touches.
-const splitterSearchText = (s) => [
-  s.code,
-  ratioLabel(s),
-  s.closure?.code,
-  s.onFiber?.name,
-  s.inputFiber?.name,
-];
+const splitterSearchText = (s) => [s.code, ratioLabel(s), s.closure?.code, s.onFiber?.name, s.inputFiber?.name]
 
-const portsLabel = (s) => `${s.portsUsed} / ${s.portsTotal}`;
+const portsLabel = (s) => `${s.portsUsed} / ${s.portsTotal}`
 
 export default function AdminSplittersPage() {
-  const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === "ADMIN";
-  const canManage = canManageFiber(user);
+  const user = useAuthStore((s) => s.user)
+  const isAdmin = user?.role === 'ADMIN'
+  const canManage = canManageFiber(user)
   // The "New splitter" panel takes over the page while it is open.
-  const [adding, setAdding] = useState(false);
-  const { splitters, loading } = useSplitters();
-  const table = useClientTable(splitters, {
-    getSearchText: splitterSearchText,
-  });
-  const router = useRouter();
+  const [adding, setAdding] = useState(false)
+  const { splitters, loading } = useSplitters()
+  const table = useClientTable(splitters, { getSearchText: splitterSearchText })
+  const router = useRouter()
   // A row opens the right-hand detail drawer; links inside it walk the network.
-  const details = useDetailStack();
+  const details = useDetailStack()
 
   const columns = [
-    {
-      key: "code",
-      header: "Code",
-      render: (s) => <span className="font-mono font-bold">{s.code}</span>,
-    },
-    {
-      key: "ratio",
-      header: "Ratio",
-      className: "tabular-nums",
-      render: ratioLabel,
-    },
-    { key: "type", header: "Type", render: (s) => s.location ?? "—" },
-    { key: "where", header: "Where", render: whereLabel },
-    {
-      key: "ports",
-      header: "Ports used",
-      className: "tabular-nums",
-      render: portsLabel,
-    },
-  ];
+    { key: 'code', header: 'Code', render: (s) => <span className="font-mono font-bold">{s.code}</span> },
+    { key: 'ratio', header: 'Ratio', className: 'tabular-nums', render: ratioLabel },
+    { key: 'type', header: 'Type', render: (s) => s.location ?? '—' },
+    { key: 'where', header: 'Where', render: whereLabel },
+    { key: 'ports', header: 'Ports used', className: 'tabular-nums', render: portsLabel },
+  ]
 
   const renderCard = (s) => (
     <button
       type="button"
-      onClick={() => details.open("splitter", s.id)}
+      onClick={() => details.open('splitter', s.id)}
       className="flex w-full items-center gap-2 rounded-card border-l-4 bg-card p-3 text-left shadow-soft transition-transform active:scale-[0.99]"
-      style={{ borderLeftColor: POINT_COLORS.SPLITTER }}
+      style={{ borderLeftColor: splitterColor(s.location) }}
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate font-mono font-bold">
@@ -92,18 +65,14 @@ export default function AdminSplittersPage() {
         </span>
       </span>
     </button>
-  );
+  )
 
   return (
     <main className="mx-auto max-w-5xl">
       <PageHeader
         eyebrow="Administration"
         title="Splitters"
-        sub={
-          isAdmin
-            ? "Every splitter on the network"
-            : "Splitters on your zones' cables, and any you added"
-        }
+        sub={isAdmin ? 'Every splitter on the network' : "Splitters on your zones' cables, and any you added"}
         backHref="/dashboard"
         backLabel="Dashboard"
         action={
@@ -121,10 +90,10 @@ export default function AdminSplittersPage() {
         <NewSplitterPanel
           onCancel={() => setAdding(false)}
           onSaved={(splitter) => {
-            invalidateSplitters();
-            invalidateClosures();
-            setAdding(false);
-            if (splitter?.id) details.open("splitter", splitter.id);
+            invalidateSplitters()
+            invalidateClosures()
+            setAdding(false)
+            if (splitter?.id) details.open('splitter', splitter.id)
           }}
         />
       ) : (
@@ -141,20 +110,16 @@ export default function AdminSplittersPage() {
             rows={table.rows}
             loading={loading}
             keyField="id"
-            onRowClick={(row) => details.open("splitter", row.id)}
+            onRowClick={(row) => details.open('splitter', row.id)}
             renderCard={renderCard}
             emptyState={
               <p className="text-sm font-normal text-muted">
-                No splitters yet. Add one with New splitter, or place one on a
-                line in the fiber editor.
+                No splitters yet. Add one with New splitter, or place one on a line in the fiber editor.
               </p>
             }
           />
 
-          <Pagination
-            pagination={table.pagination}
-            onChange={table.onPageChange}
-          />
+          <Pagination pagination={table.pagination} onChange={table.onPageChange} />
         </>
       )}
 
@@ -167,5 +132,5 @@ export default function AdminSplittersPage() {
         onEditPop={(pop) => router.push(`/admin/pops?edit=${pop.id}`)}
       />
     </main>
-  );
+  )
 }

@@ -21,12 +21,12 @@ const VALID_KINDS = new Set(['POP', 'CLOSURE', 'SPLITTER', 'WAYPOINT', 'BUILDING
 
 const iconCache = new Map()
 
-export function typedMarkerIcon(kind, { selected = false, size = 18 } = {}) {
+export function typedMarkerIcon(kind, { selected = false, size = 18, color: colorOverride = null } = {}) {
   if (!VALID_KINDS.has(kind)) {
     throw new Error(`Unknown marker kind: ${kind}`)
   }
 
-  const key = `${kind}|${selected}|${size}`
+  const key = `${kind}|${selected}|${size}|${colorOverride ?? ''}`
   let cached = iconCache.get(key)
   if (cached) return cached
 
@@ -36,7 +36,8 @@ export function typedMarkerIcon(kind, { selected = false, size = 18 } = {}) {
     // No halo even when selected — the dashed ring is itself the highlight.
     body = `<circle cx="9" cy="9" r="8" fill="none" stroke="#14b8a6" stroke-width="2" stroke-dasharray="3,2"/>`
   } else {
-    const color = POINT_COLORS[kind]
+    // A splitter passes its type colour (constants.splitterColor).
+    const color = colorOverride ?? POINT_COLORS[kind]
     if (selected) {
       halo = `<circle cx="9" cy="9" r="8" fill="${color}" fill-opacity="0.25"/>`
     }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { isPinned } from '@/lib/fiber/draft'
 import { nearestPointOnPath } from '@/lib/fiber/line-hit'
 import { typedMarkerIcon, labelBadgeIcon } from '@/lib/fiber/markers'
-import { coreColor } from '@/lib/fiber/constants'
+import { coreColor, splitterColor } from '@/lib/fiber/constants'
 
 const HIT_PX = 12 // context-menu / drag hit radius around a draft vertex
 const WAYPOINT_MIN_ZOOM = 15 // plain waypoints are noise when zoomed out
@@ -32,6 +32,9 @@ export function latLngToPixel(projectionOverlay, latLng) {
 // splitter — draws as a splitter; every other point draws as its own type
 // (markers.js throws on a kind it cannot draw).
 const iconKind = (p) => (p.type === 'CLOSURE' && p.ref?.splitter ? 'SPLITTER' : p.type)
+// A splitter's colour says its type — saved (splitterLocation) or just drawn (newSplitter).
+const iconColor = (p) =>
+  iconKind(p) === 'SPLITTER' ? splitterColor(p.ref?.splitterLocation ?? p.ref?.newSplitter?.location) : null
 const labelText = (p) => {
   if (p.type === 'WAYPOINT') return ''
   // A splitter on the line reads as its code and ratio: `S1 · 1:4`.
@@ -164,6 +167,7 @@ export function useDraftPolyline({ map, ready, draft, dispatch, drawing, coreCou
       // The last point is where the next tap extends from — highlight it.
       const icon = typedMarkerIcon(iconKind(p), {
         selected: i === points.length - 1,
+        color: iconColor(p),
       })
       // Only a SAVED closure or splitter (it has a code) carries anything worth
       // a card — and only in annotate + Pan mode, where a tap can never mean

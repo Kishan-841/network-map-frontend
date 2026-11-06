@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/Button'
 import { IconTrash } from '@/components/ui/icons'
-import { FIBER_TYPE_LABELS, POINT_COLORS, RATIO_LABELS } from '@/lib/fiber/constants'
+import { FIBER_TYPE_LABELS, POINT_COLORS, RATIO_LABELS, splitterColor } from '@/lib/fiber/constants'
 import BottomSheet from './BottomSheet'
 
 function Row({ caption, value }) {
@@ -27,7 +27,7 @@ export default function SplitterCard({ point, saving, error, onEdit, onRemove, o
       <p className="flex items-center gap-2 text-sm font-bold">
         <span
           className="h-2.5 w-2.5 shrink-0 rotate-45"
-          style={{ backgroundColor: POINT_COLORS.SPLITTER }}
+          style={{ backgroundColor: splitterColor(ref.splitterLocation) }}
           aria-hidden="true"
         />
         {ref.code ?? 'Splitter'}

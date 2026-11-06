@@ -13,6 +13,7 @@ import {
   POINT_COLORS,
   RATIO_LABELS,
   TUBE_COUNTS,
+  splitterColor,
 } from '@/lib/fiber/constants'
 import { closureCardPayload, closureCardState } from '@/lib/fiber/closure-card'
 import BottomSheet, { SHEET_ANCHORED } from './BottomSheet'
@@ -103,7 +104,7 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
           <p className="flex items-center gap-2 text-sm font-medium text-ink">
             <span
               className="h-2.5 w-2.5 shrink-0 rotate-45"
-              style={{ backgroundColor: POINT_COLORS.SPLITTER }}
+              style={{ backgroundColor: splitterColor(splitter.location) }}
               aria-hidden="true"
             />
             Splitter {RATIO_LABELS[splitter.ratio] ?? splitter.ratio}
