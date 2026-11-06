@@ -197,6 +197,7 @@ export default function FiberEditor({ initialFiber, onClose, onSaved }) {
     buildingTargets,
     buildingsShown: overlays.buildings,
     zonesShown: overlays.zones,
+    layer,
     onTargetClick: handleTargetClick,
     // Drawing / dropping a closure: markers must not intercept the tap.
     markersClickable: !frozen,

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
-import { buildingColor, zoneColor, LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
+import { buildingColor, LIVE_COLOR, NOT_LIVE_COLOR } from '@/lib/constants'
+import { zoneLabel, zoneLook, zoneShapeOverlays } from '@/lib/map-zone-style'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { buildingMarkerShape, buildingPinCached, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
@@ -258,62 +259,37 @@ export default function GoogleBuildingsMap({
     if (mapRef.current && ready) mapRef.current.setMapTypeId(layer)
   }, [layer, ready])
 
-  // Zone boundaries: faint fill + dashed outline (Google polygons have no
-  // native dash — the outline is a polyline of repeated dash symbols).
+  // Zone boundaries + names, drawn quietly: faint fill, thin dotted edge.
+  // On satellite / hybrid the colours are cool hues (blue / violet) and the name is white
+  // with a light shadow (lib/map-zone-style).
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
 
     zoneOverlaysRef.current.forEach((overlay) => overlay.setMap(null))
     zoneOverlaysRef.current = zones
-      .map((zone, index) => ({ zone, color: zoneColor(index) }))
+      .map((zone, index) => ({ zone, look: zoneLook(layer, index) }))
       .filter(({ zone }) => zone.boundary?.length >= 3)
-      .flatMap(({ zone, color }) => {
+      .flatMap(({ zone, look }) => {
         const path = zone.boundary.map((point) => ({
           lat: point.latitude,
           lng: point.longitude,
         }))
-        const fill = new google.maps.Polygon({
-          map,
-          paths: path,
-          strokeOpacity: 0,
-          fillColor: color,
-          fillOpacity: 0.12,
-          clickable: false,
-        })
-        const dashedOutline = new google.maps.Polyline({
-          map,
-          path: [...path, path[0]], // close the ring
-          strokeOpacity: 0,
-          clickable: false,
-          icons: [
-            {
-              icon: { path: 'M 0,-1.2 0,1.2', strokeOpacity: 1, strokeColor: color, scale: 2.5 },
-              offset: '0',
-              repeat: '14px',
-            },
-          ],
-        })
         // Zone name floating at the polygon's centre — click to zoom to it.
         const label = new google.maps.Marker({
           map,
           position: polygonCentroid(zone.boundary),
           title: `Zoom to ${zone.name}`,
           icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
-          label: {
-            text: zone.name.toUpperCase(),
-            color,
-            fontSize: '11px',
-            fontWeight: '700',
-          },
+          label: zoneLabel(zone.name, look),
         })
         label.addListener('click', () => {
           const bounds = new google.maps.LatLngBounds()
           path.forEach((point) => bounds.extend(point))
           map.fitBounds(bounds, 48)
         })
-        label.zoneColor = color
-        return [fill, dashedOutline, label]
+        label.zoneColor = look.color
+        return [...zoneShapeOverlays(map, path, look), label]
       })
 
     // Zoomed out: swap the invisible label anchor for a prominent colored
@@ -340,7 +316,7 @@ export default function GoogleBuildingsMap({
     applyZoomStyle()
     const zoomListener = map.addListener('zoom_changed', applyZoomStyle)
     return () => zoomListener.remove()
-  }, [zones, ready])
+  }, [zones, ready, layer])
 
   // Fiber: coloured lines by core count + one typed marker per real entity.
   // Everything about the drawing lives in the shared hook — this component

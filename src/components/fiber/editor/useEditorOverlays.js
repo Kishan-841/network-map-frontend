@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { apiClient } from '@/lib/api-client'
-import { zoneColor } from '@/lib/constants'
+import { zoneLabel, zoneLook, zoneShapeOverlays } from '@/lib/map-zone-style'
 import { buildingDotIcon, clusterRenderer } from '@/lib/map-markers'
 import { typedMarkerIcon, markerLabel, labelBadgeIcon } from '@/lib/fiber/markers'
 
@@ -131,6 +131,9 @@ export function useEditorOverlays({
   buildingTargets,
   buildingsShown,
   zonesShown,
+  // Base map type ('roadmap' | 'satellite' | 'hybrid') — zones use bright
+  // colours over imagery.
+  layer = 'hybrid',
   onTargetClick,
   markersClickable = true,
   closuresShown = true,
@@ -375,37 +378,22 @@ export function useEditorOverlays({
     const overlays = zones
       .filter((zone) => zone.boundary?.length >= 3)
       .flatMap((zone, index) => {
-        const color = zoneColor(index)
+        const look = zoneLook(layer, index)
+        const path = zone.boundary.map((p) => ({ lat: p.latitude, lng: p.longitude }))
+        // Quiet on purpose: faint fill, thin dotted edge, cool hues and a
+        // white shadowed name on imagery (lib/map-zone-style).
         return [
-          new google.maps.Polygon({
-            map,
-            paths: zone.boundary.map((p) => ({ lat: p.latitude, lng: p.longitude })),
-            strokeColor: color,
-            strokeOpacity: 0.95,
-            strokeWeight: 2.5,
-            fillColor: color,
-            fillOpacity: 0.15,
-            clickable: false,
-            zIndex: 1,
-          }),
+          ...zoneShapeOverlays(map, path, look),
           new google.maps.Marker({
             map,
             position: centroid(zone.boundary),
             clickable: false,
             zIndex: 3,
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 6,
-              fillColor: color,
-              fillOpacity: 1,
-              strokeColor: '#ffffff',
-              strokeWeight: 2,
-              labelOrigin: new google.maps.Point(0, -2.4),
-            },
-            label: markerLabel(zone.name.toUpperCase()),
+            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
+            label: zoneLabel(zone.name, look),
           }),
         ]
       })
     return () => overlays.forEach((overlay) => overlay.setMap(null))
-  }, [map, ready, zonesShown, zones])
+  }, [map, ready, zonesShown, zones, layer])
 }

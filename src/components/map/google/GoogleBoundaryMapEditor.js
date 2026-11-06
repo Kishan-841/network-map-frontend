@@ -5,7 +5,8 @@ import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { loadGoogleMaps } from '@/lib/google-maps-loader'
 import { getMapProvider } from '@/lib/map-providers'
-import { buildingColor, zoneColor } from '@/lib/constants'
+import { buildingColor } from '@/lib/constants'
+import { zoneLabel, zoneLook, zoneShapeOverlays } from '@/lib/map-zone-style'
 import { buildingDotIcon, clusterRenderer, DECLUTTER_MAP_STYLE } from '@/lib/map-markers'
 import { useMapLayer } from '@/lib/useMapLayer'
 import { MapLayerControl } from '@/components/map/MapLayerControl'
@@ -63,6 +64,7 @@ export default function GoogleBoundaryMapEditor({
   const buildingMarkersRef = useRef(null) // null = never created (lazy)
   const buildingClustererRef = useRef(null)
   const zoneOverlaysRef = useRef(null)
+  const zoneOverlaysLayerRef = useRef(null)
   const projectionRef = useRef(null) // OverlayView for pixel → LatLng
   const drawingRef = useRef(false)
   const cleanupDomRef = useRef(null)
@@ -352,54 +354,33 @@ export default function GoogleBoundaryMapEditor({
       zoneOverlaysRef.current?.forEach((overlay) => overlay.setMap(null))
       return
     }
-    if (zoneOverlaysRef.current) {
+    // Cached per base layer: switching Map <-> Hybrid rebuilds them in the
+    // colours that read on that layer.
+    if (zoneOverlaysRef.current && zoneOverlaysLayerRef.current === layer) {
       zoneOverlaysRef.current.forEach((overlay) => overlay.setMap(map))
       return
     }
+    zoneOverlaysRef.current?.forEach((overlay) => overlay.setMap(null))
+    zoneOverlaysLayerRef.current = layer
     zoneOverlaysRef.current = zonesData
       .filter((zone) => zone.id !== initialZoneId && zone.boundary?.length >= 3)
       .flatMap((zone, index) => {
-        const color = zoneColor(index)
-        // Bold enough to read on satellite imagery — these exist so new zones
-        // can avoid overlapping what's already drawn.
-        const outline = new google.maps.Polygon({
-          map,
-          paths: zone.boundary.map((p) => ({ lat: p.latitude, lng: p.longitude })),
-          strokeColor: color,
-          strokeOpacity: 0.95,
-          strokeWeight: 2.5,
-          fillColor: color,
-          fillOpacity: 0.15,
-          clickable: false,
-          zIndex: 1,
-        })
-        // Small zones vanish at low zoom — a dot + name at the centroid keeps
-        // them findable at any zoom (same trick as the main map).
+        const look = zoneLook(layer, index)
+        const path = zone.boundary.map((p) => ({ lat: p.latitude, lng: p.longitude }))
+        // These exist so new zones can avoid overlapping what's already
+        // drawn — quiet on purpose: faint fill, thin dotted edge, cool hues
+        // and a white shadowed name on imagery (lib/map-zone-style).
         const label = new google.maps.Marker({
           map,
           position: polygonCentroid(zone.boundary),
           clickable: false,
           zIndex: 3,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 6,
-            fillColor: color,
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 2,
-            labelOrigin: new google.maps.Point(0, -2.4),
-          },
-          label: {
-            text: zone.name.toUpperCase(),
-            color: '#ffffff',
-            fontSize: '11px',
-            fontWeight: '700',
-            className: 'boundary-zone-label',
-          },
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
+          label: zoneLabel(zone.name, look),
         })
-        return [outline, label]
+        return [...zoneShapeOverlays(map, path, look), label]
       })
-  }, [zonesShown, ready, zonesData, initialZoneId])
+  }, [zonesShown, ready, zonesData, initialZoneId, layer])
 
   // Debounced location search via the existing provider stack. Short inputs
   // clear the list through the same timer (no synchronous setState in effects).
@@ -489,8 +470,6 @@ export default function GoogleBoundaryMapEditor({
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-paper">
-      {/* Dark halo keeps zone-name labels readable on roadmap AND imagery. */}
-      <style>{`.boundary-zone-label { text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.75); }`}</style>
       {/* Header — single row on desktop, title row + button row on mobile */}
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-card px-3 py-2.5 sm:px-4 sm:py-3">
         <div className="min-w-0 flex-1">

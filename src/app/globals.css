@@ -184,3 +184,10 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Zone names on satellite / hybrid maps: white text with a light shadow so it
+   reads over imagery without standing out (lib/map-zone-style). */
+.zone-name-soft {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75), 0 0 2px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.02em;
+}
