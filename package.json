@@ -26,6 +26,7 @@
     "react-hook-form": "^7.82.0",
     "read-excel-file": "^9.3.5",
     "recharts": "^3.10.1",
+    "supercluster": "^8.0.1",
     "write-excel-file": "^4.1.1",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
