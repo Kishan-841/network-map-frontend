@@ -11,7 +11,8 @@ import { useClientTable } from '@/hooks/useClientTable'
 
 // A closure has no zone of its own — search its code and the building it sits on.
 const closureSearchText = (closure) => [closure.code, closure.building?.buildingName]
-import { IconEdit, IconTrash } from '@/components/ui/icons'
+import { IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
+import { Button } from '@/components/ui/Button'
 import { useClosures, invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
 import { RATIO_LABELS, POINT_COLORS, closureKindLabel } from '@/lib/fiber/constants'
@@ -33,6 +34,20 @@ const toForm = (closure) => ({
   outCoreCount: closure.outCoreCount == null ? '' : String(closure.outCoreCount),
   images: closure.images ?? [],
 })
+
+// A new closure starts blank; the form's map opens on the default centre.
+const emptyForm = {
+  latitude: '',
+  longitude: '',
+  kind: '',
+  buildingId: '',
+  notes: '',
+  fiberType: '',
+  tubeCount: '',
+  inCoreCount: '',
+  outCoreCount: '',
+  images: [],
+}
 
 const splitterLabel = (closure) =>
   closure.splitters?.length
@@ -78,17 +93,19 @@ export default function AdminClosuresPage() {
   const { closures, loading } = useClosures()
   const [listError, setListError] = useState(null)
   const table = useClientTable(closures, { getSearchText: closureSearchText })
-  // Closures are only ever created from the fiber editor, as a point on a
-  // line — this page edits and removes them. null = form closed.
-  const [editingClosure, setEditingClosure] = useState(null)
+  // undefined = form closed, null = adding a new closure, a closure = editing
+  // it. A closure added here stands on its own until a fibre is drawn through
+  // it in the fibre editor (which snaps to existing closures).
+  const [editingClosure, setEditingClosure] = useState(undefined)
   const router = useRouter()
   // A row opens the left detail drawer; links inside it walk the network.
   const details = useDetailStack()
 
-  const closeForm = () => setEditingClosure(null)
+  const closeForm = () => setEditingClosure(undefined)
 
   async function handleSave(values) {
-    await apiClient.patch(`/closures/${editingClosure.id}`, values)
+    if (editingClosure) await apiClient.patch(`/closures/${editingClosure.id}`, values)
+    else await apiClient.post('/closures', values)
     invalidateClosures()
     invalidateFibers()
     closeForm()
@@ -153,6 +170,15 @@ export default function AdminClosuresPage() {
         sub={isAdmin ? 'Every splice box and splitter' : "Boxes on your zones' cables, and any you added"}
         backHref="/dashboard"
         backLabel="Dashboard"
+        action={
+          canManage &&
+          editingClosure === undefined && (
+            <Button type="button" onClick={() => setEditingClosure(null)}>
+              <IconPlus className="h-4.5 w-4.5" />
+              New closure
+            </Button>
+          )
+        }
       />
 
       {listError && (
@@ -161,15 +187,23 @@ export default function AdminClosuresPage() {
         </p>
       )}
 
-      {editingClosure ? (
-        // Editing takes over the page — the list is hidden until Cancel/save.
-        <ClosureForm
-          key={editingClosure.id}
-          initial={toForm(editingClosure)}
-          saveLabel="Save changes"
-          onCancel={closeForm}
-          onSave={handleSave}
-        />
+      {editingClosure !== undefined ? (
+        // The form takes over the page — the list is hidden until Cancel/save.
+        <>
+          {editingClosure === null && (
+            <p className="mb-3 rounded-btn bg-paper px-4 py-3 text-sm font-normal text-muted">
+              A closure added here isn&apos;t on any fiber yet. To connect it, draw or edit a fiber in the
+              fiber editor and place a point on this closure.
+            </p>
+          )}
+          <ClosureForm
+            key={editingClosure?.id ?? 'new'}
+            initial={editingClosure ? toForm(editingClosure) : emptyForm}
+            saveLabel={editingClosure ? 'Save changes' : 'Add closure'}
+            onCancel={closeForm}
+            onSave={handleSave}
+          />
+        </>
       ) : (
         <>
           <SearchInput
@@ -187,7 +221,7 @@ export default function AdminClosuresPage() {
             onRowClick={(row) => details.open('closure', row.id)}
             renderCard={renderCard}
             emptyState={
-              <p className="text-sm font-normal text-muted">No closures yet. Add one by placing it on a fiber line in the fiber editor.</p>
+              <p className="text-sm font-normal text-muted">No closures yet. Add one with New closure, or by placing it on a fiber line in the fiber editor.</p>
             }
           />
 
