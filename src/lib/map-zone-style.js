@@ -27,8 +27,13 @@ export function zoneLook(layer, index) {
     const color = ZONE_COLORS[index % ZONE_COLORS.length]
     return { color, fillOpacity: 0.1, dotScale: 1.6, labelColor: color, labelClass: undefined }
   }
-  const color = IMAGERY_ZONE_COLORS[index % IMAGERY_ZONE_COLORS.length]
-  return { color, fillOpacity: 0.1, dotScale: 2, labelColor: '#ffffff', labelClass: 'zone-name-soft' }
+  const slot = index % IMAGERY_ZONE_COLORS.length
+  const color = IMAGERY_ZONE_COLORS[slot]
+  // Hybrid draws Google's own place names in the same white-with-shadow
+  // style, so a plain white zone name gets lost among them; there it sits
+  // on a small tag in the zone colour (.zone-chip-N in globals.css).
+  const labelClass = layer === 'hybrid' ? `zone-chip zone-chip-${slot}` : 'zone-name-soft'
+  return { color, fillOpacity: 0.1, dotScale: 2, labelColor: '#ffffff', labelClass }
 }
 
 /** A Google Maps Marker label for the zone's name. */

@@ -191,3 +191,19 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75), 0 0 2px rgba(0, 0, 0, 0.5);
   letter-spacing: 0.02em;
 }
+
+/* Zone names on the HYBRID map: a small tag in the zone's colour, so they
+   don't blend into Google's own white place names (lib/map-zone-style).
+   Colours = IMAGERY_ZONE_COLORS at 85% (a test keeps the two in step). */
+.zone-chip {
+  padding: 2px 7px;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.02em;
+}
+.zone-chip-0 { background: rgba(30, 144, 255, 0.85); }
+.zone-chip-1 { background: rgba(139, 92, 246, 0.85); }
+.zone-chip-2 { background: rgba(0, 180, 230, 0.85); }
+.zone-chip-3 { background: rgba(168, 85, 247, 0.85); }
+.zone-chip-4 { background: rgba(99, 102, 241, 0.85); }
+.zone-chip-5 { background: rgba(193, 63, 224, 0.85); }

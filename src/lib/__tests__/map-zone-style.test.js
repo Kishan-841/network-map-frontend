@@ -19,13 +19,23 @@ describe('zoneLook', () => {
     expect(look.labelClass).toBeUndefined()
   })
 
-  it('on imagery uses a soft colour, a barely-there fill and a white shadowed name', () => {
-    const look = zoneLook('hybrid', 0)
+  it('on satellite uses a cool colour, a barely-there fill and a white shadowed name', () => {
+    const look = zoneLook('satellite', 0)
     expect(look.color).toBe(IMAGERY_ZONE_COLORS[0])
     expect(look.fillOpacity).toBeLessThanOrEqual(0.1)
     expect(look.labelColor).toBe('#ffffff')
     expect(look.labelClass).toBe('zone-name-soft')
-    expect(zoneLook('satellite', 0)).toEqual(look)
+  })
+
+  it('on hybrid puts the name on a tag in the zone colour, so it differs from Google place names', () => {
+    const look = zoneLook('hybrid', 2)
+    expect(look.color).toBe(IMAGERY_ZONE_COLORS[2])
+    expect(look.labelColor).toBe('#ffffff')
+    expect(look.labelClass).toBe('zone-chip zone-chip-2')
+    expect(zoneLook('hybrid', IMAGERY_ZONE_COLORS.length + 2).labelClass).toBe('zone-chip zone-chip-2')
+    const { labelClass: _a, ...hybridRest } = look
+    const { labelClass: _b, ...satelliteRest } = zoneLook('satellite', 2)
+    expect(hybridRest).toEqual(satelliteRest)
   })
 
   it('has no loud extras: no dark outline, thin dots', () => {
@@ -57,7 +67,7 @@ describe('zoneLook', () => {
 
 describe('zoneLabel', () => {
   it('is the upper-cased name in the look colour, with the shadow class on imagery', () => {
-    expect(zoneLabel('Pimple Saudagar', zoneLook('hybrid', 0))).toEqual({
+    expect(zoneLabel('Pimple Saudagar', zoneLook('satellite', 0))).toEqual({
       text: 'PIMPLE SAUDAGAR',
       color: '#ffffff',
       fontSize: '11px',
@@ -65,5 +75,13 @@ describe('zoneLabel', () => {
       className: 'zone-name-soft',
     })
     expect(zoneLabel('a', zoneLook('roadmap', 0))).not.toHaveProperty('className')
+  })
+})
+
+describe('zone chip styles', () => {
+  it('globals.css has a tag colour for every imagery palette slot', async () => {
+    const { readFileSync } = await import('node:fs')
+    const css = readFileSync(new URL('../../app/globals.css', import.meta.url), 'utf8')
+    IMAGERY_ZONE_COLORS.forEach((_, slot) => expect(css).toContain(`.zone-chip-${slot} `))
   })
 })
