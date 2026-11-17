@@ -4,13 +4,14 @@ export const GPS_ACCURACY_WARN_METERS = 20
 
 // Zone boundary colors — assigned by list index (zones are name-ordered, so
 // stable). Green/red excluded: those mean feasible/rejected on markers.
+// Deep shades so the boundary stands out on the light plain map.
 export const ZONE_COLORS = [
-  '#0e7569', // fiber teal
-  '#1d6fa5', // blue
-  '#7c3aed', // purple
-  '#b45309', // amber
-  '#be185d', // pink
-  '#475569', // slate
+  '#0a5249', // fiber teal
+  '#154e75', // blue
+  '#5b21b6', // purple
+  '#7c3a06', // amber
+  '#831843', // pink
+  '#1e293b', // slate
 ]
 
 export const zoneColor = (index) => ZONE_COLORS[index % ZONE_COLORS.length]
