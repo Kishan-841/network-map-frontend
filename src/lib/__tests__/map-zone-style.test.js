@@ -38,12 +38,28 @@ describe('zoneLook', () => {
     expect(hybridRest).toEqual(satelliteRest)
   })
 
-  it('has no loud extras: no dark outline, thin dots', () => {
-    for (const layer of ['roadmap', 'hybrid']) {
-      const look = zoneLook(layer, 0)
-      expect(look).not.toHaveProperty('halo')
-      expect(look.dotScale).toBeLessThanOrEqual(2)
+  it('on imagery keeps thin dots and no dark outline', () => {
+    const look = zoneLook('hybrid', 0)
+    expect(look).not.toHaveProperty('halo')
+    expect(look.dotScale).toBeLessThanOrEqual(2)
+    expect(look.dotGap).toBe('9px')
+  })
+
+  it('on the plain map draws a darker, denser edge so the boundary reads clearly', () => {
+    const look = zoneLook('roadmap', 0)
+    expect(look.dotScale).toBeGreaterThanOrEqual(2.2)
+    expect(parseFloat(look.dotGap)).toBeLessThan(9)
+  })
+
+  it('plain-map zone colours are dark (relative luminance at most 0.08)', () => {
+    const luminance = (hex) => {
+      const [r, g, b] = [1, 3, 5].map((i) => {
+        const c = parseInt(hex.slice(i, i + 2), 16) / 255
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
     }
+    for (const color of ZONE_COLORS) expect(luminance(color)).toBeLessThanOrEqual(0.08)
   })
 
   it('uses only cool hues (blue-violet-magenta), the opposite of tan, brown and green imagery', () => {

@@ -1,7 +1,8 @@
 // How zone boundaries and names are drawn on the Google maps, per base layer.
 // Zones are context, not content: they should be findable without shouting.
-// Every map draws them the same quiet way — a barely-there fill and a thin
-// dotted edge. On the plain map the calm palette reads fine; satellite /
+// Every map draws them the same way — a barely-there fill and a dotted edge.
+// On the plain map the edge is deep-coloured, bigger and denser dots so the
+// boundary reads clearly against light streets (owner asked, 17 Nov); satellite /
 // hybrid ground is tan, brown and green, so there the dots use cool hues
 // (blue / violet / purple) and the name is white text with a light shadow.
 import { ZONE_COLORS } from './constants'
@@ -25,7 +26,7 @@ export const IMAGERY_ZONE_COLORS = [
 export function zoneLook(layer, index) {
   if (!isImageryLayer(layer)) {
     const color = ZONE_COLORS[index % ZONE_COLORS.length]
-    return { color, fillOpacity: 0.1, dotScale: 1.6, labelColor: color, labelClass: undefined }
+    return { color, fillOpacity: 0.1, dotScale: 2.2, dotGap: '7px', labelColor: color, labelClass: undefined }
   }
   const slot = index % IMAGERY_ZONE_COLORS.length
   const color = IMAGERY_ZONE_COLORS[slot]
@@ -33,7 +34,7 @@ export function zoneLook(layer, index) {
   // style, so a plain white zone name gets lost among them; there it sits
   // on a small tag in the zone colour (.zone-chip-N in globals.css).
   const labelClass = layer === 'hybrid' ? `zone-chip zone-chip-${slot}` : 'zone-name-soft'
-  return { color, fillOpacity: 0.1, dotScale: 2, labelColor: '#ffffff', labelClass }
+  return { color, fillOpacity: 0.1, dotScale: 2, dotGap: '9px', labelColor: '#ffffff', labelClass }
 }
 
 /** A Google Maps Marker label for the zone's name. */
@@ -79,7 +80,7 @@ export function zoneShapeOverlays(map, path, look, zIndex = 1) {
             scale: look.dotScale,
           },
           offset: '0',
-          repeat: '9px',
+          repeat: look.dotGap,
         },
       ],
     }),
