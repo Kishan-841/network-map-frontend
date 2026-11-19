@@ -1,12 +1,10 @@
 import { CLOSURE_KINDS } from './constants'
+import { cablesPayload, cablesToForm } from './closure-cables'
 
 /**
  * The editor's closure card, as data. Kept pure so the rule that matters —
  * a save never overwrites what the card never read — is testable.
  */
-
-const text = (v) => (v === null || v === undefined ? '' : String(v))
-const numberOrNull = (v) => (v === '' || v === null || v === undefined ? null : Number(v))
 
 /**
  * Form state from a closure (the API's GET /closures/:id, or the little the
@@ -18,12 +16,7 @@ export function closureCardState(closure, { fresh = true } = {}) {
   return {
     kind: closure?.kind || (fresh ? CLOSURE_KINDS[0].value : ''),
     notes: closure?.notes ?? '',
-    sheet: {
-      fiberType: text(closure?.fiberType),
-      tubeCount: text(closure?.tubeCount),
-      inCoreCount: text(closure?.inCoreCount),
-      outCoreCount: text(closure?.outCoreCount),
-    },
+    cables: cablesToForm(closure?.cables),
     images: closure?.images ?? [],
   }
 }
@@ -34,14 +27,10 @@ export function closureCardState(closure, { fresh = true } = {}) {
  * are left out so the API keeps what it has instead of being blanked. Photos
  * are only sent for a new closure when there are some.
  */
-export function closureCardPayload({ kind, notes, sheet, images }, { mode = 'create', sheetKnown = true, imagesKnown = true } = {}) {
+export function closureCardPayload({ kind, notes, cables, images }, { mode = 'create', sheetKnown = true, imagesKnown = true } = {}) {
   const payload = { kind: kind || null, notes: notes.trim() || null }
-  if (sheetKnown) {
-    payload.fiberType = sheet.fiberType || null
-    payload.tubeCount = numberOrNull(sheet.tubeCount)
-    payload.inCoreCount = numberOrNull(sheet.inCoreCount)
-    payload.outCoreCount = numberOrNull(sheet.outCoreCount)
-  }
+  // The whole list replaces what is stored — so only when the card read it.
+  if (sheetKnown) payload.cables = cablesPayload(cables)
   if (imagesKnown && images && (mode === 'edit' || images.length > 0)) payload.images = images
   return payload
 }

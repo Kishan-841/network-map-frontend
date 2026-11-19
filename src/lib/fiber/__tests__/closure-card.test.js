@@ -9,14 +9,22 @@ const stored = {
   inCoreCount: 24,
   outCoreCount: 12,
   images: ['https://x/a.jpg'],
+  cables: [
+    { id: 'c1', direction: 'IN', cableType: 'MAIN_SF', coreCount: 24, cableTag: 'IN-1', position: 0 },
+    { id: 'c2', direction: 'OUT', cableType: 'SUB_SF', coreCount: 12, cableTag: null, position: 0 },
+  ],
 }
+const noKeys = (state) => ({ ...state, cables: state.cables.map(({ key: _key, ...rest }) => rest) })
 
 describe('closureCardState', () => {
-  it('prefills every field from the stored closure, 0 tubes included', () => {
-    expect(closureCardState(stored)).toEqual({
+  it('prefills kind, notes, photos and the In / Out cables from the stored closure', () => {
+    expect(noKeys(closureCardState(stored))).toEqual({
       kind: 'FDC',
       notes: 'by the pole',
-      sheet: { fiberType: 'SUB_SF', tubeCount: '0', inCoreCount: '24', outCoreCount: '12' },
+      cables: [
+        { direction: 'IN', cableType: 'MAIN_SF', coreCount: '24', cableTag: 'IN-1' },
+        { direction: 'OUT', cableType: 'SUB_SF', coreCount: '12', cableTag: '' },
+      ],
       images: ['https://x/a.jpg'],
     })
   })
@@ -25,7 +33,7 @@ describe('closureCardState', () => {
     expect(closureCardState(null)).toEqual({
       kind: 'Jumbo',
       notes: '',
-      sheet: { fiberType: '', tubeCount: '', inCoreCount: '', outCoreCount: '' },
+      cables: [],
       images: [],
     })
   })
@@ -38,24 +46,22 @@ describe('closureCardState', () => {
 })
 
 describe('closureCardPayload', () => {
-  it('round-trips the stored values on an edit', () => {
+  it('round-trips the stored values on an edit, cables instead of the old sheet', () => {
     const values = closureCardState(stored)
     expect(closureCardPayload(values, { mode: 'edit' })).toEqual({
       kind: 'FDC',
       notes: 'by the pole',
-      fiberType: 'SUB_SF',
-      tubeCount: 0,
-      inCoreCount: 24,
-      outCoreCount: 12,
+      cables: [
+        { direction: 'IN', cableType: 'MAIN_SF', coreCount: 24, cableTag: 'IN-1' },
+        { direction: 'OUT', cableType: 'SUB_SF', coreCount: 12, cableTag: null },
+      ],
       images: ['https://x/a.jpg'],
     })
   })
 
-  it('sends a changed core count and clears with null', () => {
-    const values = closureCardState(stored)
-    values.sheet.outCoreCount = '48'
-    values.sheet.fiberType = ''
-    expect(closureCardPayload(values, { mode: 'edit' })).toMatchObject({ outCoreCount: 48, fiberType: null })
+  it('an edit that removed every cable sends an empty list', () => {
+    const values = { ...closureCardState(stored), cables: [] }
+    expect(closureCardPayload(values, { mode: 'edit' }).cables).toEqual([])
   })
 
   it('leaves out what an edit never read, so nothing is blanked', () => {

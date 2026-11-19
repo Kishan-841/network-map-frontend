@@ -1,6 +1,8 @@
 import { FIBER_TYPE_COLORS } from '@/lib/constants'
 
 export const CORE_COUNTS = [2, 4, 6, 12, 24, 48]
+/** Cores a closure's In / Out cable may have: the fibre list plus 8. */
+export const CLOSURE_CABLE_CORES = [2, 4, 6, 8, 12, 24, 48]
 /** Line colour on the map IS the core count (phase-1 palette, keyed by number now). */
 export const coreColor = (n) => FIBER_TYPE_COLORS[`${n} core`] ?? FIBER_TYPE_COLORS['2 core']
 
