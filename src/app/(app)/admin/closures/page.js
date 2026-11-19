@@ -29,10 +29,7 @@ const emptyForm = {
   kind: '',
   buildingId: '',
   notes: '',
-  fiberType: '',
-  tubeCount: '',
-  inCoreCount: '',
-  outCoreCount: '',
+  cables: [],
   images: [],
 }
 

@@ -5,9 +5,11 @@ import dynamic from 'next/dynamic'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
-import { CLOSURE_KINDS, CORE_COUNTS, FIBER_TYPES, TUBE_COUNTS } from '@/lib/fiber/constants'
+import { CLOSURE_KINDS } from '@/lib/fiber/constants'
+import { cablesPayload, cablesToForm } from '@/lib/fiber/closure-cables'
 import { DEFAULT_CENTRE, parseLatitude, parseLongitude } from '@/lib/fiber/coords'
 import ClosurePhotos from '@/components/fiber/ClosurePhotos'
+import ClosureCablesEditor from '@/components/fiber/ClosureCablesEditor'
 
 // Client-only: Google Maps JS touches window.
 const GoogleLocationPicker = dynamic(
@@ -22,16 +24,13 @@ export const closureToForm = (closure) => ({
   kind: closure.kind ?? '',
   buildingId: closure.building?.id ?? '',
   notes: closure.notes ?? '',
-  fiberType: closure.fiberType ?? '',
-  tubeCount: closure.tubeCount == null ? '' : String(closure.tubeCount),
-  inCoreCount: closure.inCoreCount == null ? '' : String(closure.inCoreCount),
-  outCoreCount: closure.outCoreCount == null ? '' : String(closure.outCoreCount),
+  cables: cablesToForm(closure.cables),
   images: closure.images ?? [],
 })
 
 /**
  * Create/edit form for a closure: position (typed or picked on the map),
- * kind, an optional building, and notes. `initial` is only ever read once —
+ * kind, its In / Out cables, an optional building, and notes. `initial` is only ever read once —
  * the mount site keys this component fresh per edit target.
  */
 export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
@@ -67,12 +66,8 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
         kind: form.kind.trim() || null,
         buildingId: form.buildingId || null,
         notes: form.notes.trim() || null,
-        fiberType: form.fiberType || null,
-        tubeCount: form.tubeCount === '' || form.tubeCount == null ? null : Number(form.tubeCount),
-        inCoreCount:
-          form.inCoreCount === '' || form.inCoreCount == null ? null : Number(form.inCoreCount),
-        outCoreCount:
-          form.outCoreCount === '' || form.outCoreCount == null ? null : Number(form.outCoreCount),
+        // The whole list, every save: it replaces the closure's stored cables.
+        cables: cablesPayload(form.cables ?? []),
         // The whole list, every save: an empty list clears the photos.
         images: form.images ?? [],
       })
@@ -132,63 +127,14 @@ export default function ClosureForm({ initial, onSave, onCancel, saveLabel }) {
         )}
       </Select>
 
-      {/* The survey sheet: the cable this closure sits on, and what runs
-          through it. All optional — often filled in on a later visit. */}
-      <Select
-        id="closure-fiber-type"
-        label="Cable type"
-        value={form.fiberType ?? ''}
-        onChange={(e) => setForm({ ...form, fiberType: e.target.value })}
-      >
-        <option value="">Not recorded</option>
-        {FIBER_TYPES.map((type) => (
-          <option key={type.value} value={type.value}>
-            {type.label}
-          </option>
-        ))}
-      </Select>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Select
-          id="closure-tubes"
-          label="Tubes"
-          value={form.tubeCount ?? ''}
-          onChange={(e) => setForm({ ...form, tubeCount: e.target.value })}
-        >
-          <option value="">Not recorded</option>
-          {TUBE_COUNTS.map((count) => (
-            <option key={count} value={count}>
-              {count}
-            </option>
-          ))}
-        </Select>
-        <Select
-          id="closure-in-core"
-          label="Core in"
-          value={form.inCoreCount ?? ''}
-          onChange={(e) => setForm({ ...form, inCoreCount: e.target.value })}
-        >
-          <option value="">Not recorded</option>
-          {CORE_COUNTS.map((count) => (
-            <option key={count} value={count}>
-              {count} core
-            </option>
-          ))}
-        </Select>
-        <Select
-          id="closure-out-core"
-          label="Core out"
-          value={form.outCoreCount ?? ''}
-          onChange={(e) => setForm({ ...form, outCoreCount: e.target.value })}
-        >
-          <option value="">Not recorded</option>
-          {CORE_COUNTS.map((count) => (
-            <option key={count} value={count}>
-              {count} core
-            </option>
-          ))}
-        </Select>
-      </div>
+      {/* The survey sheet: every cable coming In and going Out, each with its
+          type, cores and the fiber ID written on it. All optional — often
+          filled in on a later visit. */}
+      <ClosureCablesEditor
+        cables={form.cables ?? []}
+        onChange={(cables) => setForm((f) => ({ ...f, cables }))}
+        disabled={busy}
+      />
 
       <Select
         id="closure-building"

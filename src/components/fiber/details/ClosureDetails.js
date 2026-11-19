@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { invalidateClosures } from '@/hooks/useClosures'
 import { invalidateFibers } from '@/hooks/useFibers'
+import { cableSummary, cablesBySide } from '@/lib/fiber/closure-cables'
 import {
   closureKindLabel,
   coreColor,
   FIBER_TYPE_LABELS,
-  fiberTypeLabel,
   POINT_COLORS,
   RATIO_LABELS,
 } from '@/lib/fiber/constants'
@@ -179,15 +179,30 @@ export default function ClosureDetails({ id, canManage, canEditItem, onOpen, onC
           rows={[
             ['Closure ID', closure.code],
             ['Kind', closureKindLabel(closure.kind)],
-            ['Fiber type', fiberTypeLabel(closure.fiberType)],
-            ['Tubes', closure.tubeCount],
-            ['Core in', closure.inCoreCount != null ? `${closure.inCoreCount} core` : null],
-            ['Core out', closure.outCoreCount != null ? `${closure.outCoreCount} core` : null],
             ['Building', closure.building?.buildingName],
             ['Notes', closure.notes],
           ]}
         />
       </Section>
+
+      {(['IN', 'OUT']).map((side) => {
+        const rows = cablesBySide(closure.cables)[side]
+        return (
+          <Section key={side} title={side === 'IN' ? 'In cables' : 'Out cables'}>
+            {rows.length ? (
+              <ul className="flex flex-col gap-1.5">
+                {rows.map((cable, index) => (
+                  <li key={cable.id ?? index} className="text-sm font-normal text-ink">
+                    {cableSummary(cable)}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm font-normal text-faint">None recorded</p>
+            )}
+          </Section>
+        )
+      })}
 
       <LocationBlock latitude={closure.latitude} longitude={closure.longitude} onCentre={onCentre} />
 
