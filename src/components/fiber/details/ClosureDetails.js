@@ -9,7 +9,6 @@ import {
   closureKindLabel,
   coreColor,
   FIBER_TYPE_LABELS,
-  fiberTypeLabel,
   POINT_COLORS,
   RATIO_LABELS,
 } from '@/lib/fiber/constants'

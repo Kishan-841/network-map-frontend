@@ -12,17 +12,15 @@ import {
   RATIO_LABELS,
   splitterColor,
 } from '@/lib/fiber/constants'
-import { closureCardPayload, closureCardState } from '@/lib/fiber/closure-card'
-import BottomSheet, { SHEET_ANCHORED } from './BottomSheet'
+import { CLOSURE_SHEET_ANCHORED, closureCardPayload, closureCardPlacement, closureCardState } from '@/lib/fiber/closure-card'
+import BottomSheet from './BottomSheet'
 import ClosurePhotos from '../ClosurePhotos'
 import ClosureCablesEditor from '../ClosureCablesEditor'
 
-const CARD_WIDTH = 320
-const CARD_HEIGHT = 580
 // `create` still lands on the pixel that was tapped — but only from `lg` up,
 // where there is room beside the line. On a phone it is a bottom sheet.
 const SHEET_AT_PIXEL =
-  'lg:absolute lg:bottom-auto lg:right-auto lg:left-[var(--card-x)] lg:top-[var(--card-y)] lg:w-[320px] lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:rounded-card lg:p-3 lg:pb-3'
+  'lg:absolute lg:bottom-auto lg:right-auto lg:left-[var(--card-x)] lg:top-[var(--card-y)] lg:w-[320px] lg:max-h-[var(--card-max-h,calc(100dvh-8rem))] lg:overflow-y-auto lg:rounded-card lg:p-3 lg:pb-3'
 
 /**
  * The card for a closure on the draft line, in two modes that share the same
@@ -75,14 +73,21 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
   const legacyKind = CLOSURE_KINDS.some((option) => option.value === kind) ? null : kind
 
   const pixelPositioned = mode === 'create'
-  const left = pixelPositioned && bounds ? Math.max(8, Math.min(at.x, bounds.width - (CARD_WIDTH + 12))) : at?.x
-  const top = pixelPositioned && bounds?.height ? Math.max(8, Math.min(at.y, bounds.height - CARD_HEIGHT - 8)) : at?.y
+  const place = pixelPositioned ? closureCardPlacement({ at, bounds }) : null
 
   return (
     <BottomSheet
-      desktop={pixelPositioned ? SHEET_AT_PIXEL : SHEET_ANCHORED}
+      desktop={pixelPositioned ? SHEET_AT_PIXEL : CLOSURE_SHEET_ANCHORED}
       className="gap-3"
-      style={pixelPositioned ? { '--card-x': `${left}px`, '--card-y': `${top}px` } : undefined}
+      style={
+        place
+          ? {
+              '--card-x': `${place.left}px`,
+              '--card-y': `${place.top}px`,
+              ...(place.maxHeight ? { '--card-max-h': `${place.maxHeight}px` } : {}),
+            }
+          : undefined
+      }
     >
       <p className="flex items-center gap-2 text-sm font-bold">
         <span

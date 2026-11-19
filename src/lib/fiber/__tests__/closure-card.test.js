@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { closureCardPayload, closureCardState } from '../closure-card'
+import { CLOSURE_SHEET_ANCHORED, closureCardPayload, closureCardPlacement, closureCardState } from '../closure-card'
 
 const stored = {
   kind: 'FDC',
@@ -81,5 +81,34 @@ describe('closureCardPayload', () => {
   it('a new closure sends photos only when it has some', () => {
     expect(closureCardPayload(closureCardState(null))).not.toHaveProperty('images')
     expect(closureCardPayload({ ...closureCardState(null), images: ['u'] }).images).toEqual(['u'])
+  })
+})
+
+describe('closureCardPlacement', () => {
+  const bounds = { width: 1100, height: 800 }
+
+  it('keeps the card where it was tapped and lets it use the room below', () => {
+    expect(closureCardPlacement({ at: { x: 200, y: 100 }, bounds })).toEqual({ left: 200, top: 100, maxHeight: 692 })
+  })
+
+  it('lifts a card tapped low on the map, and caps it to the map so Save stays on screen', () => {
+    const { top, maxHeight } = closureCardPlacement({ at: { x: 200, y: 700 }, bounds })
+    expect(top).toBe(212)
+    expect(top + maxHeight).toBe(bounds.height - 8)
+  })
+
+  it('keeps the card off the right edge', () => {
+    expect(closureCardPlacement({ at: { x: 1090, y: 50 }, bounds }).left).toBe(1100 - 332)
+  })
+
+  it('without bounds, uses the tap and sets no cap', () => {
+    expect(closureCardPlacement({ at: { x: 5, y: 6 }, bounds: null })).toEqual({ left: 5, top: 6, maxHeight: null })
+  })
+})
+
+describe('the edit card on desktop', () => {
+  it('is capped to the map and scrolls, so its top never leaves the screen', () => {
+    expect(CLOSURE_SHEET_ANCHORED).not.toContain('max-h-none')
+    expect(CLOSURE_SHEET_ANCHORED).toContain('lg:max-h-[calc(100%-8rem)]')
   })
 })
