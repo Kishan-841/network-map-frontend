@@ -7,17 +7,15 @@ import { Input, Select } from '@/components/ui/Input'
 import { IconTrash } from '@/components/ui/icons'
 import {
   CLOSURE_KINDS,
-  CORE_COUNTS,
   FIBER_TYPE_LABELS,
-  FIBER_TYPES,
   POINT_COLORS,
   RATIO_LABELS,
-  TUBE_COUNTS,
   splitterColor,
 } from '@/lib/fiber/constants'
 import { closureCardPayload, closureCardState } from '@/lib/fiber/closure-card'
 import BottomSheet, { SHEET_ANCHORED } from './BottomSheet'
 import ClosurePhotos from '../ClosurePhotos'
+import ClosureCablesEditor from '../ClosureCablesEditor'
 
 const CARD_WIDTH = 320
 const CARD_HEIGHT = 580
@@ -46,7 +44,7 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
   const [load, setLoad] = useState(() => (closureId ? 'loading' : 'ready'))
   const [kind, setKind] = useState(() => closureCardState(initial, { fresh: mode === 'create' }).kind)
   const [notes, setNotes] = useState(() => closureCardState(initial, { fresh: mode === 'create' }).notes)
-  const [sheet, setSheet] = useState(() => closureCardState(initial, { fresh: mode === 'create' }).sheet)
+  const [cables, setCables] = useState(() => closureCardState(initial, { fresh: mode === 'create' }).cables)
   const [images, setImages] = useState(() => closureCardState(initial, { fresh: mode === 'create' }).images)
   const [uploading, setUploading] = useState(false)
   useEffect(() => {
@@ -59,7 +57,7 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
         const state = closureCardState(res.data.data, { fresh: false })
         setKind(state.kind)
         setNotes(state.notes)
-        setSheet(state.sheet)
+        setCables(state.cables)
         setImages(state.images)
         setLoad('ready')
       })
@@ -71,7 +69,6 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
   // A failed read falls back to what the line knows (kind and note); the
   // sheet and photos are then hidden and left out of the save.
   const known = load === 'ready'
-  const setField = (key) => (e) => setSheet((s) => ({ ...s, [key]: e.target.value }))
 
   // A closure saved before these three were the only choices keeps its own
   // wording, shown as a chip it cannot be put back to once it is changed.
@@ -157,43 +154,7 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
             ))}
           </div>
 
-          {known && (
-            <>
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-medium text-muted">Cable type</span>
-                <Select id="closure-fiber-type" value={sheet.fiberType} onChange={setField('fiberType')}>
-                  <option value="">Not recorded</option>
-                  {FIBER_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-
-              {/* Labelled above rather than crammed into the option text: three
-                  side-by-side dropdowns truncate to "0 ·", "In", "Ou" otherwise. */}
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'closure-tubes', key: 'tubeCount', label: 'Tubes', values: TUBE_COUNTS },
-                  { id: 'closure-in-core', key: 'inCoreCount', label: 'Core in', values: CORE_COUNTS },
-                  { id: 'closure-out-core', key: 'outCoreCount', label: 'Core out', values: CORE_COUNTS },
-                ].map((field) => (
-                  <label key={field.id} className="flex min-w-0 flex-col gap-1">
-                    <span className="text-[11px] font-medium text-muted">{field.label}</span>
-                    <Select id={field.id} value={sheet[field.key]} onChange={setField(field.key)}>
-                      <option value="">—</option>
-                      {field.values.map((count) => (
-                        <option key={count} value={count}>
-                          {count}
-                        </option>
-                      ))}
-                    </Select>
-                  </label>
-                ))}
-              </div>
-            </>
-          )}
+          {known && <ClosureCablesEditor cables={cables} onChange={setCables} disabled={saving} compact />}
 
           <Input
             id="closure-note"
@@ -213,7 +174,7 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
             />
           ) : (
             <p className="text-sm font-normal text-faint">
-              The rest of this closure could not be loaded — edit its cable, cores and photos on the
+              The rest of this closure could not be loaded — edit its cables and photos on the
               Closures page.
             </p>
           )}
@@ -233,7 +194,7 @@ export default function ClosureCard({ mode = 'create', initial, splitter, at, bo
           disabled={saving || uploading || load === 'loading'}
           onClick={() =>
             onSave(
-              closureCardPayload({ kind, notes, sheet, images }, { mode, sheetKnown: known, imagesKnown: known }),
+              closureCardPayload({ kind, notes, cables, images }, { mode, sheetKnown: known, imagesKnown: known }),
             )
           }
         >
