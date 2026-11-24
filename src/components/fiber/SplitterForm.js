@@ -75,6 +75,8 @@ export default function SplitterForm({ closureId, splitter, endingFibers = [], b
   const wingList = building ? (building.wings ?? []) : loadedWings
   const inBuilding = Boolean(bld)
   const usePicker = Boolean(building) || (editing && !splitter.closure && !splitter.onFiber)
+  // Only in its building (no closure, no line): the building can be changed, not removed (the server agrees).
+  const buildingOnly = editing && Boolean(splitter.building) && !splitter.closure && !splitter.onFiber
   const fiberPin = pin ?? (splitter ? { latitude: splitter.latitude, longitude: splitter.longitude } : null)
   const [place, setPlace] = useState({
     wingId: splitter?.wing?.id ?? '',
@@ -199,17 +201,19 @@ export default function SplitterForm({ closureId, splitter, endingFibers = [], b
                 <Button type="button" variant="ghost" className="h-11 min-h-11" onClick={() => setPickingBuilding(true)}>
                   Change
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-11 min-h-11"
-                  onClick={() => {
-                    setBld(null)
-                    setPlace((p) => ({ ...p, wingId: '', placement: '', floorNumber: '' }))
-                  }}
-                >
-                  Remove
-                </Button>
+                {!buildingOnly && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-11 min-h-11"
+                    onClick={() => {
+                      setBld(null)
+                      setPlace((p) => ({ ...p, wingId: '', placement: '', floorNumber: '' }))
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
               </span>
             </div>
           ) : (

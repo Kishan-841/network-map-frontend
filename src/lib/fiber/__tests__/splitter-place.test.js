@@ -39,6 +39,8 @@ describe('splitterWhere', () => {
     expect(splitterWhere({ building: { buildingName: 'Sai Heights' }, wing: { name: 'B' }, placement: 'FLOOR', floorNumber: 3 }))
       .toBe('Sai Heights · Wing B · Floor 3')
     expect(splitterWhere({ building: { buildingName: 'Sai Heights' } })).toBe('Sai Heights')
+    expect(splitterWhere({ closure: { code: 'JC-0012' }, building: { buildingName: 'Sai Heights' }, placement: 'GROUND' }))
+      .toBe('Closure JC-0012 · Sai Heights · Ground')
     expect(splitterWhere({ closure: { code: 'JC-0012' } })).toBe('Closure JC-0012')
     expect(splitterWhere({ onFiber: { name: 'FIB-22' } })).toBe('On FIB-22')
     expect(splitterWhere({})).toBe('—')

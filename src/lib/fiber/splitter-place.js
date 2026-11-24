@@ -39,7 +39,10 @@ export function splitterPlaceBody({ wingId, placement, floorNumber, note }) {
 /** Where a splitter is, in one line: its building (wing, place), its closure, or the line it sits on. */
 export function splitterWhere(s) {
   if (s.building) {
-    return [s.building.buildingName, s.wing ? `Wing ${s.wing.name}` : null, placementLabel(s)].filter(Boolean).join(' · ')
+    // A closure splitter given a building later keeps its closure first.
+    return [s.closure ? `Closure ${s.closure.code}` : null, s.building.buildingName, s.wing ? `Wing ${s.wing.name}` : null, placementLabel(s)]
+      .filter(Boolean)
+      .join(' · ')
   }
   if (s.closure) return `Closure ${s.closure.code}`
   if (s.onFiber) return `On ${s.onFiber.name}`
