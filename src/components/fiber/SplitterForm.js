@@ -1,17 +1,35 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { RATIO_LABELS } from '@/lib/fiber/constants'
-import { PLACEMENTS, MAX_FLOOR, feedPatch, splitterPlaceBody, splitterPlaceError } from '@/lib/fiber/splitter-place'
+import { PLACEMENTS, MAX_FLOOR, editPlaceBody, feedPatch, splitterPlaceBody, splitterPlaceError } from '@/lib/fiber/splitter-place'
 import FiberPicker from '@/components/fiber/FiberPicker'
+import BuildingSearch from '@/components/fiber/BuildingSearch'
 
 const RATIOS = Object.keys(RATIO_LABELS)
 const LOCATIONS = ['S1', 'S2', 'S3']
 const FIBER_TYPES = ['MAIN', 'SUB']
 const FIBER_TYPE_LABEL = { MAIN: 'Main', SUB: 'Sub' }
+
+/** A building's wings (for the edit form after a building is added or changed). Tagged by id. */
+function useWings(buildingId) {
+  const [state, setState] = useState({ id: null, wings: [] })
+  useEffect(() => {
+    if (!buildingId) return undefined
+    let alive = true
+    apiClient
+      .get(`/buildings/${buildingId}`)
+      .then((res) => alive && setState({ id: buildingId, wings: res.data.data.wings ?? [] }))
+      .catch(() => alive && setState({ id: buildingId, wings: [] }))
+    return () => {
+      alive = false
+    }
+  }, [buildingId])
+  return state.id === buildingId ? state.wings : []
+}
 
 /** Segmented pill group — same idiom as SavePanel's status/placement pickers. */
 function PillGroup({ options, value, onChange, label: labelFor }) {
@@ -42,14 +60,23 @@ function PillGroup({ options, value, onChange, label: labelFor }) {
  * `endingFibers` are the fibers that may feed it.
  *
  * In a building (spec 2026-11-24-splitter-in-building): pass `building`
- * ({ id, wings }) and `pin` to ADD one there (POST /splitters), or edit a
- * splitter that has a building with its `wings`. The form then also asks for
- * the wing, where in the building and a note, and the input fiber is picked
- * from fibres near the pin or by route name.
+ * ({ id, buildingName, wings }) and `pin` to ADD one there (POST /splitters).
+ * When EDITING any splitter — old closure and line ones too — its building can
+ * be added, changed or removed; with a building the form also asks for the
+ * wing, where in the building, and a note (the note is there for every edit).
+ * The input fiber of a splitter that is only in a building is picked from
+ * fibres near it or by route name; a closure / line splitter keeps its list.
  */
-export default function SplitterForm({ closureId, splitter, endingFibers = [], building, pin, wings, onSaved, onCancel }) {
-  const inBuilding = Boolean(building || splitter?.building)
-  const wingList = building?.wings ?? wings ?? []
+export default function SplitterForm({ closureId, splitter, endingFibers = [], building, pin, onSaved, onCancel }) {
+  const editing = Boolean(splitter)
+  const [bld, setBld] = useState(building ? { id: building.id, buildingName: building.buildingName } : (splitter?.building ?? null))
+  const [pickingBuilding, setPickingBuilding] = useState(false)
+  const loadedWings = useWings(editing ? bld?.id : null)
+  const wingList = building ? (building.wings ?? []) : loadedWings
+  const inBuilding = Boolean(bld)
+  const usePicker = Boolean(building) || (editing && !splitter.closure && !splitter.onFiber)
+  // Only in its building (no closure, no line): the building can be changed, not removed (the server agrees).
+  const buildingOnly = editing && Boolean(splitter.building) && !splitter.closure && !splitter.onFiber
   const fiberPin = pin ?? (splitter ? { latitude: splitter.latitude, longitude: splitter.longitude } : null)
   const [place, setPlace] = useState({
     wingId: splitter?.wing?.id ?? '',
@@ -73,25 +100,25 @@ export default function SplitterForm({ closureId, splitter, endingFibers = [], b
     setError(null)
     try {
       const base = { ratio, fiberType: fiberType || null, location }
+      const placeError = inBuilding ? splitterPlaceError(place) : null
+      if (placeError) {
+        setError(placeError)
+        setSaving(false)
+        return
+      }
+      const feed = usePicker
+        ? feedPatch({ adding: !editing, before: splitter?.inputFiber?.id, chosen: inputFiber?.id })
+        : feedPatch({ adding: !editing, before: splitter ? (splitter.inputFiberId ?? splitter.inputFiber?.id) : null, chosen: inputFiberId || null })
       let res
-      if (inBuilding) {
-        const placeError = splitterPlaceError(place)
-        if (placeError) {
-          setError(placeError)
-          setSaving(false)
-          return
-        }
-        const feed = feedPatch({ adding: !splitter, before: splitter?.inputFiber?.id, chosen: inputFiber?.id })
-        const body = { ...base, ...feed, ...splitterPlaceBody(place) }
-        res = splitter
-          ? await apiClient.patch(`/splitters/${splitter.id}`, body)
-          : await apiClient.post('/splitters', { ...body, buildingId: building.id, latitude: pin.latitude, longitude: pin.longitude })
+      if (editing) {
+        const body = { ...base, ...feed, ...editPlaceBody({ before: splitter.building?.id, building: bld, place }) }
+        res = await apiClient.patch(`/splitters/${splitter.id}`, body)
+      } else if (building) {
+        res = await apiClient.post('/splitters', {
+          ...base, ...feed, ...splitterPlaceBody(place), buildingId: building.id, latitude: pin.latitude, longitude: pin.longitude,
+        })
       } else {
-        const before = splitter ? (splitter.inputFiberId ?? splitter.inputFiber?.id ?? null) : null
-        const body = { ...base, ...feedPatch({ adding: !splitter, before, chosen: inputFiberId || null }) }
-        res = splitter
-          ? await apiClient.patch(`/splitters/${splitter.id}`, body)
-          : await apiClient.post(`/closures/${closureId}/splitters`, body)
+        res = await apiClient.post(`/closures/${closureId}/splitters`, { ...base, ...feed })
       }
       onSaved?.(res.data.data)
     } catch (err) {
@@ -130,7 +157,7 @@ export default function SplitterForm({ closureId, splitter, endingFibers = [], b
         ))}
       </Select>
 
-      {inBuilding ? (
+      {usePicker ? (
         <FiberPicker latitude={fiberPin?.latitude} longitude={fiberPin?.longitude} value={inputFiber} onChange={setInputFiber} />
       ) : (
         <Select
@@ -146,6 +173,57 @@ export default function SplitterForm({ closureId, splitter, endingFibers = [], b
             </option>
           ))}
         </Select>
+      )}
+
+      {editing && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-ink">Building</span>
+          {pickingBuilding ? (
+            <>
+              <BuildingSearch
+                autoFocus
+                onPick={(b) => {
+                  setBld({ id: b.id, buildingName: b.buildingName })
+                  setPlace((p) => ({ ...p, wingId: '' }))
+                  setPickingBuilding(false)
+                }}
+              />
+              <div>
+                <Button type="button" variant="ghost" className="h-11 min-h-11" onClick={() => setPickingBuilding(false)}>
+                  Keep as it was
+                </Button>
+              </div>
+            </>
+          ) : bld ? (
+            <div className="flex flex-col rounded-btn border border-line px-3 pt-2.5 pb-1">
+              <span className="break-words text-sm font-medium text-ink">{bld.buildingName}</span>
+              <span className="-ml-3 flex">
+                <Button type="button" variant="ghost" className="h-11 min-h-11" onClick={() => setPickingBuilding(true)}>
+                  Change
+                </Button>
+                {!buildingOnly && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-11 min-h-11"
+                    onClick={() => {
+                      setBld(null)
+                      setPlace((p) => ({ ...p, wingId: '', placement: '', floorNumber: '' }))
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </span>
+            </div>
+          ) : (
+            <div>
+              <Button type="button" variant="secondary" className="h-11 min-h-11" onClick={() => setPickingBuilding(true)}>
+                Add a building
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {inBuilding && wingList.length > 0 && (
@@ -204,7 +282,7 @@ export default function SplitterForm({ closureId, splitter, endingFibers = [], b
         </div>
       )}
 
-      {inBuilding && (
+      {(inBuilding || editing) && (
         <Textarea
           id="splitter-note"
           label="Note"

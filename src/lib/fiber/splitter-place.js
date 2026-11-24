@@ -39,7 +39,10 @@ export function splitterPlaceBody({ wingId, placement, floorNumber, note }) {
 /** Where a splitter is, in one line: its building (wing, place), its closure, or the line it sits on. */
 export function splitterWhere(s) {
   if (s.building) {
-    return [s.building.buildingName, s.wing ? `Wing ${s.wing.name}` : null, placementLabel(s)].filter(Boolean).join(' · ')
+    // A closure splitter given a building later keeps its closure first.
+    return [s.closure ? `Closure ${s.closure.code}` : null, s.building.buildingName, s.wing ? `Wing ${s.wing.name}` : null, placementLabel(s)]
+      .filter(Boolean)
+      .join(' · ')
   }
   if (s.closure) return `Closure ${s.closure.code}`
   if (s.onFiber) return `On ${s.onFiber.name}`
@@ -54,3 +57,12 @@ export const distanceLabel = (m) => (m == null ? null : m < 1000 ? `${Math.round
  */
 export const feedPatch = ({ adding, before, chosen }) =>
   adding || (before ?? null) !== (chosen ?? null) ? { inputFiberId: chosen ?? null } : {}
+
+/**
+ * The building part of an EDIT: the building only when it changed (null removes it — the server then
+ * clears wing and where), the wing / where / note when there is a building, else just the note.
+ */
+export function editPlaceBody({ before, building, place }) {
+  const part = (before ?? null) !== (building?.id ?? null) ? { buildingId: building?.id ?? null } : {}
+  return building ? { ...part, ...splitterPlaceBody(place) } : { ...part, note: (place.note ?? '').trim() || null }
+}

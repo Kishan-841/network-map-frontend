@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { distanceLabel, feedPatch, placementLabel, splitterPlaceBody, splitterPlaceError, splitterWhere } from '../splitter-place'
+import { distanceLabel, editPlaceBody, feedPatch, placementLabel, splitterPlaceBody, splitterPlaceError, splitterWhere } from '../splitter-place'
 
 describe('placementLabel', () => {
   it('names where in the building, with the floor number for a floor', () => {
@@ -39,6 +39,8 @@ describe('splitterWhere', () => {
     expect(splitterWhere({ building: { buildingName: 'Sai Heights' }, wing: { name: 'B' }, placement: 'FLOOR', floorNumber: 3 }))
       .toBe('Sai Heights · Wing B · Floor 3')
     expect(splitterWhere({ building: { buildingName: 'Sai Heights' } })).toBe('Sai Heights')
+    expect(splitterWhere({ closure: { code: 'JC-0012' }, building: { buildingName: 'Sai Heights' }, placement: 'GROUND' }))
+      .toBe('Closure JC-0012 · Sai Heights · Ground')
     expect(splitterWhere({ closure: { code: 'JC-0012' } })).toBe('Closure JC-0012')
     expect(splitterWhere({ onFiber: { name: 'FIB-22' } })).toBe('On FIB-22')
     expect(splitterWhere({})).toBe('—')
@@ -63,5 +65,22 @@ describe('feedPatch', () => {
     expect(feedPatch({ adding: false, before: 'f1', chosen: 'f1' })).toEqual({})
     expect(feedPatch({ adding: false, before: 'f1', chosen: null })).toEqual({ inputFiberId: null })
     expect(feedPatch({ adding: false, before: null, chosen: 'f2' })).toEqual({ inputFiberId: 'f2' })
+  })
+})
+
+describe('editPlaceBody', () => {
+  const place = { wingId: 'w1', placement: 'FLOOR', floorNumber: '4', note: ' n ' }
+  it('adds a building to an old splitter with its wing, where and note', () => {
+    expect(editPlaceBody({ before: null, building: { id: 'b1' }, place }))
+      .toEqual({ buildingId: 'b1', wingId: 'w1', placement: 'FLOOR', floorNumber: 4, note: 'n' })
+  })
+  it('does not resend an unchanged building', () => {
+    expect(editPlaceBody({ before: 'b1', building: { id: 'b1' }, place })).not.toHaveProperty('buildingId')
+  })
+  it('removing the building sends null and only the note', () => {
+    expect(editPlaceBody({ before: 'b1', building: null, place })).toEqual({ buildingId: null, note: 'n' })
+  })
+  it('a splitter with no building before or after sends only its note', () => {
+    expect(editPlaceBody({ before: null, building: null, place: { ...place, note: '' } })).toEqual({ note: null })
   })
 })
