@@ -70,23 +70,6 @@ function useFeedOptions(splitter, active) {
   return [...byId.values()]
 }
 
-/** A building splitter's wings, for its edit form (loaded only while editing). */
-function useBuildingWings(buildingId, active) {
-  const [state, setState] = useState({ id: null, wings: [] })
-  useEffect(() => {
-    if (!active || !buildingId) return undefined
-    let alive = true
-    apiClient
-      .get(`/buildings/${buildingId}`)
-      .then((res) => alive && setState({ id: buildingId, wings: res.data.data.wings ?? [] }))
-      .catch(() => alive && setState({ id: buildingId, wings: [] }))
-    return () => {
-      alive = false
-    }
-  }, [active, buildingId])
-  return state.id === buildingId ? state.wings : []
-}
-
 export default function SplitterDetails({ id, canManage, canEditItem, onOpen, onCentre, onDeleted }) {
   const { data: splitter, loading, error, retry, refresh } = useDetail(`/splitters/${id}`, 'Could not load this splitter')
   const [busy, setBusy] = useState(false)
@@ -94,7 +77,6 @@ export default function SplitterDetails({ id, canManage, canEditItem, onOpen, on
   // Editing ratio / type / feed inside the drawer.
   const [editing, setEditing] = useState(false)
   const feedOptions = useFeedOptions(splitter, editing)
-  const wings = useBuildingWings(splitter?.building?.id, editing)
 
   if (loading) return <Skeleton />
   if (error) return <LoadError error={error} onRetry={retry} />
@@ -149,7 +131,6 @@ export default function SplitterDetails({ id, canManage, canEditItem, onOpen, on
         <SplitterForm
           splitter={splitter}
           endingFibers={feedOptions}
-          wings={wings}
           onCancel={() => setEditing(false)}
           onSaved={() => {
             setEditing(false)
@@ -168,6 +149,8 @@ export default function SplitterDetails({ id, canManage, canEditItem, onOpen, on
             ['Ratio', ratio],
             ['Splitter type', splitter.location],
             ['Fiber type', splitter.fiberType ? (FIBER_TYPE_LABELS[splitter.fiberType] ?? splitter.fiberType) : null],
+            // A note on a splitter with no building shows here; a building splitter's sits with its building.
+            ...(!splitter.building && splitter.note ? [['Note', splitter.note]] : []),
           ]}
         />
       </Section>
