@@ -136,3 +136,9 @@ export function readPlanQuery(params, today) {
     phase: PHASES.includes(get('phase')) ? get('phase') : '',
   }
 }
+
+/** A plan row's visit page, carrying the plan's address so the page's back arrow returns to it. */
+export const visitLink = (visitId, planHref) => `/sales/visits/${visitId}?back=${encodeURIComponent(planHref)}`
+
+/** A `back` address the visit page may use: only the sales page itself (never another site). */
+export const safeBack = (value) => (typeof value === 'string' && /^\/sales(\?|$)/.test(value) ? value : null)

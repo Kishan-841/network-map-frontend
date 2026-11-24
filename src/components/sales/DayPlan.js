@@ -7,7 +7,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { ROLE_LABELS } from '@/lib/roles'
 import {
   committedDate, countsOf, filterOptions, filterRows, istToday, peopleList, planQuery, readPlanQuery, rowStatus, shownSummary,
-  todayCards, windowLabel,
+  todayCards, visitLink, windowLabel,
 } from '@/lib/sales-today'
 import { useClientTable } from '@/hooks/useClientTable'
 import { Input, Select } from '@/components/ui/Input'
@@ -35,8 +35,6 @@ function Status({ row }) {
   )
 }
 
-// Visited / visiting rows open the visit (a companion visit opens the visit they came along on).
-const visitHref = (r) => `/sales/visits/${r.visit.id}`
 
 const who = (a) => (
   <span className="text-sm font-normal">
@@ -44,7 +42,11 @@ const who = (a) => (
   </span>
 )
 
-const columns = [
+// Visited / visiting rows open the visit (a companion visit opens the visit they came along on);
+// `back` is the plan's address, so the visit page's back arrow returns to this day and these filters.
+const makeColumns = (back) => {
+  const visitHref = (r) => visitLink(r.visit.id, back)
+  return [
   {
     key: 'building',
     header: 'Building',
@@ -76,9 +78,12 @@ const columns = [
         <Status row={r} />
       ),
   },
-]
+  ]
+}
 
-const renderCard = (r) => (r.visit ? <Link href={visitHref(r)} className="block">{cardBody(r)}</Link> : cardBody(r))
+function cardFor(r, back) {
+  return r.visit ? <Link href={visitLink(r.visit.id, back)} className="block">{cardBody(r)}</Link> : cardBody(r)
+}
 
 const cardBody = (r) => (
   <div className="rounded-card border border-line bg-card p-3 shadow-soft">
@@ -97,7 +102,7 @@ const cardBody = (r) => (
 )
 
 /** One day's rows. Remounted (key) per day + person, so search and page start fresh. */
-function PlanTable({ rows, loading, forPerson }) {
+function PlanTable({ rows, loading, forPerson, back }) {
   const table = useClientTable(rows, { getSearchText: searchText })
   return (
     <>
@@ -108,11 +113,11 @@ function PlanTable({ rows, loading, forPerson }) {
         className="mb-4"
       />
       <DataTable
-        columns={columns}
+        columns={makeColumns(back)}
         rows={table.rows}
         loading={loading}
         keyField="id"
-        renderCard={renderCard}
+        renderCard={(r) => cardFor(r, back)}
         emptyState={
           <p className="text-sm font-normal text-muted">
             {forPerson ? 'Nothing planned for this person on this day.' : 'Nothing planned for this day. Upload a plan from Team plan.'}
@@ -167,10 +172,11 @@ export function DayPlan() {
   const state = readPlanQuery(useSearchParams(), today)
   const { date, userId } = state
   const place = { operatorId: state.operatorId, zoneId: state.zoneId, city: state.city, phase: state.phase }
-  const update = (patch) => {
-    const qs = planQuery({ ...state, ...patch }, today)
-    router.replace(qs ? `/sales?${qs}` : '/sales', { scroll: false })
+  const hrefFor = (s) => {
+    const qs = planQuery(s, today)
+    return qs ? `/sales?${qs}` : '/sales'
   }
+  const update = (patch) => router.replace(hrefFor({ ...state, ...patch }), { scroll: false })
   // A half-typed day in the date box, kept only while the address still shows the day it was typed on;
   // once the day changes (a whole date typed, or Back) the box shows the address's day.
   const [draft, setDraft] = useState({ on: null, value: '' })
@@ -332,7 +338,7 @@ export function DayPlan() {
       )}
 
       <div className={loading && shown ? 'opacity-60' : ''}>
-        <PlanTable key={`${filterKey}|${activeKey}`} rows={filtered} loading={!shown && !failed} forPerson={Boolean(userId)} />
+        <PlanTable key={`${filterKey}|${activeKey}`} rows={filtered} loading={!shown && !failed} forPerson={Boolean(userId)} back={hrefFor(state)} />
       </div>
 
       <Modal open={peopleOpen && Boolean(shown)} onClose={() => setPeopleOpen(false)} title={`Checked in — ${fmtDay(date)}`}>

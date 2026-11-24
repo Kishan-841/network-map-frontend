@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { committedDate, countsOf, filterOptions, filterRows, peopleList, planQuery, readPlanQuery, rowPhase, rowStatus, shownSummary, todayCards, windowLabel } from '../sales-today'
+import { committedDate, countsOf, filterOptions, filterRows, peopleList, planQuery, readPlanQuery, safeBack, visitLink, rowPhase, rowStatus, shownSummary, todayCards, windowLabel } from '../sales-today'
 
 const team = { date: '2026-11-24', planned: 1240, done: 18, notVisited: 1222, held: 310, checkedIn: 5, users: 10, user: null }
 const byKey = (cards) => Object.fromEntries(cards.map((c) => [c.key, c]))
@@ -150,5 +150,20 @@ describe('plan filters in the address', () => {
     expect(readPlanQuery(q, today)).toEqual({ date: '2026-10-15', userId: 'u1', operatorId: 'o1', zoneId: 'z1', city: 'Pune', phase: 'visiting' })
     expect(readPlanQuery(new URLSearchParams('date=0002-01-01&status=nope'), today))
       .toEqual({ date: today, userId: '', operatorId: '', zoneId: '', city: '', phase: '' })
+  })
+})
+
+describe('visit links back to the plan', () => {
+  it('carries the plan address so the visit page can return to it', () => {
+    expect(visitLink('v1', '/sales?date=2026-10-15&status=visited')).toBe('/sales/visits/v1?back=%2Fsales%3Fdate%3D2026-10-15%26status%3Dvisited')
+    expect(visitLink('v1', '/sales')).toBe('/sales/visits/v1?back=%2Fsales')
+  })
+  it('only goes back inside /sales', () => {
+    expect(safeBack('/sales?date=2026-10-15')).toBe('/sales?date=2026-10-15')
+    expect(safeBack('/sales')).toBe('/sales')
+    expect(safeBack('https://evil.example')).toBeNull()
+    expect(safeBack('//evil.example/sales')).toBeNull()
+    expect(safeBack('/salesx')).toBeNull()
+    expect(safeBack(null)).toBeNull()
   })
 })
