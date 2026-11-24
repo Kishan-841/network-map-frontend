@@ -136,6 +136,23 @@ describe('peopleList', () => {
     ]
     expect(peopleList(people).map((p) => [p.id, p.time])).toEqual([['m', '09:52'], ['b', '10:30'], ['a', null], ['r', null]])
   })
+
+  it("adds each person's planned and visited buildings for the day, and their initials", () => {
+    const people = [
+      { id: 'm', name: 'Madhav Jalba More', firstCheckInAt: '2026-11-24T04:22:00.000Z' },
+      { id: 'a', name: 'Asha', firstCheckInAt: null },
+    ]
+    const dayRows = [
+      { ...mk('1', null, 'VISITED', done), assignee: { id: 'm' } },
+      { ...mk('2', null, 'VISITED', open), assignee: { id: 'm' } },
+      { ...mk('3', null, 'DUE_NOW'), assignee: { id: 'm' } },
+      { ...mk('4', null, 'UPCOMING'), assignee: { id: 'a' } },
+    ]
+    expect(peopleList(people, dayRows).map(({ id, planned, visited, initials }) => ({ id, planned, visited, initials }))).toEqual([
+      { id: 'm', planned: 3, visited: 2, initials: 'MM' },
+      { id: 'a', planned: 1, visited: 0, initials: 'A' },
+    ])
+  })
 })
 
 describe('plan filters in the address', () => {

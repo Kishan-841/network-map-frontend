@@ -100,15 +100,35 @@ export function countsOf(rows) {
   return { planned: rows.length, done, notVisited: rows.length - done }
 }
 
-/** Who checked in: checked-in first (earliest first), then the rest by name; `time` is IST HH:MM or null. */
-export function peopleList(people) {
+const initialsOf = (name) => {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean)
+  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+}
+
+/**
+ * Who checked in: checked-in first (earliest first), then the rest by name; `time` is IST HH:MM or null.
+ * With the day's rows, each person also gets `planned` / `visited` (visited + visiting) buildings.
+ */
+export function peopleList(people, dayRows = []) {
+  const tally = new Map()
+  for (const r of dayRows) {
+    const t = tally.get(r.assignee.id) ?? { planned: 0, visited: 0 }
+    t.planned += 1
+    if (rowPhase(r) !== 'not_visited') t.visited += 1
+    tally.set(r.assignee.id, t)
+  }
   return [...people]
     .sort((a, b) => {
       if (a.firstCheckInAt && b.firstCheckInAt) return new Date(a.firstCheckInAt) - new Date(b.firstCheckInAt)
       if (a.firstCheckInAt || b.firstCheckInAt) return a.firstCheckInAt ? -1 : 1
       return byName(a, b)
     })
-    .map((p) => ({ ...p, time: p.firstCheckInAt ? istTime(p.firstCheckInAt) : null }))
+    .map((p) => ({
+      ...p,
+      time: p.firstCheckInAt ? istTime(p.firstCheckInAt) : null,
+      initials: initialsOf(p.name),
+      ...(tally.get(p.id) ?? { planned: 0, visited: 0 }),
+    }))
 }
 
 // The day plan's filters live in the address (?date=&user=&op=&zone=&city=&status=), so Back from a visit

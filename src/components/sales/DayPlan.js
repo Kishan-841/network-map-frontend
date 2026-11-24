@@ -26,7 +26,7 @@ function Status({ row }) {
   const s = rowStatus(row)
   return (
     <span className="inline-flex flex-col">
-      <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${TONE[s.tone]}`}>
+      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium ${TONE[s.tone]}`}>
         <span className={`h-1.5 w-1.5 rounded-full ${DOT[s.tone]}`} />
         {s.label}
       </span>
@@ -129,29 +129,79 @@ function PlanTable({ rows, loading, forPerson, back }) {
   )
 }
 
-/** Everyone in scope for the day: who checked in (first check-in time) and who didn't. */
-function PeopleChecked({ people }) {
-  const list = peopleList(people)
-  const inCount = list.filter((p) => p.time).length
+/** One person in the Checked in panel: initials, name, role + how much of the day's plan they visited, time. */
+function PersonRow({ p }) {
+  const checked = Boolean(p.time)
+  return (
+    <li className="flex items-center gap-3 py-3">
+      <span
+        aria-hidden="true"
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+          checked ? 'bg-ok-tint text-ok' : 'bg-bad-tint text-bad'
+        }`}
+      >
+        {p.initials}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-ink">{p.name}</p>
+        <p className="truncate text-xs font-normal text-muted">
+          {ROLE_LABELS[p.role] ?? p.role}
+          {p.planned > 0 ? ` · ${p.visited} of ${p.planned} visited` : ' · nothing planned'}
+        </p>
+      </div>
+      {checked ? (
+        <span className="shrink-0 text-right">
+          <span className="block text-sm font-semibold tabular-nums text-ink">{p.time}</span>
+          <span className="block text-[11px] font-normal text-muted">first check-in</span>
+        </span>
+      ) : (
+        <span className="shrink-0 rounded-full bg-bad-tint px-2.5 py-1 text-xs font-medium text-bad">Not yet</span>
+      )}
+    </li>
+  )
+}
+
+/** Everyone in scope for the day: a summary bar, then who checked in (by time) and who has not. */
+function PeopleChecked({ people, rows }) {
+  const list = peopleList(people, rows)
+  const done = list.filter((p) => p.time)
+  const notYet = list.filter((p) => !p.time)
+  const pct = list.length ? Math.round((done.length / list.length) * 100) : 0
+  const group = (title, items) =>
+    items.length > 0 && (
+      <section className="mt-4">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+          {title} <span className="ml-1 font-normal">{items.length}</span>
+        </h3>
+        <ul className="divide-y divide-line">
+          {items.map((p) => (
+            <PersonRow key={p.id} p={p} />
+          ))}
+        </ul>
+      </section>
+    )
   return (
     <div>
-      <p className="mb-3 text-sm font-normal text-muted">
-        {inCount} of {list.length} checked in
-      </p>
-      <ul className="divide-y divide-line">
-        {list.map((p) => (
-          <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
-            <span className="min-w-0 truncate text-sm">
-              <span className={`mr-2 inline-block h-2 w-2 rounded-full ${p.time ? 'bg-ok' : 'bg-bad'}`} aria-hidden="true" />
-              <span className="font-medium text-ink">{p.name}</span>
-              <span className="text-muted"> · {ROLE_LABELS[p.role] ?? p.role}</span>
-            </span>
-            <span className={`shrink-0 text-sm tabular-nums ${p.time ? 'text-ink' : 'text-bad'}`}>
-              {p.time ? `first check-in ${p.time}` : 'Not checked in'}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div className="rounded-card bg-paper p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-2xl font-semibold tabular-nums text-ink">
+            {done.length} <span className="text-base font-normal text-muted">of {list.length} checked in</span>
+          </p>
+          <p className="text-sm font-medium tabular-nums text-muted">{pct}%</p>
+        </div>
+        <div
+          className="mt-3 h-2 overflow-hidden rounded-full bg-line"
+          role="progressbar"
+          aria-valuenow={done.length}
+          aria-valuemin={0}
+          aria-valuemax={list.length}
+          aria-label="Checked in"
+        >
+          <div className="h-full rounded-full bg-ok transition-[width] duration-300" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      {group('Checked in', done)}
+      {group('Not checked in yet', notYet)}
     </div>
   )
 }
@@ -304,7 +354,7 @@ export function DayPlan() {
                 <>
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{c.label}</p>
                   <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{c.value}</p>
-                  <p className="text-sm font-normal text-muted">{c.key === 'checkedIn' ? `${c.sub} · see who` : c.sub}</p>
+                  <p className="text-sm font-normal text-muted">{c.key === 'checkedIn' && !shown.user ? 'tap to see who' : c.sub}</p>
                 </>
               )
               return c.key === 'checkedIn' ? (
@@ -341,8 +391,8 @@ export function DayPlan() {
         <PlanTable key={`${filterKey}|${activeKey}`} rows={filtered} loading={!shown && !failed} forPerson={Boolean(userId)} back={hrefFor(state)} />
       </div>
 
-      <Modal open={peopleOpen && Boolean(shown)} onClose={() => setPeopleOpen(false)} title={`Checked in — ${fmtDay(date)}`}>
-        {shown && <PeopleChecked people={shown.people ?? []} />}
+      <Modal open={peopleOpen && Boolean(shown)} onClose={() => setPeopleOpen(false)} title={`Who checked in · ${fmtDay(date)}`}>
+        {shown && <PeopleChecked people={shown.people ?? []} rows={shown.rows ?? []} />}
       </Modal>
     </section>
   )
