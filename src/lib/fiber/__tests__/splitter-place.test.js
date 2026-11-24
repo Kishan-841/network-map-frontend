@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { distanceLabel, placementLabel, splitterPlaceBody, splitterPlaceError, splitterWhere } from '../splitter-place'
+import { distanceLabel, feedPatch, placementLabel, splitterPlaceBody, splitterPlaceError, splitterWhere } from '../splitter-place'
 
 describe('placementLabel', () => {
   it('names where in the building, with the floor number for a floor', () => {
@@ -50,5 +50,18 @@ describe('distanceLabel', () => {
     expect(distanceLabel(35)).toBe('35 m')
     expect(distanceLabel(1250)).toBe('1.3 km')
     expect(distanceLabel(null)).toBeNull()
+  })
+})
+
+describe('feedPatch', () => {
+  it('always sends the feed when adding', () => {
+    expect(feedPatch({ adding: true, before: null, chosen: 'f1' })).toEqual({ inputFiberId: 'f1' })
+    expect(feedPatch({ adding: true, before: null, chosen: null })).toEqual({ inputFiberId: null })
+  })
+  it('sends it on an edit only when it changed — a feed the form could not see is never wiped', () => {
+    expect(feedPatch({ adding: false, before: null, chosen: null })).toEqual({})
+    expect(feedPatch({ adding: false, before: 'f1', chosen: 'f1' })).toEqual({})
+    expect(feedPatch({ adding: false, before: 'f1', chosen: null })).toEqual({ inputFiberId: null })
+    expect(feedPatch({ adding: false, before: null, chosen: 'f2' })).toEqual({ inputFiberId: 'f2' })
   })
 })

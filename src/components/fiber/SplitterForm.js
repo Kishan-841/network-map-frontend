@@ -5,7 +5,7 @@ import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { RATIO_LABELS } from '@/lib/fiber/constants'
-import { PLACEMENTS, MAX_FLOOR, splitterPlaceBody, splitterPlaceError } from '@/lib/fiber/splitter-place'
+import { PLACEMENTS, MAX_FLOOR, feedPatch, splitterPlaceBody, splitterPlaceError } from '@/lib/fiber/splitter-place'
 import FiberPicker from '@/components/fiber/FiberPicker'
 
 const RATIOS = Object.keys(RATIO_LABELS)
@@ -81,12 +81,14 @@ export default function SplitterForm({ closureId, splitter, endingFibers = [], b
           setSaving(false)
           return
         }
-        const body = { ...base, inputFiberId: inputFiber?.id ?? null, ...splitterPlaceBody(place) }
+        const feed = feedPatch({ adding: !splitter, before: splitter?.inputFiber?.id, chosen: inputFiber?.id })
+        const body = { ...base, ...feed, ...splitterPlaceBody(place) }
         res = splitter
           ? await apiClient.patch(`/splitters/${splitter.id}`, body)
           : await apiClient.post('/splitters', { ...body, buildingId: building.id, latitude: pin.latitude, longitude: pin.longitude })
       } else {
-        const body = { ...base, inputFiberId: inputFiberId || null }
+        const before = splitter ? (splitter.inputFiberId ?? splitter.inputFiber?.id ?? null) : null
+        const body = { ...base, ...feedPatch({ adding: !splitter, before, chosen: inputFiberId || null }) }
         res = splitter
           ? await apiClient.patch(`/splitters/${splitter.id}`, body)
           : await apiClient.post(`/closures/${closureId}/splitters`, body)

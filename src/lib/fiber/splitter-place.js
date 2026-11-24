@@ -47,3 +47,10 @@ export function splitterWhere(s) {
 }
 
 export const distanceLabel = (m) => (m == null ? null : m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`)
+
+/**
+ * The input-fibre part of a splitter body. Adding: always. Editing: only when the user changed it —
+ * the form starts at "none" when the current feed is a fibre the user can't see, and must not wipe it.
+ */
+export const feedPatch = ({ adding, before, chosen }) =>
+  adding || (before ?? null) !== (chosen ?? null) ? { inputFiberId: chosen ?? null } : {}
