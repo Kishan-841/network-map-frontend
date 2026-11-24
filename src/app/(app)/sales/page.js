@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { canAssignSalesBuildings, isSalesExecutive, isSalesManager, ROLE_LABELS } from '@/lib/roles'
 import { useSalesBuildings, invalidateSalesBuildings, useOpenVisit } from '@/hooks/useSales'
@@ -15,13 +16,13 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { Select } from '@/components/ui/Input'
 import { Pagination } from '@/components/ui/Pagination'
 import { Button } from '@/components/ui/Button'
-import { IconDownload } from '@/components/ui/icons'
+import { IconBuildings, IconDownload } from '@/components/ui/icons'
 import { exportBuildings } from '@/lib/export-buildings'
 import { Toast } from '@/components/ui/Toast'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
 import { CheckInModal } from '@/components/sales/CheckInModal'
 import { OpenVisitCard } from '@/components/sales/OpenVisitCard'
-import { TodayCards } from '@/components/sales/TodayCards'
+import { DayPlan } from '@/components/sales/DayPlan'
 
 const holderOf = (b) => b.salesAssignments?.[0]?.assignedTo ?? null
 const TIER_OPTIONS = ['PLATINUM', 'GOLD', 'SILVER', 'BRONZE', 'UNRATED']
@@ -97,7 +98,7 @@ const heldByCell = (b) => {
  * or executive. Server-side filtering + pagination via GET /buildings (the
  * sales manager reads it coverage-scoped, read-only).
  */
-function ManagerRegistry() {
+function ManagerRegistry({ onBack }) {
   const [operatorId, setOperatorId] = useState('')
   const [zoneId, setZoneId] = useState('')
   const [tier, setTier] = useState('')
@@ -193,8 +194,14 @@ function ManagerRegistry() {
     <main className="mx-auto max-w-5xl">
       <PageHeader
         eyebrow="Field sales"
-        title="Sales"
+        title="Assign buildings"
         sub="Every building in the registry — filter, select and assign to your team"
+        backHref="/sales"
+        backLabel="Back to the day's plan"
+        onBackClick={(e) => {
+          e.preventDefault()
+          onBack()
+        }}
         action={
           <Button variant="secondary" onClick={handleExport} loading={exporting}>
             <IconDownload className="h-4.5 w-4.5" />
@@ -203,8 +210,6 @@ function ManagerRegistry() {
         }
       />
       <Toast key={toast} message={toast} onDone={() => setToast(null)} />
-
-      <TodayCards />
 
       {/* Filters */}
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -401,8 +406,41 @@ function FieldPool({ role }) {
   )
 }
 
+/**
+ * Manager / admin landing: the day's visit plan (spec 2026-11-24-sales-day-plan).
+ * The registry for handing out buildings is /sales?view=assign — a URL, so the
+ * sidebar's Day plan link and browser Back both return to the plan.
+ */
+function ManagerSales() {
+  const router = useRouter()
+  const view = useSearchParams().get('view')
+  if (view === 'assign') return <ManagerRegistry onBack={() => router.push('/sales')} />
+  return (
+    <main className="mx-auto max-w-5xl">
+      <PageHeader
+        eyebrow="Field sales"
+        title="Sales"
+        sub="The day's visit plan — who was meant to visit what, and what got done"
+        action={
+          <Button onClick={() => router.push('/sales?view=assign')}>
+            <IconBuildings className="h-4.5 w-4.5" />
+            Assign buildings
+          </Button>
+        }
+      />
+      <DayPlan />
+    </main>
+  )
+}
+
 export default function SalesPage() {
   const role = useAuthStore((s) => s.user?.role)
   const isManagerView = role === 'ADMIN' || isSalesManager(role)
-  return isManagerView ? <ManagerRegistry /> : <FieldPool role={role} />
+  if (!isManagerView) return <FieldPool role={role} />
+  // useSearchParams needs a Suspense boundary (Next 16 docs: use-search-params).
+  return (
+    <Suspense fallback={<div className="mx-auto h-48 max-w-5xl animate-pulse rounded-card bg-paper" />}>
+      <ManagerSales />
+    </Suspense>
+  )
 }

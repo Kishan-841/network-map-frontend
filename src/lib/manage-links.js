@@ -35,7 +35,7 @@ export const NAV_GROUPS = [
     label: 'Field sales',
     items: [
       { href: '/sales/dashboard', label: 'Sales overview', icon: IconDashboard, exact: true },
-      { href: '/sales', label: 'Assign buildings', icon: IconBuildings, exact: true },
+      { href: '/sales', label: 'Day plan', icon: IconBuildings, exact: true },
       { href: '/sales/zones', label: 'Team zones', icon: IconMap, exact: true },
       { href: '/sales/plan', label: 'Team plan', icon: IconTeamPlan, exact: true },
       // The permission executives' societies (hidden from Buildings until accepted).
