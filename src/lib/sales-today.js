@@ -12,7 +12,7 @@ export function todayCards(summary) {
   const { planned, done, held, checkedIn, users, user } = summary
   const checkedInCard = user
     ? user.firstCheckInAt
-      ? { value: 'Checked in', sub: `at ${istTime(user.firstCheckInAt)}` }
+      ? { value: istTime(user.firstCheckInAt), sub: 'first check-in today' }
       : { value: 'Not yet', sub: 'no check-in today' }
     : { value: `${n(checkedIn)} / ${n(users)}`, sub: 'checked in today' }
   return [

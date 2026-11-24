@@ -22,7 +22,7 @@ describe('todayCards', () => {
   it("shows one person's first check-in time in IST", () => {
     const user = { id: 'u', name: 'Asha', role: 'SALES_EXECUTIVE', firstCheckInAt: '2026-11-24T04:44:00.000Z' }
     const c = byKey(todayCards({ ...team, users: 1, checkedIn: 1, user }))
-    expect(c.checkedIn).toMatchObject({ value: 'Checked in', sub: 'at 10:14' })
+    expect(c.checkedIn).toEqual({ key: 'checkedIn', label: 'Checked in', value: '10:14', sub: 'first check-in today' })
   })
 
   it('shows Not yet for one person with no check-in today', () => {
