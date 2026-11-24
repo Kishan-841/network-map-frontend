@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { committedDate, rowStatus, shownSummary, todayCards, windowLabel } from '../sales-today'
+import { committedDate, countsOf, filterOptions, filterRows, peopleList, planQuery, readPlanQuery, safeBack, visitLink, rowPhase, rowStatus, shownSummary, todayCards, windowLabel } from '../sales-today'
 
 const team = { date: '2026-11-24', planned: 1240, done: 18, notVisited: 1222, held: 310, checkedIn: 5, users: 10, user: null }
 const byKey = (cards) => Object.fromEntries(cards.map((c) => [c.key, c]))
@@ -33,7 +33,7 @@ describe('todayCards', () => {
 })
 
 describe('rowStatus', () => {
-  const visit = { visitedAt: '2026-11-24T05:12:00.000Z', byName: 'Asha', viaCompanion: false }
+  const visit = { visitedAt: '2026-11-24T05:12:00.000Z', checkOutAt: '2026-11-24T05:40:00.000Z', byName: 'Asha', viaCompanion: false }
   it('visited in time → ok, with the IST time', () => {
     expect(rowStatus({ status: 'VISITED', visit })).toEqual({ label: 'Visited 10:42', detail: null, tone: 'ok' })
   })
@@ -76,5 +76,94 @@ describe('shownSummary', () => {
     expect(shownSummary({ filterKey: '2026-11-24|', summary }, '2026-11-24|asha')).toBeNull()
     expect(shownSummary({ filterKey: '2026-11-23|', summary }, '2026-11-24|')).toBeNull()
     expect(shownSummary({ filterKey: null, summary: null }, '2026-11-24|')).toBeNull()
+  })
+})
+
+const zoneA = { id: 'za', name: 'Aundh', city: 'Pune', operator: { id: 'o1', name: 'Airtel' } }
+const zoneB = { id: 'zb', name: 'Baner', city: 'Pune', operator: null }
+const zoneC = { id: 'zc', name: 'Cidco', city: 'Aurangabad', operator: { id: 'o2', name: 'Jio' } }
+const mk = (id, zone, status, visit = null) => ({ id, status, visit, building: { id: `b${id}`, buildingName: id, zone } })
+const done = { id: 'v1', visitedAt: '2026-11-24T05:00:00.000Z', checkOutAt: '2026-11-24T05:30:00.000Z', byName: 'A', viaCompanion: false }
+const open = { ...done, id: 'v2', checkOutAt: null }
+const rows = [mk('1', zoneA, 'VISITED', done), mk('2', zoneB, 'VISITED_OUTSIDE', open), mk('3', zoneC, 'DUE_NOW'), mk('4', null, 'UPCOMING')]
+
+describe('rowPhase', () => {
+  it('visited = checked out, visiting = still checked in, else not visited', () => {
+    expect(rows.map(rowPhase)).toEqual(['visited', 'visiting', 'not_visited', 'not_visited'])
+  })
+  it('a visiting row reads Visiting since the check-in time', () => {
+    expect(rowStatus(rows[1])).toMatchObject({ label: 'Visiting since 10:30' })
+  })
+})
+
+describe('filterOptions', () => {
+  it('lists the operators, zones and cities present in the rows, sorted', () => {
+    expect(filterOptions(rows)).toEqual({
+      operators: [{ id: 'o1', name: 'Airtel' }, { id: 'o2', name: 'Jio' }],
+      zones: [{ id: 'za', name: 'Aundh' }, { id: 'zb', name: 'Baner' }, { id: 'zc', name: 'Cidco' }],
+      cities: ['Aurangabad', 'Pune'],
+    })
+  })
+})
+
+describe('filterRows', () => {
+  const ids = (f) => filterRows(rows, f).map((r) => r.id)
+  it('keeps everything with no filters (a building with no zone too)', () => {
+    expect(ids({})).toEqual(['1', '2', '3', '4'])
+  })
+  it('narrows by operator, zone, city and phase together', () => {
+    expect(ids({ operatorId: 'o1' })).toEqual(['1'])
+    expect(ids({ zoneId: 'zb' })).toEqual(['2'])
+    expect(ids({ city: 'Pune' })).toEqual(['1', '2'])
+    expect(ids({ city: 'Pune', phase: 'visiting' })).toEqual(['2'])
+    expect(ids({ phase: 'not_visited' })).toEqual(['3', '4'])
+  })
+})
+
+describe('countsOf', () => {
+  it('counts planned, done (visited + visiting) and not visited', () => {
+    expect(countsOf(rows)).toEqual({ planned: 4, done: 2, notVisited: 2 })
+  })
+})
+
+describe('peopleList', () => {
+  it('puts people who checked in first, earliest first, then the rest by name', () => {
+    const people = [
+      { id: 'r', name: 'Ravi', firstCheckInAt: null },
+      { id: 'b', name: 'Bina', firstCheckInAt: '2026-11-24T05:00:00.000Z' },
+      { id: 'a', name: 'Asha', firstCheckInAt: null },
+      { id: 'm', name: 'Madhav', firstCheckInAt: '2026-11-24T04:22:00.000Z' },
+    ]
+    expect(peopleList(people).map((p) => [p.id, p.time])).toEqual([['m', '09:52'], ['b', '10:30'], ['a', null], ['r', null]])
+  })
+})
+
+describe('plan filters in the address', () => {
+  const today = '2026-11-24'
+  it('writes only what differs from the default view', () => {
+    expect(planQuery({ date: today, userId: '', operatorId: '', zoneId: '', city: '', phase: '' }, today)).toBe('')
+    expect(planQuery({ date: '2026-10-15', userId: 'u1', operatorId: '', zoneId: 'z1', city: 'PCMC', phase: 'visited' }, today))
+      .toBe('date=2026-10-15&user=u1&zone=z1&city=PCMC&status=visited')
+  })
+  it('reads it back, ignoring junk', () => {
+    const q = new URLSearchParams('date=2026-10-15&user=u1&op=o1&status=visiting&zone=z1&city=Pune')
+    expect(readPlanQuery(q, today)).toEqual({ date: '2026-10-15', userId: 'u1', operatorId: 'o1', zoneId: 'z1', city: 'Pune', phase: 'visiting' })
+    expect(readPlanQuery(new URLSearchParams('date=0002-01-01&status=nope'), today))
+      .toEqual({ date: today, userId: '', operatorId: '', zoneId: '', city: '', phase: '' })
+  })
+})
+
+describe('visit links back to the plan', () => {
+  it('carries the plan address so the visit page can return to it', () => {
+    expect(visitLink('v1', '/sales?date=2026-10-15&status=visited')).toBe('/sales/visits/v1?back=%2Fsales%3Fdate%3D2026-10-15%26status%3Dvisited')
+    expect(visitLink('v1', '/sales')).toBe('/sales/visits/v1?back=%2Fsales')
+  })
+  it('only goes back inside /sales', () => {
+    expect(safeBack('/sales?date=2026-10-15')).toBe('/sales?date=2026-10-15')
+    expect(safeBack('/sales')).toBe('/sales')
+    expect(safeBack('https://evil.example')).toBeNull()
+    expect(safeBack('//evil.example/sales')).toBeNull()
+    expect(safeBack('/salesx')).toBeNull()
+    expect(safeBack(null)).toBeNull()
   })
 })

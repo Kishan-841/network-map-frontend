@@ -1,14 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
+import { safeBack } from '@/lib/sales-today'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { VisitDetailBody } from '@/components/sales/VisitDetailBody'
 import { PageHeader } from '@/components/ui/PageHeader'
 
 /** Everything about one field visit — the whole record in one place. */
 export default function VisitDetailPage() {
+  // useSearchParams needs a Suspense boundary (Next 16 docs: use-search-params).
+  return (
+    <Suspense fallback={null}>
+      <VisitDetail />
+    </Suspense>
+  )
+}
+
+function VisitDetail() {
   const { id } = useParams()
+  // Opened from the day plan: the back arrow returns to that day and its filters.
+  const back = safeBack(useSearchParams().get('back'))
   const [visit, setVisit] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -30,8 +42,8 @@ export default function VisitDetailPage() {
         eyebrow="Field sales"
         title="Visit"
         sub={visit ? `${visit.user?.name} · ${visit.building?.buildingName}` : ''}
-        backHref="/sales/dashboard"
-        backLabel="Dashboard"
+        backHref={back ?? '/sales/dashboard'}
+        backLabel={back ? 'Day plan' : 'Dashboard'}
       />
 
       {loading && <p className="text-sm font-normal text-muted">Loading…</p>}
