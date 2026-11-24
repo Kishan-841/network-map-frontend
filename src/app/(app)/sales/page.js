@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { canAssignSalesBuildings, isSalesExecutive, isSalesManager, ROLE_LABELS } from '@/lib/roles'
 import { useSalesBuildings, invalidateSalesBuildings, useOpenVisit } from '@/hooks/useSales'
@@ -407,11 +408,13 @@ function FieldPool({ role }) {
 
 /**
  * Manager / admin landing: the day's visit plan (spec 2026-11-24-sales-day-plan).
- * The registry for handing out buildings sits behind "Assign buildings".
+ * The registry for handing out buildings is /sales?view=assign — a URL, so the
+ * sidebar's Day plan link and browser Back both return to the plan.
  */
 function ManagerSales() {
-  const [assigning, setAssigning] = useState(false)
-  if (assigning) return <ManagerRegistry onBack={() => setAssigning(false)} />
+  const router = useRouter()
+  const view = useSearchParams().get('view')
+  if (view === 'assign') return <ManagerRegistry onBack={() => router.push('/sales')} />
   return (
     <main className="mx-auto max-w-5xl">
       <PageHeader
@@ -419,7 +422,7 @@ function ManagerSales() {
         title="Sales"
         sub="The day's visit plan — who was meant to visit what, and what got done"
         action={
-          <Button onClick={() => setAssigning(true)}>
+          <Button onClick={() => router.push('/sales?view=assign')}>
             <IconBuildings className="h-4.5 w-4.5" />
             Assign buildings
           </Button>
@@ -433,5 +436,11 @@ function ManagerSales() {
 export default function SalesPage() {
   const role = useAuthStore((s) => s.user?.role)
   const isManagerView = role === 'ADMIN' || isSalesManager(role)
-  return isManagerView ? <ManagerSales /> : <FieldPool role={role} />
+  if (!isManagerView) return <FieldPool role={role} />
+  // useSearchParams needs a Suspense boundary (Next 16 docs: use-search-params).
+  return (
+    <Suspense fallback={<div className="mx-auto h-48 max-w-5xl animate-pulse rounded-card bg-paper" />}>
+      <ManagerSales />
+    </Suspense>
+  )
 }

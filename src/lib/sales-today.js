@@ -40,3 +40,13 @@ export const windowLabel = ({ startTime, endTime }) => (startTime ? `${startTime
 
 /** Today's IST day as YYYY-MM-DD (the date picker's default). */
 export const istToday = (now = new Date()) => now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
+/**
+ * A date input's value worth fetching: a whole YYYY-MM-DD from 2000 on. Chrome sends ''
+ * when a segment is cleared and 0002-…, 0020-… while a year is typed — those are ignored.
+ */
+export const committedDate = (value) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value ?? '') && value >= '2000-01-01' ? value : null
+
+/** The fetched summary, only if it answers these filters (`date|userId`) — never another day's or person's. */
+export const shownSummary = (result, filterKey) => (result.summary && result.filterKey === filterKey ? result.summary : null)

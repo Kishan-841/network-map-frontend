@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiClient, getApiErrorMessage } from '@/lib/api-client'
 import { ROLE_LABELS } from '@/lib/roles'
-import { istToday, rowStatus, todayCards, windowLabel } from '@/lib/sales-today'
+import { committedDate, istToday, rowStatus, shownSummary, todayCards, windowLabel } from '@/lib/sales-today'
 import { useClientTable } from '@/hooks/useClientTable'
 import { Input, Select } from '@/components/ui/Input'
 import { DataTable } from '@/components/ui/DataTable'
@@ -67,6 +67,34 @@ const renderCard = (r) => (
   </div>
 )
 
+/** One day's rows. Remounted (key) per day + person, so search and page start fresh. */
+function PlanTable({ rows, loading, forPerson }) {
+  const table = useClientTable(rows, { getSearchText: searchText })
+  return (
+    <>
+      <SearchInput
+        value={table.search}
+        onChange={table.onSearchChange}
+        placeholder="Search by building, address or person…"
+        className="mb-4"
+      />
+      <DataTable
+        columns={columns}
+        rows={table.rows}
+        loading={loading}
+        keyField="id"
+        renderCard={renderCard}
+        emptyState={
+          <p className="text-sm font-normal text-muted">
+            {forPerson ? 'Nothing planned for this person on this day.' : 'Nothing planned for this day. Upload a plan from Team plan.'}
+          </p>
+        }
+      />
+      <Pagination pagination={table.pagination} onChange={table.onPageChange} />
+    </>
+  )
+}
+
 const fmtDay = (day) =>
   new Date(`${day}T00:00:00+05:30`).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -77,14 +105,17 @@ const fmtDay = (day) =>
  */
 export function DayPlan() {
   const [date, setDate] = useState(() => istToday())
+  const [draft, setDraft] = useState(date) // what the date box shows while a day is being typed
   const [people, setPeople] = useState({ list: [], error: null })
   const [userId, setUserId] = useState('')
   const [tick, setTick] = useState(0)
-  // The last answer, tagged with the request it answers: "loading" is derived, and a
-  // late answer to an old filter can never overwrite the current one (alive flag).
-  const [result, setResult] = useState({ key: null, summary: null, error: null })
+  // The last answer, tagged with the request (key) and the filters (filterKey) it answers:
+  // "loading" is derived, a late answer to an old filter is dropped (alive flag), and a
+  // failed request never leaves another day's or person's numbers on screen.
+  const [result, setResult] = useState({ key: null, filterKey: null, summary: null, error: null })
   const lastFetch = useRef(0)
-  const key = `${date}|${userId}|${tick}`
+  const filterKey = `${date}|${userId}`
+  const key = `${filterKey}|${tick}`
 
   useEffect(() => {
     let alive = true
@@ -102,12 +133,12 @@ export function DayPlan() {
     lastFetch.current = Date.now()
     apiClient
       .get('/sales/tasks/today-summary', { params: { date, ...(userId ? { userId } : {}) } })
-      .then((res) => alive && setResult({ key, summary: res.data.data, error: null }))
-      .catch((err) => alive && setResult((prev) => ({ key, summary: prev.summary, error: getApiErrorMessage(err, "Could not load this day's plan") })))
+      .then((res) => alive && setResult({ key, filterKey, summary: res.data.data, error: null }))
+      .catch((err) => alive && setResult((prev) => ({ ...prev, key, error: getApiErrorMessage(err, "Could not load this day's plan") })))
     return () => {
       alive = false
     }
-  }, [key, date, userId])
+  }, [key, filterKey, date, userId])
 
   useEffect(() => {
     const onFocus = () => {
@@ -118,10 +149,10 @@ export function DayPlan() {
   }, [])
 
   const loading = result.key !== key
-  // Rows of the shown answer only once it matches the filters (no old day's rows under a new date).
-  const current = !loading && result.summary?.date === date ? result.summary : null
-  const table = useClientTable(current?.rows ?? [], { getSearchText: searchText })
-  const cards = result.summary ? todayCards(result.summary) : null
+  // Shown only when it answers these filters; a focus refresh keeps it on screen, dimmed.
+  const shown = shownSummary(result, filterKey)
+  const cards = shown ? todayCards(shown) : null
+  const failed = Boolean(result.error) && !loading
   const isToday = date === istToday()
 
   return (
@@ -131,8 +162,12 @@ export function DayPlan() {
           id="f-plan-date"
           type="date"
           aria-label="Day"
-          value={date}
-          onChange={(e) => setDate(e.target.value || istToday())}
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value)
+            const day = committedDate(e.target.value)
+            if (day) setDate(day)
+          }}
         />
         <Select id="f-sales-user" aria-label="Sales user" value={userId} onChange={(e) => setUserId(e.target.value)}>
           <option value="">All sales users</option>
@@ -158,9 +193,11 @@ export function DayPlan() {
                 <p className="text-sm font-normal text-muted">{c.sub}</p>
               </div>
             ))
-          : [0, 1, 2, 3].map((i) => <div key={i} className="h-[6.25rem] animate-pulse rounded-card bg-paper" />)}
+          : [0, 1, 2, 3].map((i) => (
+              <div key={i} className={`h-[6.25rem] rounded-card bg-paper ${failed ? '' : 'animate-pulse'}`} />
+            ))}
       </div>
-      {result.error && !loading ? (
+      {failed ? (
         <p className="mb-3 text-sm font-normal text-bad">
           {result.error}{' '}
           <button type="button" className="font-medium text-ink underline" onClick={() => setTick((t) => t + 1)}>
@@ -171,25 +208,9 @@ export function DayPlan() {
         <div className="mb-3" />
       )}
 
-      <SearchInput
-        value={table.search}
-        onChange={table.onSearchChange}
-        placeholder="Search by building, address or person…"
-        className="mb-4"
-      />
-      <DataTable
-        columns={columns}
-        rows={table.rows}
-        loading={loading && !current}
-        keyField="id"
-        renderCard={renderCard}
-        emptyState={
-          <p className="text-sm font-normal text-muted">
-            {userId ? 'Nothing planned for this person on this day.' : 'Nothing planned for this day. Upload a plan from Team plan.'}
-          </p>
-        }
-      />
-      <Pagination pagination={table.pagination} onChange={table.onPageChange} />
+      <div className={loading && shown ? 'opacity-60' : ''}>
+        <PlanTable key={filterKey} rows={shown?.rows ?? []} loading={!shown && !failed} forPerson={Boolean(userId)} />
+      </div>
     </section>
   )
 }

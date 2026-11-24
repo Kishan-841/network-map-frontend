@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rowStatus, todayCards, windowLabel } from '../sales-today'
+import { committedDate, rowStatus, shownSummary, todayCards, windowLabel } from '../sales-today'
 
 const team = { date: '2026-11-24', planned: 1240, done: 18, notVisited: 1222, held: 310, checkedIn: 5, users: 10, user: null }
 const byKey = (cards) => Object.fromEntries(cards.map((c) => [c.key, c]))
@@ -54,5 +54,27 @@ describe('windowLabel', () => {
   it('shows the planned window, or All day', () => {
     expect(windowLabel({ startTime: '10:00', endTime: '12:00' })).toBe('10:00–12:00')
     expect(windowLabel({ startTime: null, endTime: null })).toBe('All day')
+  })
+})
+
+describe('committedDate', () => {
+  it('takes a whole day', () => {
+    expect(committedDate('2026-10-24')).toBe('2026-10-24')
+  })
+  it('ignores a cleared or half-typed date instead of jumping', () => {
+    expect(committedDate('')).toBeNull()
+    expect(committedDate('0002-10-24')).toBeNull()
+    expect(committedDate('0202-10-24')).toBeNull()
+    expect(committedDate('2026-1-2')).toBeNull()
+  })
+})
+
+describe('shownSummary', () => {
+  const summary = { date: '2026-11-24', planned: 3 }
+  it('shows the answer only for the filters it was asked for', () => {
+    expect(shownSummary({ filterKey: '2026-11-24|', summary }, '2026-11-24|')).toBe(summary)
+    expect(shownSummary({ filterKey: '2026-11-24|', summary }, '2026-11-24|asha')).toBeNull()
+    expect(shownSummary({ filterKey: '2026-11-23|', summary }, '2026-11-24|')).toBeNull()
+    expect(shownSummary({ filterKey: null, summary: null }, '2026-11-24|')).toBeNull()
   })
 })
