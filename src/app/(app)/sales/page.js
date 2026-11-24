@@ -21,6 +21,7 @@ import { Toast } from '@/components/ui/Toast'
 import { AssignToTeamModal } from '@/components/sales/AssignToTeamModal'
 import { CheckInModal } from '@/components/sales/CheckInModal'
 import { OpenVisitCard } from '@/components/sales/OpenVisitCard'
+import { TodayCards } from '@/components/sales/TodayCards'
 
 const holderOf = (b) => b.salesAssignments?.[0]?.assignedTo ?? null
 const TIER_OPTIONS = ['PLATINUM', 'GOLD', 'SILVER', 'BRONZE', 'UNRATED']
@@ -202,6 +203,8 @@ function ManagerRegistry() {
         }
       />
       <Toast key={toast} message={toast} onDone={() => setToast(null)} />
+
+      <TodayCards />
 
       {/* Filters */}
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
