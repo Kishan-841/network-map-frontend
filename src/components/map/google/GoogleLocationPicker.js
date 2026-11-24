@@ -10,8 +10,19 @@ import MapSearchButton from '@/components/map/MapSearchButton'
  * Same contract as LeafletLocationPicker — draggable pin on Google Maps JS.
  * `searchable` adds a place search (top-left); picking a result moves the pin
  * there and reports it through `onChange`, exactly as a drag does.
+ * `clickToPlace` also moves the pin to wherever the map is clicked; `marks`
+ * ([{ latitude, longitude, label }]) are fixed reference dots (a building and
+ * its wings) with their label as the hover title. `className` sizes the box.
  */
-export default function GoogleLocationPicker({ latitude, longitude, onChange, searchable = false }) {
+export default function GoogleLocationPicker({
+  latitude,
+  longitude,
+  onChange,
+  searchable = false,
+  clickToPlace = false,
+  marks = [],
+  className = 'h-64',
+}) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
@@ -56,6 +67,12 @@ export default function GoogleLocationPicker({ latitude, longitude, onChange, se
         const point = marker.getPosition()
         onChangeRef.current({ latitude: point.lat(), longitude: point.lng() })
       })
+      if (clickToPlace) {
+        map.addListener('click', (e) => {
+          marker.setPosition(e.latLng)
+          onChangeRef.current({ latitude: e.latLng.lat(), longitude: e.latLng.lng() })
+        })
+      }
 
       mapRef.current = map
       markerRef.current = marker
@@ -80,13 +97,40 @@ export default function GoogleLocationPicker({ latitude, longitude, onChange, se
     }
   }, [latitude, longitude, ready])
 
+  // Reference dots (the building and its wings). Keyed by content so a parent
+  // re-render with an equal array does not redraw them.
+  const marksKey = JSON.stringify(marks)
+  useEffect(() => {
+    if (!ready || !mapRef.current) return undefined
+    const dots = JSON.parse(marksKey).map(
+      (m) =>
+        new google.maps.Marker({
+          map: mapRef.current,
+          position: { lat: m.latitude, lng: m.longitude },
+          title: m.label,
+          clickable: false,
+          zIndex: 1,
+          label: m.short ? { text: m.short, color: '#ffffff', fontSize: '10px', fontWeight: '600' } : undefined,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: m.short ? 9 : 6,
+            fillColor: '#475569',
+            fillOpacity: 0.9,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+          },
+        }),
+    )
+    return () => dots.forEach((d) => d.setMap(null))
+  }, [marksKey, ready])
+
   // Apply layer changes to the live map.
   useEffect(() => {
     if (mapRef.current && ready) mapRef.current.setMapTypeId(layer)
   }, [layer, ready])
 
   return (
-    <div className="relative h-64 w-full overflow-hidden rounded-xl">
+    <div className={`relative w-full overflow-hidden rounded-xl ${className}`}>
       <div ref={containerRef} className="h-full w-full" />
       <MapLayerControl value={layer} onChange={setLayer} />
       {searchable && ready && (

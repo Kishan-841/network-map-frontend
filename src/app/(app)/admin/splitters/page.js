@@ -14,18 +14,19 @@ import { IconPlus } from '@/components/ui/icons'
 import { canManageFiber } from '@/lib/roles'
 import NewSplitterPanel from '@/components/fiber/NewSplitterPanel'
 import { RATIO_LABELS, splitterColor } from '@/lib/fiber/constants'
+import { splitterWhere } from '@/lib/fiber/splitter-place'
 import { useAuthStore } from '@/stores/auth-store'
 import DetailDrawer from '@/components/fiber/details/DetailDrawer'
 import { useDetailStack } from '@/components/fiber/details/useDetailStack'
 
 const ratioLabel = (s) => RATIO_LABELS[s.ratio] ?? s.ratio
 
-// Where a splitter sits: inside a closure, or straight on a fiber line.
-const whereLabel = (s) => (s.closure ? `Closure ${s.closure.code}` : s.onFiber ? `On ${s.onFiber.name}` : '—')
+// Where a splitter sits: in a building (wing, floor…), inside a closure, or straight on a fiber line.
+const whereLabel = splitterWhere
 
 // A splitter has no zone of its own — search what a person would type: its
-// code, the ratio, the closure it is in, or the fibers it touches.
-const splitterSearchText = (s) => [s.code, ratioLabel(s), s.closure?.code, s.onFiber?.name, s.inputFiber?.name]
+// code, the ratio, the building or closure it is in, or the fibers it touches.
+const splitterSearchText = (s) => [s.code, ratioLabel(s), s.building?.buildingName, s.closure?.code, s.onFiber?.name, s.inputFiber?.name]
 
 const portsLabel = (s) => `${s.portsUsed} / ${s.portsTotal}`
 
@@ -101,7 +102,7 @@ export default function AdminSplittersPage() {
           <SearchInput
             value={table.search}
             onChange={table.onSearchChange}
-            placeholder="Search splitters by code, ratio, closure or fiber…"
+            placeholder="Search splitters by code, ratio, building, closure or fiber…"
             className="mb-4"
           />
 

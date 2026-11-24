@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { IconDiamond, IconEdit } from '@/components/ui/icons'
 import SplitterForm from '@/components/fiber/SplitterForm'
 import { invalidateSplitters } from '@/hooks/useSplitters'
+import { placementLabel } from '@/lib/fiber/splitter-place'
 import {
   CHIP,
   EmptyLine,
@@ -69,6 +70,23 @@ function useFeedOptions(splitter, active) {
   return [...byId.values()]
 }
 
+/** A building splitter's wings, for its edit form (loaded only while editing). */
+function useBuildingWings(buildingId, active) {
+  const [state, setState] = useState({ id: null, wings: [] })
+  useEffect(() => {
+    if (!active || !buildingId) return undefined
+    let alive = true
+    apiClient
+      .get(`/buildings/${buildingId}`)
+      .then((res) => alive && setState({ id: buildingId, wings: res.data.data.wings ?? [] }))
+      .catch(() => alive && setState({ id: buildingId, wings: [] }))
+    return () => {
+      alive = false
+    }
+  }, [active, buildingId])
+  return state.id === buildingId ? state.wings : []
+}
+
 export default function SplitterDetails({ id, canManage, canEditItem, onOpen, onCentre, onDeleted }) {
   const { data: splitter, loading, error, retry, refresh } = useDetail(`/splitters/${id}`, 'Could not load this splitter')
   const [busy, setBusy] = useState(false)
@@ -76,6 +94,7 @@ export default function SplitterDetails({ id, canManage, canEditItem, onOpen, on
   // Editing ratio / type / feed inside the drawer.
   const [editing, setEditing] = useState(false)
   const feedOptions = useFeedOptions(splitter, editing)
+  const wings = useBuildingWings(splitter?.building?.id, editing)
 
   if (loading) return <Skeleton />
   if (error) return <LoadError error={error} onRetry={retry} />
@@ -130,6 +149,7 @@ export default function SplitterDetails({ id, canManage, canEditItem, onOpen, on
         <SplitterForm
           splitter={splitter}
           endingFibers={feedOptions}
+          wings={wings}
           onCancel={() => setEditing(false)}
           onSaved={() => {
             setEditing(false)
@@ -151,6 +171,23 @@ export default function SplitterDetails({ id, canManage, canEditItem, onOpen, on
           ]}
         />
       </Section>
+
+      {splitter.building && (
+        <Section title="In the building">
+          <LinkRow
+            title={splitter.building.buildingName}
+            sub="Fitted in this building"
+            onClick={() => onOpen({ kind: 'building', id: splitter.building.id })}
+          />
+          <FieldList
+            rows={[
+              ['Wing', splitter.wing ? `Wing ${splitter.wing.name}` : null],
+              ['Where', placementLabel(splitter)],
+              ['Note', splitter.note],
+            ]}
+          />
+        </Section>
+      )}
 
       <Section title="Connections">
         {splitter.inputFiber ? (
